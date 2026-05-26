@@ -1,0 +1,192 @@
+# =============================================================================
+# Umaboot — .gitattributes
+#
+# Pairs with .gitignore. Controls how git stores and presents content across
+# Windows / Linux / macOS contributors and Linux-based CI runners. Without
+# this, line endings drift between OSes and diffs become noise.
+#
+# Strategy:
+#   * Default: auto-detect text vs binary; normalize text to LF in the repo
+#     (single source of truth). Working tree gets native EOL on checkout.
+#   * Force LF for source / config / docs — they must run on Linux CI and
+#     inside containers regardless of who committed them.
+#   * Force CRLF for Windows-only scripts (.bat, .cmd, .ps1) — cmd.exe
+#     parses these line-by-line and breaks on LF endings.
+#   * Mark binaries explicitly so git never tries to "normalize" or text-diff
+#     them.
+# =============================================================================
+
+
+# -------------------------------------------------- Default
+* text=auto eol=lf
+
+
+# =============================================================================
+# Source code
+# =============================================================================
+
+# Java / Kotlin (umaboot-core, umaboot-cli, umaboot-intellij Gradle DSL)
+*.java        text eol=lf
+*.kt          text eol=lf
+*.kts         text eol=lf
+
+# TypeScript / JavaScript (umaboot-vscode)
+*.ts          text eol=lf
+*.tsx         text eol=lf
+*.js          text eol=lf
+*.jsx         text eol=lf
+*.mjs         text eol=lf
+*.cjs         text eol=lf
+
+# FreeMarker templates — the generator's product. LF for consistency with
+# the Java sources they emit alongside.
+*.ftl         text eol=lf
+
+
+# =============================================================================
+# Build / project configuration
+# =============================================================================
+
+# Maven
+pom.xml       text eol=lf
+*.pom         text eol=lf
+
+# Gradle
+*.gradle      text eol=lf
+*.gradle.kts  text eol=lf
+gradle-wrapper.properties text eol=lf
+
+# Node
+package.json       text eol=lf
+package-lock.json  text eol=lf
+.vscodeignore      text eol=lf
+tsconfig.json      text eol=lf
+
+# Generic
+*.xml         text eol=lf
+*.toml        text eol=lf
+
+
+# =============================================================================
+# Configuration / data
+# =============================================================================
+*.yml         text eol=lf
+*.yaml        text eol=lf
+*.json        text eol=lf
+*.properties  text eol=lf
+*.ini         text eol=lf
+*.env         text eol=lf
+*.conf        text eol=lf
+
+
+# =============================================================================
+# Test fixtures / data
+# =============================================================================
+
+# SQL fixtures (postgres + mysql) — LF so MySQL/Postgres clients on Linux
+# don't choke on stray \r in re-runnable DDL.
+*.sql         text eol=lf
+
+
+# =============================================================================
+# Documentation
+# =============================================================================
+*.md          text eol=lf
+*.txt         text eol=lf
+LICENSE       text eol=lf
+LICENCE       text eol=lf
+NOTICE        text eol=lf
+README        text eol=lf
+AUTHORS       text eol=lf
+CHANGELOG     text eol=lf
+
+
+# =============================================================================
+# Web / vector
+# =============================================================================
+*.html        text eol=lf
+*.htm         text eol=lf
+*.css         text eol=lf
+
+# SVG is text by spec — keep diffable. The plugin icon (pluginIcon.svg) is
+# small enough that text diffs are useful when iterating on the design.
+*.svg         text eol=lf
+
+
+# =============================================================================
+# Scripts — EOL is platform-specific and CANNOT be normalized
+# =============================================================================
+
+# Unix shell scripts: must be LF or `bash` rejects them.
+*.sh          text eol=lf
+gradlew       text eol=lf
+
+# Windows batch / PowerShell scripts: must be CRLF or cmd.exe / pwsh
+# treats them as a single garbled line.
+*.bat         text eol=crlf
+*.cmd         text eol=crlf
+*.ps1         text eol=crlf
+gradlew.bat   text eol=crlf
+
+
+# =============================================================================
+# Binary — never apply EOL normalization, never try to text-diff
+# =============================================================================
+
+# Images
+*.png         binary
+*.jpg         binary
+*.jpeg        binary
+*.gif         binary
+*.ico         binary
+*.bmp         binary
+*.tiff        binary
+*.webp        binary
+
+# Archives / build artifacts
+*.jar         binary
+*.war         binary
+*.ear         binary
+*.zip         binary
+*.tar         binary
+*.tar.gz      binary
+*.tgz         binary
+*.7z          binary
+*.vsix        binary
+
+# Documents (these are .gitignore'd too, but defensive in case anyone
+# `git add -f`s one)
+*.pdf         binary
+*.docx        binary
+*.doc         binary
+*.xlsx        binary
+*.xls         binary
+*.pptx        binary
+*.ppt         binary
+
+# Fonts
+*.ttf         binary
+*.otf         binary
+*.woff        binary
+*.woff2       binary
+*.eot         binary
+
+# Compiled / native
+*.class       binary
+*.so          binary
+*.dll         binary
+*.dylib       binary
+*.exe         binary
+
+
+# =============================================================================
+# GitHub Linguist hints
+# =============================================================================
+
+# If the VS Code extension's compiled JS ever gets committed by accident,
+# don't count it in language stats.
+umaboot-vscode/out/** linguist-generated
+
+# node_modules is .gitignored, but tag it as vendored anyway so even an
+# accidental `git add -f` doesn't skew language stats.
+node_modules/** linguist-vendored

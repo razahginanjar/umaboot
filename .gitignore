@@ -1,0 +1,139 @@
+# =============================================================================
+# Umaboot — .gitignore
+#
+# Pairs with BRANCHING.md and CI.md. Anything that's regenerated from source —
+# Maven / Gradle / npm build outputs, IDE caches, IntelliJ Platform sandbox —
+# belongs here. So do source materials we don't redistribute (design docs,
+# master icon files at the repo root).
+#
+# IN-USE icons under umaboot-intellij/src/main/resources/ and
+# umaboot-vscode/resources/ ARE tracked. The root-icon patterns below are
+# anchored with a leading "/" so they only match the repo root.
+# =============================================================================
+
+
+# -------------------------------------------------- Maven build output
+# Catches every module's target/ at any depth: umaboot-core/, umaboot-cli/,
+# umaboot-test-fixtures/, umaboot-parent (top-level pom).
+target/
+
+# Compiled Java classes that escape target/ (rare, but cheap insurance).
+*.class
+
+# Surefire / failsafe crash logs
+hs_err_pid*
+replay_pid*
+
+
+# -------------------------------------------------- Gradle / IntelliJ plugin
+# Local Gradle daemon caches + per-project .gradle dirs.
+.gradle/
+build/
+
+# IntelliJ Platform plugin sandbox + downloaded toolchain JDK.
+# This dir gets to ~700 MB. Never commit.
+**/.intellijPlatform/
+
+# Gradle setting bookkeeping files
+gradle-app.setting
+
+# Allow the Gradle wrapper jar through any *.jar rule below — it's the
+# canonical way to bootstrap a build on a fresh checkout and MUST be tracked.
+!**/gradle/wrapper/gradle-wrapper.jar
+
+
+# -------------------------------------------------- Built JARs
+# Most live under target/ or build/ (already covered) but catch stragglers.
+*.jar
+*.war
+*.ear
+*.nar
+# Re-allow the wrapper (the negative match above must come AFTER *.jar).
+!**/gradle/wrapper/gradle-wrapper.jar
+
+
+# -------------------------------------------------- Node / VS Code extension
+# Downloaded npm dependencies — multi-hundred-MB tree per module.
+node_modules/
+
+# Compiled TypeScript output (umaboot-vscode/out/).
+umaboot-vscode/out/
+
+# Packaged VS Code extension. The .vsix is a build artifact uploaded by CI;
+# checking it in gets stale fast and bloats the repo.
+*.vsix
+
+
+# -------------------------------------------------- IDE / editor workspaces
+# IntelliJ project metadata — user-specific (window layouts, recent files,
+# code-style overrides). If we ever want to share specific .idea files
+# (e.g. inspections, code-style), un-ignore them with `!.idea/<file>`.
+.idea/
+
+# IntelliJ module descriptors
+*.iml
+*.iws
+*.ipr
+
+# VS Code workspace settings — user-specific debug launches, etc.
+.vscode/
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# NetBeans
+nbproject/
+nbactions.xml
+nb-configuration.xml
+
+
+# -------------------------------------------------- OS / file-system junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+
+# -------------------------------------------------- Logs & temp
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+
+
+# -------------------------------------------------- Umaboot runtime cache
+# When the CLI / IntelliJ plugin runs from the repo root, it caches the
+# version-metadata fetches under ~/.umaboot/ — this also catches any local
+# accidental copy.
+.umaboot/
+
+
+# -------------------------------------------------- Scratch / experimental
+# Convention used for throwaway helper scripts during development sessions.
+__scratch_*
+
+
+# =============================================================================
+# Sensitive / non-distributable content
+# =============================================================================
+
+# -------------------------------------------------- Design documents
+# CRUDForge architecture write-ups, draft proposals, internal notes.
+*.docx
+*.pdf
+
+
+# -------------------------------------------------- Master / source icon files
+# These live at the REPO ROOT and are the source-of-truth raster + vector
+# from which the in-tree plugin icons (small PNGs + pluginIcon.svg) are
+# derived. Not for public redistribution.
+#
+# IMPORTANT: leading "/" anchors these to the root only — the in-use icons
+# under umaboot-intellij/src/main/resources/ and umaboot-vscode/resources/
+# stay tracked.
+/icon.png
+/icon-no-bg.png
+/icon-no-bg-*.svg
+/icon-no-bg-*.png
