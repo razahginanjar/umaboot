@@ -91,6 +91,18 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
+<#else>
+        <!--
+          PageResponse.java imports org.springframework.data.domain.Page so its
+          static of(Page<T>) factory works. JPA pulls spring-data-commons in
+          transitively; for MyBatis / jOOQ projects we declare it explicitly so
+          the generated PageResponse.java compiles. Version is managed by the
+          spring-boot-starter-parent BOM.
+        -->
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-commons</artifactId>
+        </dependency>
 </#if>
 <#if isMyBatis>
         <dependency>

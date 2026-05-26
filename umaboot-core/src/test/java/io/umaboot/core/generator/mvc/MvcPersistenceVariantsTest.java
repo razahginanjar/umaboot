@@ -35,6 +35,8 @@ class MvcPersistenceVariantsTest {
         assertThat(pom).contains("spring-boot-starter-data-jpa");
         assertThat(pom).doesNotContain("mybatis");
         assertThat(pom).doesNotContain("jooq-codegen");
+        // JPA pulls spring-data-commons in transitively — no explicit dep.
+        assertThat(pom).doesNotContain("spring-data-commons");
     }
 
     @Test
@@ -62,6 +64,9 @@ class MvcPersistenceVariantsTest {
         String pom = readUnit(units, "pom.xml");
         assertThat(pom).contains("mybatis-spring-boot-starter");
         assertThat(pom).doesNotContain("spring-boot-starter-data-jpa");
+        // Non-JPA project — spring-data-commons must be declared explicitly so
+        // that PageResponse.java's import org.springframework.data.domain.Page resolves.
+        assertThat(pom).contains("<artifactId>spring-data-commons</artifactId>");
 
         String yml = readUnit(units, "src/main/resources/application.yml");
         assertThat(yml).contains("mapper-locations: classpath:mapper/*.xml");
@@ -114,6 +119,8 @@ class MvcPersistenceVariantsTest {
         assertThat(pom).contains("jooq-codegen-maven");
         assertThat(pom).contains("PostgresDatabase");
         assertThat(pom).contains("<packageName>com.example.shop.jooq</packageName>");
+        // jOOQ project — spring-data-commons must be declared explicitly.
+        assertThat(pom).contains("<artifactId>spring-data-commons</artifactId>");
 
         // application.yml logs jOOQ, not Hibernate
         String yml = readUnit(units, "src/main/resources/application.yml");

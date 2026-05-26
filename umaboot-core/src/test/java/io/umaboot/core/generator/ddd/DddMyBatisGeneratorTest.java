@@ -44,6 +44,9 @@ class DddMyBatisGeneratorTest {
         // pom.xml has mybatis-spring-boot-starter
         String pom = readUnit(units, "pom.xml");
         assertThat(pom).contains("mybatis-spring-boot-starter");
+        // PageResponse.java imports org.springframework.data.domain.Page; declare the
+        // dep explicitly for non-JPA projects so the generated project compiles.
+        assertThat(pom).contains("<artifactId>spring-data-commons</artifactId>");
         assertThat(pom).doesNotContain("spring-boot-starter-data-jpa");
 
         // application.yml has mapper-locations

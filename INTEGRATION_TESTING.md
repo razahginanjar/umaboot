@@ -141,6 +141,7 @@ Use these three artifacts for everything below.
 | **I-22b** | Open the panel again, tick **Use project directory** under Output mode, click **Apply** | The Output dir text field becomes disabled. `umaboot.yaml` now contains `outputDir: .`. | ☐ |
 | **I-22c** | Run **Tools → Umaboot: Generate** with the project-directory checkbox ticked | Generated files land directly in the project root (next to `umaboot.yaml`), not under `generated/`. The notification path matches the project root. | ☐ |
 | **I-22d** | Set **App config format: properties** in the Settings panel and run Generate | Generated project has `src/main/resources/application.properties` (dotted-key form, same content) and **no** `application.yml`. Switching back to `yaml` and re-generating produces the inverse. | ☐ |
+| **I-25** | Generate any non-JPA project (e.g. Hexagonal + MyBatis, DDD + MyBatis, MVC + jOOQ). Run `mvn -f generated/pom.xml compile` | Build succeeds. The pom contains an explicit `spring-data-commons` dependency, so the generated `PageResponse.java`'s `import org.springframework.data.domain.Page` resolves. (JPA projects don't need this — they pull `spring-data-commons` in transitively via `spring-boot-starter-data-jpa`.) | ☐ |
 | **I-23** | Right-click `generated/pom.xml` → "Add as Maven Project" → run `mvn package` | Build succeeds; produces a JAR | ☐ |
 | **I-24** | In the generated project, run `mvn spring-boot:run` and `curl http://localhost:8080/api/customers` | Returns `200` with `PageResponse` JSON shape | ☐ |
 
