@@ -45,7 +45,13 @@ public final class OpenApiEmitter {
         sb.append("paths:\n");
         for (TableModel table : schema.tables()) {
             if (table.junction()) continue;
-            String entityName = Naming.entityClass(table.name(), ctx.classNameStripPrefix());
+            String entityName = Naming.entityClass(
+                    table.name(),
+                    ctx.classNameStripPrefix(),
+                    ctx.tableOverride(table.name())
+                            .map(io.umaboot.core.config.UmabootConfig.TableOverride::className)
+                            .filter(s -> !s.isBlank())
+                            .orElse(null));
             String plural = entityName.toLowerCase(Locale.ROOT) + "s";
             emitPaths(sb, entityName, plural);
         }
@@ -54,7 +60,13 @@ public final class OpenApiEmitter {
         sb.append("  schemas:\n");
         for (TableModel table : schema.tables()) {
             if (table.junction()) continue;
-            String entityName = Naming.entityClass(table.name(), ctx.classNameStripPrefix());
+            String entityName = Naming.entityClass(
+                    table.name(),
+                    ctx.classNameStripPrefix(),
+                    ctx.tableOverride(table.name())
+                            .map(io.umaboot.core.config.UmabootConfig.TableOverride::className)
+                            .filter(s -> !s.isBlank())
+                            .orElse(null));
             emitSchemas(sb, entityName, table);
         }
         sb.append("    Page:\n");

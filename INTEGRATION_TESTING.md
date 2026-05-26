@@ -127,6 +127,8 @@ Use these three artifacts for everything below.
 | **I-11** | Test Connection with bad password | Red status with the JDBC error message | ☐ |
 | **I-12** | Click **Refresh Tables** | Table-picker checkboxes populate (`customers`, `orders`, `products`, `tags`; `product_tags` filtered as junction) | ☐ |
 | **I-12b** | Type `app_` in **Strip prefix from class names**, click **Apply**, then re-open `umaboot.yaml` | The yaml has `tables.classNameStripPrefix: app_`. Run Generate against a schema with `app_users`: the entity file is `User.java` (not `AppUser.java`). Tables that don't start with `app_` are left alone. | ☐ |
+| **I-12c** | After Refresh Tables, **double-click** a row in the table list | Per-table customization dialog opens with that table's columns listed (name / DB type / Java type combo). Pick `Object` for a `text` column, click Save, then run Generate. The generated entity uses `Object`-typed field for that column. | ☐ |
+| **I-12d** | In the same dialog, type `Account` into the **Class name (override)** field on row `app_users`, Save | YAML has `tables.overrides.app_users.className: Account`. Generate produces `Account.java` regardless of the strip-prefix setting. | ☐ |
 | **I-13** | Uncheck a table → click **Apply** → reopen Settings | The unchecked table is absent from `tables.include` in `umaboot.yaml` | ☐ |
 
 ### Generation flow

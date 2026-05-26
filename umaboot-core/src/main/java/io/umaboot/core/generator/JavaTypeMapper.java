@@ -9,7 +9,45 @@ import java.sql.Types;
  */
 public final class JavaTypeMapper {
 
+    /**
+     * Curated list of Java types the per-column override dropdown offers.
+     * Stored as the canonical type string the templates render verbatim:
+     * primitives, java.lang.* short names (no import needed), or fully-qualified
+     * names (the existing import resolver handles them).
+     *
+     * <p>Each entry maps to one display name in the panel dropdown via
+     * {@link #simpleName(String)}.</p>
+     */
+    public static final java.util.List<String> CURATED_OVERRIDE_TYPES = java.util.List.of(
+            "int", "long", "short", "byte", "boolean", "float", "double",
+            "Integer", "Long", "Short", "Byte", "Boolean", "Float", "Double",
+            "String", "Object",
+            "java.math.BigDecimal",
+            "java.math.BigInteger",
+            "java.time.LocalDate",
+            "java.time.LocalDateTime",
+            "java.time.OffsetDateTime",
+            "java.time.Instant",
+            "java.time.LocalTime",
+            "java.util.UUID",
+            "java.util.Map<String,Object>",
+            "java.util.List<Object>",
+            "byte[]"
+    );
+
     private JavaTypeMapper() {}
+
+    /**
+     * Returns the Java type name for the given column, honoring an explicit
+     * per-column override when one is provided. The caller is responsible
+     * for adding the corresponding import (use {@link #importFor(String)}).
+     */
+    public static String javaType(ColumnModel column, String overrideJavaType) {
+        if (overrideJavaType != null && !overrideJavaType.isBlank()) {
+            return overrideJavaType;
+        }
+        return javaType(column);
+    }
 
     /**
      * Returns the simple Java type name for the given column.

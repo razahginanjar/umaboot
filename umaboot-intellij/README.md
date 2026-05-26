@@ -35,6 +35,9 @@ The first save of an existing project rewrites a pre-v0.8 `umaboot.yaml` (flat `
 - Click **Refresh Tables** — the plugin reads the live schema using the introspector that matches your URL (Postgres or MySQL), filters out pure junction tables, and shows everything else as checkboxes.
 - The state of each checkbox controls whether the table goes into `generation.tables.include`. Unchecked tables are simply absent from the include list.
 - **Strip prefix from class names** — text field above the list. Configure a single prefix (e.g. `app_`) and Umaboot strips it from every table name before camel-casing into a class name (so `app_users` → `User` instead of `AppUser`). Tables that don't start with the prefix are left alone, so the setting is safe to enable project-wide even when a few tables fall outside the convention.
+- **Per-table customization** — **double-click a table row** to open a dialog where you can:
+  - set an explicit class name (overrides both the prefix-strip and the singularize+PascalCase derivation),
+  - and pick a Java type for each column from a curated dropdown (`String`, `BigDecimal`, `LocalDate`, `Object`, `Map<String,Object>`, primitives, etc.). Pick "(default)" to fall back to the JDBC-type mapping. Defaults to running Refresh Tables first so the dialog can show real column types.
 - The list survives Refresh: if you've checked / unchecked tables manually, those choices are preserved across re-introspections.
 
 ### 3. Generation

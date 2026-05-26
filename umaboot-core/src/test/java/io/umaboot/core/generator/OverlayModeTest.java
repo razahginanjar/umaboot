@@ -98,7 +98,7 @@ class OverlayModeTest {
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(), UmabootConfig.LoggingOptions.defaults(),
                 UmabootConfig.TestOptions.defaults(), "offset", UmabootConfig.SecurityOptions.defaults(),
                 UmabootConfig.DddOptions.defaults(),
-                overlay, "postgres", null, null, "");
+                overlay, "postgres", null, null, "", null);
         TemplateEngine engine = new TemplateEngine(null);
         return switch (architecture) {
             case "mvc" -> new MvcGenerator(engine, ctx).generate(schema);

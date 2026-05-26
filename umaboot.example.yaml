@@ -256,6 +256,26 @@ generation:
     #   classNameStripPrefix: app_
     #   → app_users → User, app_orders → Order, legacy_clients → LegacyClient.
     classNameStripPrefix: ""
+    # Per-table customization. Each entry can carry a className override AND/OR
+    # a columns map of per-column Java-type overrides. The IntelliJ panel
+    # exposes this via the per-table dialog (double-click a table row in the
+    # Tables section). Example:
+    #
+    #   overrides:
+    #     app_users:
+    #       className: Account                # wins over derivation
+    #       columns:
+    #         metadata:
+    #           javaType: java.util.Map<String,Object>
+    #         notes:
+    #           javaType: Object
+    #     app_orders:
+    #       columns:
+    #         total_cents:
+    #           javaType: java.math.BigDecimal
+    #
+    # Empty entries are not persisted on save.
+    overrides: {}
 
   # DDD-only options.
   ddd:

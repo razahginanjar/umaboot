@@ -181,6 +181,32 @@ public final class UmabootYamlIO {
                 && !config.generation().tables().classNameStripPrefix().isEmpty()) {
             tables.put("classNameStripPrefix", config.generation().tables().classNameStripPrefix());
         }
+        // Per-table overrides — write only entries that have actual content,
+        // so a table without overrides is not represented in YAML at all.
+        Map<String, Object> overridesOut = new LinkedHashMap<>();
+        for (var entry : config.generation().tables().overrides().entrySet()) {
+            UmabootConfig.TableOverride to = entry.getValue();
+            if (to == null || to.isEmpty()) continue;
+            Map<String, Object> tableOut = new LinkedHashMap<>();
+            if (to.className() != null && !to.className().isEmpty()) {
+                tableOut.put("className", to.className());
+            }
+            if (to.columns() != null && !to.columns().isEmpty()) {
+                Map<String, Object> colsOut = new LinkedHashMap<>();
+                for (var colEntry : to.columns().entrySet()) {
+                    UmabootConfig.ColumnOverride co = colEntry.getValue();
+                    if (co == null || co.isEmpty()) continue;
+                    Map<String, Object> colMap = new LinkedHashMap<>();
+                    colMap.put("javaType", co.javaType());
+                    colsOut.put(colEntry.getKey(), colMap);
+                }
+                if (!colsOut.isEmpty()) tableOut.put("columns", colsOut);
+            }
+            if (!tableOut.isEmpty()) overridesOut.put(entry.getKey(), tableOut);
+        }
+        if (!overridesOut.isEmpty()) {
+            tables.put("overrides", overridesOut);
+        }
         gen.put("tables", tables);
 
         Map<String, Object> ddd = new LinkedHashMap<>();

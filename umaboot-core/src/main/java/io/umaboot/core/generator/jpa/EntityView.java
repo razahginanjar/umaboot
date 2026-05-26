@@ -58,7 +58,14 @@ public final class EntityView {
     public static Map<String, Object> build(TableModel table, GeneratorContext ctx) {
         Map<String, Object> m = new LinkedHashMap<>();
 
-        String entityName = Naming.entityClass(table.name(), ctx.classNameStripPrefix());
+        // Per-table override block (className, columns map). May be empty.
+        UmabootConfig.TableOverride tableOverride = ctx.tableOverride(table.name())
+                .orElseGet(UmabootConfig.TableOverride::empty);
+
+        String entityName = Naming.entityClass(
+                table.name(),
+                ctx.classNameStripPrefix(),
+                tableOverride.className());
         m.put("table", Map.of(
                 "name", table.name(),
                 "schema", table.schema(),
@@ -154,7 +161,11 @@ public final class EntityView {
             if (auditColumnNames.contains(c.name())) {
                 continue; // hoisted into Auditable @MappedSuperclass
             }
-            String javaType = JavaTypeMapper.javaType(c);
+            String columnOverrideType = java.util.Optional.ofNullable(tableOverride.columns().get(c.name()))
+                    .map(UmabootConfig.ColumnOverride::javaType)
+                    .filter(s -> !s.isBlank())
+                    .orElse(null);
+            String javaType = JavaTypeMapper.javaType(c, columnOverrideType);
             String simple = JavaTypeMapper.simpleName(javaType);
             String imp = JavaTypeMapper.importFor(javaType);
             if (!imp.isEmpty()) imports.add(imp);
@@ -219,7 +230,13 @@ public final class EntityView {
         // Relationships
         List<Map<String, Object>> rels = new ArrayList<>();
         for (RelationshipModel r : table.relationships()) {
-            String relatedEntity = Naming.entityClass(r.toTable(), ctx.classNameStripPrefix());
+            String relatedEntity = Naming.entityClass(
+                    r.toTable(),
+                    ctx.classNameStripPrefix(),
+                    ctx.tableOverride(r.toTable())
+                            .map(UmabootConfig.TableOverride::className)
+                            .filter(s -> !s.isBlank())
+                            .orElse(null));
             Map<String, Object> rm = new LinkedHashMap<>();
             rm.put("type", r.type().getClass().getSimpleName()); // e.g. "ManyToOne"
             rm.put("targetEntity", relatedEntity);

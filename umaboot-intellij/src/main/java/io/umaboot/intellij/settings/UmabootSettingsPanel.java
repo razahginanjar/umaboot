@@ -87,6 +87,20 @@ public final class UmabootSettingsPanel {
     private final CheckBoxList<String> tableList = new CheckBoxList<>();
     private final JBLabel tablesStatusLabel = new JBLabel(" ");
     private final JBTextField classNameStripPrefixField = new JBTextField();
+    /**
+     * Snapshot of the most recent successful Refresh Tables. The TableSettingsDialog
+     * reads ColumnModel data from here so it can show real column types in the
+     * Java-type override picker. Volatile because it's written from a pooled thread.
+     */
+    private volatile io.umaboot.core.model.SchemaModel lastIntrospectedSchema;
+    /**
+     * Per-table override map — the in-memory mirror of
+     * {@code config.generation().tables().overrides()}. The dialog mutates this
+     * directly; readFromFields persists it back to YAML; applyToFields resets
+     * it from the loaded config.
+     */
+    private final java.util.Map<String, UmabootConfig.TableOverride> tableOverrides =
+            new java.util.LinkedHashMap<>();
 
     // Generation
     private final ComboBox<String> architectureCombo = new ComboBox<>(new String[]{"mvc", "hexagonal", "ddd"});
@@ -226,8 +240,11 @@ public final class UmabootSettingsPanel {
         // generated entity / DTO / repository class name, BEFORE singularize +
         // PascalCase. Tables that don't start with the prefix are left alone.
         JBPanel<JBPanel<?>> stripRow = new JBPanel<>(new BorderLayout());
-        stripRow.add(new JBLabel("Strip prefix from class names:"), BorderLayout.WEST);
-        classNameStripPrefixField.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
+        JBLabel stripLabel = new JBLabel("Strip prefix from class names:");
+        // Padding on the label, NOT the text field — JBTextField's native border
+        // gives it the visible "boxed" outline; setBorder on the field replaces it.
+        stripLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 8));
+        stripRow.add(stripLabel, BorderLayout.WEST);
         stripRow.add(classNameStripPrefixField, BorderLayout.CENTER);
 
         GridBagConstraints c = new GridBagConstraints();
@@ -303,6 +320,19 @@ public final class UmabootSettingsPanel {
     private void wireListeners() {
         testConnectionButton.addActionListener(e -> testConnection());
         refreshTablesButton.addActionListener(e -> refreshTables());
+        // Double-click on a table row opens the TableSettingsDialog so the user
+        // can pick a per-table className override and per-column Java types.
+        tableList.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2 && javax.swing.SwingUtilities.isLeftMouseButton(e)) {
+                    int idx = tableList.locationToIndex(e.getPoint());
+                    if (idx >= 0) {
+                        String name = tableList.getItemAt(idx);
+                        if (name != null) openTableSettingsDialog(name);
+                    }
+                }
+            }
+        });
 
         // Mark dirty on any change
         java.awt.event.ActionListener mark = e -> dirty = true;
@@ -573,6 +603,7 @@ public final class UmabootSettingsPanel {
                 Introspector introspector = isMysql
                         ? new MysqlIntrospector(conn) : new PostgresIntrospector(conn);
                 SchemaModel sm = introspector.introspect(introspectionTarget);
+                lastIntrospectedSchema = sm;
                 tables = sm.tables().stream()
                         .filter(t -> !t.junction())  // hide junctions; user picks logical entities
                         .map(t -> t.name())
@@ -603,6 +634,38 @@ public final class UmabootSettingsPanel {
                 dirty = true;
             });
         });
+    }
+
+    /**
+     * Open the per-table customization dialog. Reads the cached
+     * {@link #lastIntrospectedSchema} for column metadata; writes the resulting
+     * {@link UmabootConfig.TableOverride} into {@link #tableOverrides}, which
+     * gets saved when the user clicks Apply.
+     */
+    private void openTableSettingsDialog(String tableName) {
+        if (lastIntrospectedSchema == null) {
+            tablesStatusLabel.setText("Run Refresh Tables first to populate column metadata");
+            tablesStatusLabel.setForeground(Color.RED);
+            return;
+        }
+        io.umaboot.core.model.TableModel table = lastIntrospectedSchema.findTable(tableName);
+        if (table == null) {
+            tablesStatusLabel.setText("Table '" + tableName + "' not in last introspection");
+            tablesStatusLabel.setForeground(Color.RED);
+            return;
+        }
+        UmabootConfig.TableOverride existing = tableOverrides.getOrDefault(
+                tableName, UmabootConfig.TableOverride.empty());
+        TableSettingsDialog dialog = new TableSettingsDialog(project, tableName, table, existing);
+        if (dialog.showAndGet()) {
+            UmabootConfig.TableOverride result = dialog.result();
+            if (result == null || result.isEmpty()) {
+                tableOverrides.remove(tableName);
+            } else {
+                tableOverrides.put(tableName, result);
+            }
+            dirty = true;
+        }
     }
 
     // ------------------------------------------------------------ load / save
@@ -698,6 +761,8 @@ public final class UmabootSettingsPanel {
         // Tables come from a live refresh; pre-populate from include list so the
         // user sees their saved selections even without clicking Refresh first.
         classNameStripPrefixField.setText(c.generation().tables().classNameStripPrefix());
+        tableOverrides.clear();
+        tableOverrides.putAll(c.generation().tables().overrides());
         tableList.clear();
         for (String name : c.generation().tables().include()) {
             tableList.addItem(name, name, true);
@@ -728,7 +793,8 @@ public final class UmabootSettingsPanel {
         var tables = new UmabootConfig.TableFilterOptions(
                 selected,
                 List.of(),
-                classNameStripPrefixField.getText().trim());
+                classNameStripPrefixField.getText().trim(),
+                java.util.Map.copyOf(tableOverrides));
         // Preserve DDD options from the loaded config (no UI for them yet)
         var ddd = loaded != null ? loaded.generation().ddd() : UmabootConfig.DddOptions.defaults();
         var output = new UmabootConfig.OutputOptions(

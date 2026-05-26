@@ -299,20 +299,78 @@ public record UmabootConfig(Connection connection, Generation generation) {
     public record TableFilterOptions(
             java.util.List<String> include,
             java.util.List<String> exclude,
-            String classNameStripPrefix) {
+            String classNameStripPrefix,
+            java.util.Map<String, TableOverride> overrides) {
         public TableFilterOptions {
             include = include == null ? java.util.List.of() : java.util.List.copyOf(include);
             exclude = exclude == null ? java.util.List.of() : java.util.List.copyOf(exclude);
             classNameStripPrefix = classNameStripPrefix == null ? "" : classNameStripPrefix;
+            overrides = overrides == null ? java.util.Map.of() : java.util.Map.copyOf(overrides);
         }
 
-        /** Convenience for callers that don't care about the prefix. */
+        /** Convenience for callers that don't care about overrides (3-arg). */
+        public TableFilterOptions(java.util.List<String> include, java.util.List<String> exclude, String classNameStripPrefix) {
+            this(include, exclude, classNameStripPrefix, java.util.Map.of());
+        }
+
+        /** Convenience for callers that don't care about prefix or overrides (2-arg). */
         public TableFilterOptions(java.util.List<String> include, java.util.List<String> exclude) {
-            this(include, exclude, "");
+            this(include, exclude, "", java.util.Map.of());
         }
 
         public static TableFilterOptions allowAll() {
-            return new TableFilterOptions(java.util.List.of(), java.util.List.of(), "");
+            return new TableFilterOptions(java.util.List.of(), java.util.List.of(), "", java.util.Map.of());
+        }
+
+        /** Returns the override for {@code tableName}, or empty if none configured. */
+        public java.util.Optional<TableOverride> overrideFor(String tableName) {
+            return java.util.Optional.ofNullable(overrides.get(tableName));
+        }
+    }
+
+    /**
+     * Per-table customization: an explicit class-name override (taking precedence
+     * over the default singularize+PascalCase derivation, and over the global
+     * {@code classNameStripPrefix}) and a per-column Java-type override map.
+     *
+     * <p>Both fields are optional. An entry with no className and no column
+     * overrides should be considered empty and is omitted from the saved YAML
+     * to keep the file clean.</p>
+     */
+    public record TableOverride(String className, java.util.Map<String, ColumnOverride> columns) {
+        public TableOverride {
+            className = className == null ? "" : className;
+            columns = columns == null ? java.util.Map.of() : java.util.Map.copyOf(columns);
+        }
+
+        public static TableOverride empty() {
+            return new TableOverride("", java.util.Map.of());
+        }
+
+        /** True if the override has no effect — used by YAML I/O to skip writing it. */
+        public boolean isEmpty() {
+            return (className == null || className.isEmpty()) && (columns == null || columns.isEmpty());
+        }
+    }
+
+    /**
+     * Per-column override. Currently a single field — {@code javaType} — but
+     * defined as a record so future fields (e.g. column comment, default value
+     * literal, validation hints) can be added without breaking call sites.
+     *
+     * <p>{@code javaType} should be a Java type string the user picked from the
+     * panel's curated dropdown — primitives (e.g. {@code int}), java.lang.*
+     * short names (e.g. {@code String}), or fully-qualified names with optional
+     * generics (e.g. {@code java.math.BigDecimal},
+     * {@code java.util.Map<String,Object>}).</p>
+     */
+    public record ColumnOverride(String javaType) {
+        public ColumnOverride {
+            javaType = javaType == null ? "" : javaType;
+        }
+
+        public boolean isEmpty() {
+            return javaType == null || javaType.isEmpty();
         }
     }
 

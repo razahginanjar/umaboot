@@ -63,22 +63,28 @@ public final class Naming {
      * prefix stripping.
      */
     public static String entityClass(String tableName) {
-        return entityClass(tableName, null);
+        return entityClass(tableName, null, null);
     }
 
     /**
      * Derive an entity class name from a SQL table name, optionally stripping
      * a configured prefix first. Tables that don't start with the prefix are
-     * left untouched (so a single project-wide prefix is safe to set even when
-     * a few tables fall outside the convention).
-     *
-     * <p>Example: {@code entityClass("app_users", "app_") -> "User"} while
-     * {@code entityClass("legacy_users", "app_") -> "LegacyUser"}.</p>
-     *
-     * @param tableName    raw SQL identifier (e.g. {@code app_user_roles})
-     * @param stripPrefix  prefix to remove if present; {@code null} or empty disables stripping
+     * left untouched.
      */
     public static String entityClass(String tableName, String stripPrefix) {
+        return entityClass(tableName, stripPrefix, null);
+    }
+
+    /**
+     * Most general form. If {@code override} is non-blank it takes precedence
+     * over both the strip-prefix rule and the singularize+PascalCase derivation
+     * — the user explicitly said "this table's class name shall be X".
+     *
+     * <p>Otherwise the strip-prefix rule applies first (when the table name
+     * starts with it), then singularize+PascalCase.</p>
+     */
+    public static String entityClass(String tableName, String stripPrefix, String override) {
+        if (override != null && !override.isBlank()) return override;
         if (tableName == null) return null;
         String name = tableName;
         if (stripPrefix != null && !stripPrefix.isEmpty() && name.startsWith(stripPrefix)) {

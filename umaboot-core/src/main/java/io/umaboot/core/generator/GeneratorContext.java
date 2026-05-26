@@ -59,7 +59,8 @@ public record GeneratorContext(
         String dbDriver,
         UmabootConfig.Connection connection,
         UmabootConfig.ApplicationConfigOptions applicationConfig,
-        String classNameStripPrefix) {
+        String classNameStripPrefix,
+        java.util.Map<String, UmabootConfig.TableOverride> tableOverrides) {
 
     public GeneratorContext {
         Objects.requireNonNull(basePackage, "basePackage");
@@ -101,6 +102,12 @@ public record GeneratorContext(
                 ? UmabootConfig.ApplicationConfigOptions.defaults()
                 : applicationConfig;
         classNameStripPrefix = classNameStripPrefix == null ? "" : classNameStripPrefix;
+        tableOverrides = tableOverrides == null ? java.util.Map.of() : java.util.Map.copyOf(tableOverrides);
+    }
+
+    /** Returns the per-table override for {@code tableName}, or empty if none configured. */
+    public java.util.Optional<UmabootConfig.TableOverride> tableOverride(String tableName) {
+        return java.util.Optional.ofNullable(tableOverrides.get(tableName));
     }
 
     /** Defaults: MVC + JPA + Spring Boot 3.3.5 + Java 17 + Lombok, standalone mode. */
@@ -123,7 +130,8 @@ public record GeneratorContext(
                 "postgres",
                 null,
                 null,
-                "");
+                "",
+                null);
     }
 
     public String basePackagePath() {

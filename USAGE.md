@@ -162,6 +162,7 @@ Full annotated example: see `umaboot.example.yaml`. The high-value settings:
 | `generation.applicationConfig.format` | `yaml \| properties` | Format of the generated application config (`application.yml` vs `application.properties`). Default `yaml`. Both formats Spring Boot reads identically. |
 | `generation.tables.include` | `[globs]` | Whitelist (empty = "all") |
 | `generation.tables.classNameStripPrefix` | `string` | Optional prefix to strip from each table name before deriving the entity class. Tables that don't start with the prefix are left alone. Example: `app_` turns `app_users` into `User` while leaving `legacy_clients` as `LegacyClient`. |
+| `generation.tables.overrides` | `map` | Per-table customization. Each key is a raw SQL table name; the value can carry a `className` override (wins over derivation) and a `columns:` map of per-column `javaType` overrides. Empty entries are not persisted. |
 | `generation.tables.exclude` | `[globs]` | Blacklist |
 | `generation.jpa.useMapStruct` | `true \| false` | Use compile-time MapStruct mappers |
 | `generation.mybatis.style` | `xml \| annotation` | Where the SQL lives |

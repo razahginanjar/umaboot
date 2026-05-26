@@ -299,7 +299,7 @@ class SpringBoot2RenderTest {
                 UmabootConfig.LoggingOptions.defaults(), UmabootConfig.TestOptions.defaults(),
                 "offset", security,
                 UmabootConfig.DddOptions.defaults(),
-                false, "postgres", null, null, "");
+                false, "postgres", null, null, "", null);
     }
 
     /** SB3-flavored context for parity comparisons. */
@@ -325,7 +325,7 @@ class SpringBoot2RenderTest {
                 UmabootConfig.LoggingOptions.defaults(), UmabootConfig.TestOptions.defaults(),
                 "offset", security,
                 UmabootConfig.DddOptions.defaults(),
-                false, "postgres", null, null, "");
+                false, "postgres", null, null, "", null);
     }
 
     /** Bare-minimum Generation factory used by cross-validation tests. */

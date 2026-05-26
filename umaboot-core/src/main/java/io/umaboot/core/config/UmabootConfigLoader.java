@@ -60,7 +60,8 @@ public final class UmabootConfigLoader {
         var tables = new UmabootConfig.TableFilterOptions(
                 stringList(tablesMap, "include"),
                 stringList(tablesMap, "exclude"),
-                str(tablesMap, "classNameStripPrefix", ""));
+                str(tablesMap, "classNameStripPrefix", ""),
+                parseTableOverrides(mapOrEmpty(tablesMap, "overrides")));
 
         Map<String, Object> belongsToRaw = mapOrEmpty(dddMap, "belongsTo");
         java.util.Map<String, String> belongsTo = new java.util.LinkedHashMap<>();
@@ -238,6 +239,41 @@ public final class UmabootConfigLoader {
      *
      * <p>The first save by the panel/CLI rewrites a legacy yaml in the new shape.</p>
      */
+    /**
+     * Parses {@code generation.tables.overrides:} into a map of
+     * {@code tableName -> TableOverride}. Tolerant of partial entries:
+     * a table block can have {@code className} only, {@code columns} only, or both.
+     */
+    @SuppressWarnings("unchecked")
+    private static java.util.Map<String, UmabootConfig.TableOverride> parseTableOverrides(Map<String, Object> overridesMap) {
+        if (overridesMap == null || overridesMap.isEmpty()) return java.util.Map.of();
+        java.util.Map<String, UmabootConfig.TableOverride> result = new java.util.LinkedHashMap<>();
+        for (var entry : overridesMap.entrySet()) {
+            String tableName = entry.getKey();
+            if (!(entry.getValue() instanceof Map<?, ?> rawTable)) continue;
+            Map<String, Object> tableMap = (Map<String, Object>) rawTable;
+
+            String className = str(tableMap, "className", "");
+
+            java.util.Map<String, UmabootConfig.ColumnOverride> columns = new java.util.LinkedHashMap<>();
+            Object rawColumns = tableMap.get("columns");
+            if (rawColumns instanceof Map<?, ?> columnsRawMap) {
+                for (var c : columnsRawMap.entrySet()) {
+                    if (!(c.getValue() instanceof Map<?, ?> rawCol)) continue;
+                    Map<String, Object> colMap = (Map<String, Object>) rawCol;
+                    String javaType = str(colMap, "javaType", "");
+                    if (!javaType.isEmpty()) {
+                        columns.put(c.getKey().toString(), new UmabootConfig.ColumnOverride(javaType));
+                    }
+                }
+            }
+
+            UmabootConfig.TableOverride to = new UmabootConfig.TableOverride(className, columns);
+            if (!to.isEmpty()) result.put(tableName, to);
+        }
+        return result;
+    }
+
     private static UmabootConfig.Connection parseConnection(Map<String, Object> conn) {
         String mode = str(conn, "mode", null);
         // Legacy shape: no `mode` key -> treat as url mode, derive everything else from `url`.
