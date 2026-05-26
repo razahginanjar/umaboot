@@ -43,7 +43,7 @@ The first save of an existing project rewrites a pre-v0.8 `umaboot.yaml` (flat `
 - **Java version** (curated LTS dropdown: 17 / 21)
 - Use Lombok
 - **OpenAPI style** (yaml / annotation / none)
-- Output mode (standalone / overlay), Output dir
+- Output mode (standalone / overlay), **Use project directory** checkbox (one-click `outputDir: .` shortcut — generated files land alongside `umaboot.yaml`), Output dir
 
 Click **Apply** — the panel writes back to `<projectRoot>/umaboot.yaml`. Comments are not preserved on round-trip; if you want commented configs, hand-edit the file.
 

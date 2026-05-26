@@ -307,6 +307,8 @@ generation:
 - Includes `pom.xml`, `Application.java`, `application.yml`, `GlobalExceptionHandler.java`
 - Use case: greenfield project from a schema; the output folder is a complete Spring Boot project ready to `mvn spring-boot:run`
 
+> **Tip — in-place workflow.** Set `outputDir: .` (or tick **Use project directory** in the IntelliJ Settings panel) to land the full generated project in the same directory as `umaboot.yaml`. Drop the yaml into an empty folder, edit the connection block, run `umaboot generate` — and the folder *becomes* the Spring Boot project. No `cd generated/` step before opening the IDE.
+
 **Overlay**:
 - `outputDir` defaults to `.` (current directory / project root)
 - Skips `pom.xml`, `Application.java`, `application.yml`, `GlobalExceptionHandler.java`

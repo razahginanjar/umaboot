@@ -135,6 +135,8 @@ Use these three artifacts for everything below.
 | **I-20** | Settings panel: configure MVC + JPA + Java 17 + SB 3.3.5, save with `basePackage: com.test.shop` and `outputDir: ./generated` | `umaboot.yaml` written; tool window's Generate button enabled | ☐ |
 | **I-21** | Run **Tools → Umaboot: Generate** | Progress indicator runs; balloon notification shows "Generated N files in ./generated [mvc/jpa, standalone]" | ☐ |
 | **I-22** | Refresh project view | `generated/` folder appears with `pom.xml`, `src/main/java/com/test/shop/...` populated | ☐ |
+| **I-22b** | Open the panel again, tick **Use project directory** under Output mode, click **Apply** | The Output dir text field becomes disabled. `umaboot.yaml` now contains `outputDir: .`. | ☐ |
+| **I-22c** | Run **Tools → Umaboot: Generate** with the project-directory checkbox ticked | Generated files land directly in the project root (next to `umaboot.yaml`), not under `generated/`. The notification path matches the project root. | ☐ |
 | **I-23** | Right-click `generated/pom.xml` → "Add as Maven Project" → run `mvn package` | Build succeeds; produces a JAR | ☐ |
 | **I-24** | In the generated project, run `mvn spring-boot:run` and `curl http://localhost:8080/api/customers` | Returns `200` with `PageResponse` JSON shape | ☐ |
 

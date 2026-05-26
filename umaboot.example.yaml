@@ -222,6 +222,10 @@ generation:
   output:
     mode: standalone
   # outputDir: ./generated   # leave unset to use the mode's default
+  #                          # set to "." to land files in the same directory as
+  #                          # umaboot.yaml (i.e. the project root). The IntelliJ
+  #                          # panel exposes this as the "Use project directory"
+  #                          # checkbox.
 
   # JPA-only options
   jpa:

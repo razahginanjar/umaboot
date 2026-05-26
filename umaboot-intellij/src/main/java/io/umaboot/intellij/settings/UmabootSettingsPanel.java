@@ -114,6 +114,8 @@ public final class UmabootSettingsPanel {
     private final ComboBox<String> paginationStyleCombo = new ComboBox<>(new String[]{"offset", "cursor"});
     private final ComboBox<String> securityStyleCombo = new ComboBox<>(new String[]{"none", "basic", "jwt"});
     private final ComboBox<String> outputModeCombo = new ComboBox<>(new String[]{"standalone", "overlay"});
+    private final JBCheckBox useProjectDirectoryCheckbox =
+            new JBCheckBox("Use project directory (where umaboot.yaml lives)");
     private final JBTextField outputDirField = new JBTextField();
 
     private UmabootConfig loaded;
@@ -256,6 +258,7 @@ public final class UmabootSettingsPanel {
         addRow(g, r++, "Security:", securityStyleCombo);
         addRow(g, r++, "OpenAPI style:", openApiStyleCombo);
         addRow(g, r++, "Output mode:", outputModeCombo);
+        addRow(g, r++, "", useProjectDirectoryCheckbox);
         addRow(g, r++, "Output dir:", outputDirField);
         return g;
     }
@@ -293,6 +296,14 @@ public final class UmabootSettingsPanel {
         persistenceCombo.addActionListener(mark);
         mybatisStyleCombo.addActionListener(mark);
         outputModeCombo.addActionListener(mark);
+        // "Use project directory" checkbox — when checked, outputDir is forced
+        // to "." in YAML (which OutputDirResolver maps to the directory of
+        // umaboot.yaml). Disables the text field so the user can't accidentally
+        // type a value that would be ignored.
+        useProjectDirectoryCheckbox.addActionListener(e -> {
+            outputDirField.setEnabled(!useProjectDirectoryCheckbox.isSelected());
+            dirty = true;
+        });
         useMapStructCheckbox.addActionListener(mark);
         useLombokCheckbox.addActionListener(mark);
         openApiStyleCombo.addActionListener(mark);
@@ -660,7 +671,13 @@ public final class UmabootSettingsPanel {
         paginationStyleCombo.setSelectedItem(c.generation().pagination().style());
         securityStyleCombo.setSelectedItem(c.generation().security().style());
         outputModeCombo.setSelectedItem(c.generation().output().mode());
-        outputDirField.setText(c.generation().outputDir());
+        // "Use project directory" shortcut: outputDir == "." means "the directory
+        // of umaboot.yaml" (per OutputDirResolver). Reflect that in the checkbox.
+        String od = c.generation().outputDir();
+        boolean isProjectDir = od != null && od.trim().equals(".");
+        useProjectDirectoryCheckbox.setSelected(isProjectDir);
+        outputDirField.setEnabled(!isProjectDir);
+        outputDirField.setText(isProjectDir ? "" : (od == null ? "" : od));
 
         // Tables come from a live refresh; pre-populate from include list so the
         // user sees their saved selections even without clicking Refresh first.
@@ -786,7 +803,11 @@ public final class UmabootSettingsPanel {
                 tests,
                 pagination,
                 security,
-                outputDirField.getText().trim().isEmpty() ? null : outputDirField.getText().trim(),
+                useProjectDirectoryCheckbox.isSelected()
+                        ? "."
+                        : (outputDirField.getText().trim().isEmpty()
+                                ? null
+                                : outputDirField.getText().trim()),
                 jpa, mybatis, tables, ddd, output);
 
         return new UmabootConfig(connection, generation);
