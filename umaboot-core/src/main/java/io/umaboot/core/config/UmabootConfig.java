@@ -296,14 +296,23 @@ public record UmabootConfig(Connection connection, Generation generation) {
      * Inclusion / exclusion lists, applied <em>after</em> introspection so
      * filtered tables and relationships pointing to them are dropped.
      */
-    public record TableFilterOptions(java.util.List<String> include, java.util.List<String> exclude) {
+    public record TableFilterOptions(
+            java.util.List<String> include,
+            java.util.List<String> exclude,
+            String classNameStripPrefix) {
         public TableFilterOptions {
             include = include == null ? java.util.List.of() : java.util.List.copyOf(include);
             exclude = exclude == null ? java.util.List.of() : java.util.List.copyOf(exclude);
+            classNameStripPrefix = classNameStripPrefix == null ? "" : classNameStripPrefix;
+        }
+
+        /** Convenience for callers that don't care about the prefix. */
+        public TableFilterOptions(java.util.List<String> include, java.util.List<String> exclude) {
+            this(include, exclude, "");
         }
 
         public static TableFilterOptions allowAll() {
-            return new TableFilterOptions(java.util.List.of(), java.util.List.of());
+            return new TableFilterOptions(java.util.List.of(), java.util.List.of(), "");
         }
     }
 

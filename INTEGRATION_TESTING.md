@@ -126,6 +126,7 @@ Use these three artifacts for everything below.
 | **I-10g** | Set Database type to mysql, Host mode, Database: `does_not_exist`. Click **Refresh Tables** | Red status: *"Failed: Database 'does_not_exist' does not exist on this MySQL server …"*. Server-side existence check (Level 2) fires before any table-level introspection. | ☐ |
 | **I-11** | Test Connection with bad password | Red status with the JDBC error message | ☐ |
 | **I-12** | Click **Refresh Tables** | Table-picker checkboxes populate (`customers`, `orders`, `products`, `tags`; `product_tags` filtered as junction) | ☐ |
+| **I-12b** | Type `app_` in **Strip prefix from class names**, click **Apply**, then re-open `umaboot.yaml` | The yaml has `tables.classNameStripPrefix: app_`. Run Generate against a schema with `app_users`: the entity file is `User.java` (not `AppUser.java`). Tables that don't start with `app_` are left alone. | ☐ |
 | **I-13** | Uncheck a table → click **Apply** → reopen Settings | The unchecked table is absent from `tables.include` in `umaboot.yaml` | ☐ |
 
 ### Generation flow

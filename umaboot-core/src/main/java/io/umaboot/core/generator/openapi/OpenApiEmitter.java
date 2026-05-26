@@ -45,7 +45,7 @@ public final class OpenApiEmitter {
         sb.append("paths:\n");
         for (TableModel table : schema.tables()) {
             if (table.junction()) continue;
-            String entityName = Naming.entityClass(table.name());
+            String entityName = Naming.entityClass(table.name(), ctx.classNameStripPrefix());
             String plural = entityName.toLowerCase(Locale.ROOT) + "s";
             emitPaths(sb, entityName, plural);
         }
@@ -54,7 +54,7 @@ public final class OpenApiEmitter {
         sb.append("  schemas:\n");
         for (TableModel table : schema.tables()) {
             if (table.junction()) continue;
-            String entityName = Naming.entityClass(table.name());
+            String entityName = Naming.entityClass(table.name(), ctx.classNameStripPrefix());
             emitSchemas(sb, entityName, table);
         }
         sb.append("    Page:\n");

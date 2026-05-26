@@ -86,6 +86,7 @@ public final class UmabootSettingsPanel {
     private final JButton refreshTablesButton = new JButton("Refresh Tables");
     private final CheckBoxList<String> tableList = new CheckBoxList<>();
     private final JBLabel tablesStatusLabel = new JBLabel(" ");
+    private final JBTextField classNameStripPrefixField = new JBTextField();
 
     // Generation
     private final ComboBox<String> architectureCombo = new ComboBox<>(new String[]{"mvc", "hexagonal", "ddd"});
@@ -221,12 +222,22 @@ public final class UmabootSettingsPanel {
         JBScrollPane scroll = new JBScrollPane(tableList);
         scroll.setPreferredSize(new Dimension(0, 180));
 
+        // Class-name strip prefix row — applies the prefix-strip rule to every
+        // generated entity / DTO / repository class name, BEFORE singularize +
+        // PascalCase. Tables that don't start with the prefix are left alone.
+        JBPanel<JBPanel<?>> stripRow = new JBPanel<>(new BorderLayout());
+        stripRow.add(new JBLabel("Strip prefix from class names:"), BorderLayout.WEST);
+        classNameStripPrefixField.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
+        stripRow.add(classNameStripPrefixField, BorderLayout.CENTER);
+
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 0; c.gridy = 0; c.gridwidth = 2;
         c.fill = GridBagConstraints.HORIZONTAL; c.weightx = 1.0;
         c.insets = JBUI.insets(2, 4);
         g.add(top, c);
-        c.gridy = 1; c.fill = GridBagConstraints.BOTH; c.weighty = 1.0;
+        c.gridy = 1;
+        g.add(stripRow, c);
+        c.gridy = 2; c.fill = GridBagConstraints.BOTH; c.weighty = 1.0;
         g.add(scroll, c);
         return g;
     }
@@ -354,7 +365,7 @@ public final class UmabootSettingsPanel {
         for (JBTextField f : List.of(urlField, usernameField, schemaField,
                 hostField, paramsField, databaseField,
                 basePackageField, projectNameField, projectGroupField,
-                outputDirField)) {
+                outputDirField, classNameStripPrefixField)) {
             f.getDocument().addDocumentListener(new SimpleDocListener(() -> dirty = true));
         }
         passwordField.getDocument().addDocumentListener(new SimpleDocListener(() -> dirty = true));
@@ -686,6 +697,7 @@ public final class UmabootSettingsPanel {
 
         // Tables come from a live refresh; pre-populate from include list so the
         // user sees their saved selections even without clicking Refresh first.
+        classNameStripPrefixField.setText(c.generation().tables().classNameStripPrefix());
         tableList.clear();
         for (String name : c.generation().tables().include()) {
             tableList.addItem(name, name, true);
@@ -713,7 +725,10 @@ public final class UmabootSettingsPanel {
         var jpa = new UmabootConfig.JpaOptions(useMapStructCheckbox.isSelected());
         var mybatis = new UmabootConfig.MyBatisOptions(
                 Optional.ofNullable((String) mybatisStyleCombo.getSelectedItem()).orElse("xml"));
-        var tables = new UmabootConfig.TableFilterOptions(selected, List.of());
+        var tables = new UmabootConfig.TableFilterOptions(
+                selected,
+                List.of(),
+                classNameStripPrefixField.getText().trim());
         // Preserve DDD options from the loaded config (no UI for them yet)
         var ddd = loaded != null ? loaded.generation().ddd() : UmabootConfig.DddOptions.defaults();
         var output = new UmabootConfig.OutputOptions(

@@ -58,7 +58,7 @@ public final class EntityView {
     public static Map<String, Object> build(TableModel table, GeneratorContext ctx) {
         Map<String, Object> m = new LinkedHashMap<>();
 
-        String entityName = Naming.entityClass(table.name());
+        String entityName = Naming.entityClass(table.name(), ctx.classNameStripPrefix());
         m.put("table", Map.of(
                 "name", table.name(),
                 "schema", table.schema(),
@@ -219,7 +219,7 @@ public final class EntityView {
         // Relationships
         List<Map<String, Object>> rels = new ArrayList<>();
         for (RelationshipModel r : table.relationships()) {
-            String relatedEntity = Naming.entityClass(r.toTable());
+            String relatedEntity = Naming.entityClass(r.toTable(), ctx.classNameStripPrefix());
             Map<String, Object> rm = new LinkedHashMap<>();
             rm.put("type", r.type().getClass().getSimpleName()); // e.g. "ManyToOne"
             rm.put("targetEntity", relatedEntity);

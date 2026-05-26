@@ -161,6 +161,7 @@ Full annotated example: see `umaboot.example.yaml`. The high-value settings:
 | `generation.outputDir` | path | Where files are written; relative paths resolve from the config file |
 | `generation.applicationConfig.format` | `yaml \| properties` | Format of the generated application config (`application.yml` vs `application.properties`). Default `yaml`. Both formats Spring Boot reads identically. |
 | `generation.tables.include` | `[globs]` | Whitelist (empty = "all") |
+| `generation.tables.classNameStripPrefix` | `string` | Optional prefix to strip from each table name before deriving the entity class. Tables that don't start with the prefix are left alone. Example: `app_` turns `app_users` into `User` while leaving `legacy_clients` as `LegacyClient`. |
 | `generation.tables.exclude` | `[globs]` | Blacklist |
 | `generation.jpa.useMapStruct` | `true \| false` | Use compile-time MapStruct mappers |
 | `generation.mybatis.style` | `xml \| annotation` | Where the SQL lives |
@@ -383,7 +384,7 @@ Tip: keep `apply --dry-run` in your CI to detect schema drift early.
 The form (also embedded in the right-gutter Umaboot tool window) has three groups:
 
 - **Connection** — JDBC URL, username, password, schema. Click **Test Connection** to verify reachability before doing anything else; success shows the database product name + version in green.
-- **Tables to generate** — Click **Refresh Tables** to introspect the live schema. The plugin populates a checkbox list with every non-junction table; the boxes you tick drive `tables.include` in the saved YAML. The list survives Refresh — your manual selections are preserved across re-introspections.
+- **Tables to generate** — Click **Refresh Tables** to introspect the live schema. The plugin populates a checkbox list with every non-junction table; the boxes you tick drive `tables.include` in the saved YAML. The list survives Refresh — your manual selections are preserved across re-introspections. The **Strip prefix from class names** field above the list applies a single prefix-strip rule to every generated class name (so `app_users` → `User` instead of `AppUser`); tables that don't start with the prefix are left alone.
 - **Generation** — dropdowns for architecture, persistence, MyBatis style, Spring Boot version, Java version, output mode, OpenAPI style; checkboxes for Lombok and MapStruct; text fields for base package, project name/group, output dir.
 
 ### Version dropdowns

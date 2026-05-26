@@ -111,7 +111,7 @@ class MysqlDatasourceRenderTest {
                 UmabootConfig.AuditOptions.defaults(), UmabootConfig.SoftDeleteOptions.defaults(),
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(), UmabootConfig.LoggingOptions.defaults(),
                 UmabootConfig.TestOptions.defaults(), "offset", UmabootConfig.SecurityOptions.defaults(),
-                UmabootConfig.DddOptions.defaults(), false, conn.driver(), conn, null);
+                UmabootConfig.DddOptions.defaults(), false, conn.driver(), conn, null, "");
         return new MvcGenerator(new TemplateEngine(null), ctx).generate(schema);
     }
 

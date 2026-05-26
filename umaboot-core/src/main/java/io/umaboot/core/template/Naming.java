@@ -58,8 +58,33 @@ public final class Naming {
         return name;
     }
 
+    /**
+     * Derive an entity class name from a SQL table name. Plain form — no
+     * prefix stripping.
+     */
     public static String entityClass(String tableName) {
-        return toPascalCase(singularize(tableName));
+        return entityClass(tableName, null);
+    }
+
+    /**
+     * Derive an entity class name from a SQL table name, optionally stripping
+     * a configured prefix first. Tables that don't start with the prefix are
+     * left untouched (so a single project-wide prefix is safe to set even when
+     * a few tables fall outside the convention).
+     *
+     * <p>Example: {@code entityClass("app_users", "app_") -> "User"} while
+     * {@code entityClass("legacy_users", "app_") -> "LegacyUser"}.</p>
+     *
+     * @param tableName    raw SQL identifier (e.g. {@code app_user_roles})
+     * @param stripPrefix  prefix to remove if present; {@code null} or empty disables stripping
+     */
+    public static String entityClass(String tableName, String stripPrefix) {
+        if (tableName == null) return null;
+        String name = tableName;
+        if (stripPrefix != null && !stripPrefix.isEmpty() && name.startsWith(stripPrefix)) {
+            name = name.substring(stripPrefix.length());
+        }
+        return toPascalCase(singularize(name));
     }
 
     public static String capitalize(String s) {

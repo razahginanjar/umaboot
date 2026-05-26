@@ -34,4 +34,33 @@ class NamingTest {
         assertThat(Naming.entityClass("order_items")).isEqualTo("OrderItem");
         assertThat(Naming.entityClass("addresses")).isEqualTo("Address");
     }
+
+    // ---------------------------------------------------------------- prefix strip
+
+    @Test
+    void entityClass_withMatchingPrefix_stripsBeforePascalCase() {
+        assertThat(Naming.entityClass("app_users", "app_")).isEqualTo("User");
+        assertThat(Naming.entityClass("app_order_items", "app_")).isEqualTo("OrderItem");
+        assertThat(Naming.entityClass("crm_customers", "crm_")).isEqualTo("Customer");
+    }
+
+    @Test
+    void entityClass_withNonMatchingPrefix_leavesNameAlone() {
+        // The "tables that don't match the prefix should not be cut" rule
+        assertThat(Naming.entityClass("legacy_users", "app_")).isEqualTo("LegacyUser");
+        assertThat(Naming.entityClass("flyway_schema_history", "app_")).isEqualTo("FlywaySchemaHistory");
+    }
+
+    @Test
+    void entityClass_withNullOrEmptyPrefix_isSameAsNoPrefix() {
+        assertThat(Naming.entityClass("app_users", null)).isEqualTo("AppUser");
+        assertThat(Naming.entityClass("app_users", "")).isEqualTo("AppUser");
+    }
+
+    @Test
+    void entityClass_prefixThatEqualsTableName_yieldsEmptyAfterStrip() {
+        // Edge case — table is literally just the prefix. Don't crash; produce
+        // something sensible (empty string round-trips through Pascal-case as "").
+        assertThat(Naming.entityClass("app_", "app_")).isEqualTo("");
+    }
 }

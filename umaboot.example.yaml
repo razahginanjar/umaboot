@@ -249,6 +249,13 @@ generation:
   tables:
     include: []
     exclude: []
+    # Optional. If set, the prefix is stripped from each table name BEFORE
+    # singularize + PascalCase. Tables that don't start with the prefix are
+    # left alone (so a single project-wide value is safe even when a few
+    # tables fall outside the convention).
+    #   classNameStripPrefix: app_
+    #   → app_users → User, app_orders → Order, legacy_clients → LegacyClient.
+    classNameStripPrefix: ""
 
   # DDD-only options.
   ddd:

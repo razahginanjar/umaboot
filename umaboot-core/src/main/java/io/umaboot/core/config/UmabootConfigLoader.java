@@ -59,7 +59,8 @@ public final class UmabootConfigLoader {
         var myBatis = new UmabootConfig.MyBatisOptions(str(myBatisMap, "style", "xml"));
         var tables = new UmabootConfig.TableFilterOptions(
                 stringList(tablesMap, "include"),
-                stringList(tablesMap, "exclude"));
+                stringList(tablesMap, "exclude"),
+                str(tablesMap, "classNameStripPrefix", ""));
 
         Map<String, Object> belongsToRaw = mapOrEmpty(dddMap, "belongsTo");
         java.util.Map<String, String> belongsTo = new java.util.LinkedHashMap<>();

@@ -177,6 +177,10 @@ public final class UmabootYamlIO {
         Map<String, Object> tables = new LinkedHashMap<>();
         tables.put("include", config.generation().tables().include());
         tables.put("exclude", config.generation().tables().exclude());
+        if (config.generation().tables().classNameStripPrefix() != null
+                && !config.generation().tables().classNameStripPrefix().isEmpty()) {
+            tables.put("classNameStripPrefix", config.generation().tables().classNameStripPrefix());
+        }
         gen.put("tables", tables);
 
         Map<String, Object> ddd = new LinkedHashMap<>();

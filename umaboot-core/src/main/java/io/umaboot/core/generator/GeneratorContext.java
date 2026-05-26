@@ -58,7 +58,8 @@ public record GeneratorContext(
         boolean overlay,
         String dbDriver,
         UmabootConfig.Connection connection,
-        UmabootConfig.ApplicationConfigOptions applicationConfig) {
+        UmabootConfig.ApplicationConfigOptions applicationConfig,
+        String classNameStripPrefix) {
 
     public GeneratorContext {
         Objects.requireNonNull(basePackage, "basePackage");
@@ -99,6 +100,7 @@ public record GeneratorContext(
         applicationConfig = applicationConfig == null
                 ? UmabootConfig.ApplicationConfigOptions.defaults()
                 : applicationConfig;
+        classNameStripPrefix = classNameStripPrefix == null ? "" : classNameStripPrefix;
     }
 
     /** Defaults: MVC + JPA + Spring Boot 3.3.5 + Java 17 + Lombok, standalone mode. */
@@ -120,7 +122,8 @@ public record GeneratorContext(
                 false,
                 "postgres",
                 null,
-                null);
+                null,
+                "");
     }
 
     public String basePackagePath() {

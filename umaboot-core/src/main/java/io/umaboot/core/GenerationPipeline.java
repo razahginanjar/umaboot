@@ -115,7 +115,8 @@ public final class GenerationPipeline {
                 config.generation().output().isOverlay(),
                 config.connection().driver(),
                 config.connection(),
-                config.generation().applicationConfig());
+                config.generation().applicationConfig(),
+                config.generation().tables().classNameStripPrefix());
 
         TemplateEngine engine = new TemplateEngine(templatesDir);
         ArchitectureGenerator generator = ArchitectureGenerators.forContext(ctx, engine);
