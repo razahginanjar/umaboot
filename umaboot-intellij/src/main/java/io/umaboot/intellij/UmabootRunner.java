@@ -107,7 +107,8 @@ final class UmabootRunner {
                 gen.mybatis(),
                 gen.tables(),
                 gen.ddd(),
-                newOutput);
+                newOutput,
+                gen.applicationConfig());
         return new UmabootConfig(config.connection(), newGen);
     }
 

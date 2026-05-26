@@ -182,6 +182,11 @@ public final class UmabootConfigLoader {
                 securityUsers,
                 jwt);
 
+        // Application config format. yaml by default.
+        Map<String, Object> appConfigMap = mapOrEmpty(gen, "applicationConfig");
+        var applicationConfig = new UmabootConfig.ApplicationConfigOptions(
+                str(appConfigMap, "format", "yaml"));
+
         var generation = new UmabootConfig.Generation(
                 str(gen, "architecture", "mvc"),
                 str(gen, "persistence", "jpa"),
@@ -209,7 +214,8 @@ public final class UmabootConfigLoader {
                 myBatis,
                 tables,
                 ddd,
-                output);
+                output,
+                applicationConfig);
 
         return new UmabootConfig(connection, generation);
     }

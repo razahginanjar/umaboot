@@ -95,7 +95,7 @@ class OpenApiStyleTest {
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(), UmabootConfig.LoggingOptions.defaults(),
                 UmabootConfig.TestOptions.defaults(), "offset", UmabootConfig.SecurityOptions.defaults(),
                 UmabootConfig.DddOptions.defaults(),
-                false, "postgres", null);
+                false, "postgres", null, null);
         return new MvcGenerator(new TemplateEngine(null), ctx).generate(schema);
     }
 

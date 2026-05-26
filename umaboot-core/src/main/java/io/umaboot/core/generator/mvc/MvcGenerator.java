@@ -55,7 +55,11 @@ public final class MvcGenerator implements ArchitectureGenerator {
         Map<String, Object> projectModel = projectModel(schema);
         if (!ctx.overlay()) {
             units.add(unit("pom.xml", "mvc-jpa/pom.xml.ftl", projectModel));
-            units.add(unit(resources + "/application.yml", "mvc-jpa/application.yml.ftl", projectModel));
+            units.add(unit(resources + "/" + ctx.applicationConfigFileName(),
+                    ctx.isApplicationConfigProperties()
+                            ? "mvc-jpa/application.properties.ftl"
+                            : "mvc-jpa/application.yml.ftl",
+                    projectModel));
             units.add(unit(javaSrc + "/Application.java", "mvc-jpa/Application.java.ftl", projectModel));
             units.add(unit(javaSrc + "/exception/GlobalExceptionHandler.java",
                     "mvc-jpa/GlobalExceptionHandler.java.ftl", projectModel));

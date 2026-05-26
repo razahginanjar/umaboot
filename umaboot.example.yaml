@@ -216,6 +216,16 @@ generation:
   #                 Application.java, application.yml, GlobalExceptionHandler.
   #                 Default outputDir = .   Use this to drop generated code into
   #                 an existing Spring Boot project without overwriting your build files.
+  # Format of the generated application config file.
+  #
+  #   yaml       - emit src/main/resources/application.yml (default).
+  #   properties - emit src/main/resources/application.properties (dotted-key form).
+  #
+  # Both render the same content; pick whatever your team prefers. Spring Boot
+  # reads either format identically.
+  applicationConfig:
+    format: yaml             # yaml | properties
+
   #
   # The IntelliJ plugin auto-switches to overlay if it detects a pom.xml at the
   # project root and you haven't set this explicitly.

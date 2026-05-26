@@ -114,6 +114,8 @@ public final class UmabootSettingsPanel {
     private final ComboBox<String> paginationStyleCombo = new ComboBox<>(new String[]{"offset", "cursor"});
     private final ComboBox<String> securityStyleCombo = new ComboBox<>(new String[]{"none", "basic", "jwt"});
     private final ComboBox<String> outputModeCombo = new ComboBox<>(new String[]{"standalone", "overlay"});
+    private final ComboBox<String> applicationConfigFormatCombo =
+            new ComboBox<>(new String[]{"yaml", "properties"});
     private final JBCheckBox useProjectDirectoryCheckbox =
             new JBCheckBox("Use project directory (where umaboot.yaml lives)");
     private final JBTextField outputDirField = new JBTextField();
@@ -257,6 +259,7 @@ public final class UmabootSettingsPanel {
         addRow(g, r++, "Pagination:", paginationStyleCombo);
         addRow(g, r++, "Security:", securityStyleCombo);
         addRow(g, r++, "OpenAPI style:", openApiStyleCombo);
+        addRow(g, r++, "App config format:", applicationConfigFormatCombo);
         addRow(g, r++, "Output mode:", outputModeCombo);
         addRow(g, r++, "", useProjectDirectoryCheckbox);
         addRow(g, r++, "Output dir:", outputDirField);
@@ -296,6 +299,7 @@ public final class UmabootSettingsPanel {
         persistenceCombo.addActionListener(mark);
         mybatisStyleCombo.addActionListener(mark);
         outputModeCombo.addActionListener(mark);
+        applicationConfigFormatCombo.addActionListener(mark);
         // "Use project directory" checkbox — when checked, outputDir is forced
         // to "." in YAML (which OutputDirResolver maps to the directory of
         // umaboot.yaml). Disables the text field so the user can't accidentally
@@ -671,6 +675,7 @@ public final class UmabootSettingsPanel {
         paginationStyleCombo.setSelectedItem(c.generation().pagination().style());
         securityStyleCombo.setSelectedItem(c.generation().security().style());
         outputModeCombo.setSelectedItem(c.generation().output().mode());
+        applicationConfigFormatCombo.setSelectedItem(c.generation().applicationConfig().format());
         // "Use project directory" shortcut: outputDir == "." means "the directory
         // of umaboot.yaml" (per OutputDirResolver). Reflect that in the checkbox.
         String od = c.generation().outputDir();
@@ -713,6 +718,9 @@ public final class UmabootSettingsPanel {
         var ddd = loaded != null ? loaded.generation().ddd() : UmabootConfig.DddOptions.defaults();
         var output = new UmabootConfig.OutputOptions(
                 Optional.ofNullable((String) outputModeCombo.getSelectedItem()).orElse("standalone"));
+
+        var applicationConfig = new UmabootConfig.ApplicationConfigOptions(
+                Optional.ofNullable((String) applicationConfigFormatCombo.getSelectedItem()).orElse("yaml"));
 
         var openapi = new UmabootConfig.OpenApiOptions(
                 Optional.ofNullable((String) openApiStyleCombo.getSelectedItem()).orElse("yaml"));
@@ -808,7 +816,7 @@ public final class UmabootSettingsPanel {
                         : (outputDirField.getText().trim().isEmpty()
                                 ? null
                                 : outputDirField.getText().trim()),
-                jpa, mybatis, tables, ddd, output);
+                jpa, mybatis, tables, ddd, output, applicationConfig);
 
         return new UmabootConfig(connection, generation);
     }
@@ -852,7 +860,8 @@ public final class UmabootSettingsPanel {
                 new UmabootConfig.MyBatisOptions("xml"),
                 UmabootConfig.TableFilterOptions.allowAll(),
                 UmabootConfig.DddOptions.defaults(),
-                UmabootConfig.OutputOptions.defaults());
+                UmabootConfig.OutputOptions.defaults(),
+                UmabootConfig.ApplicationConfigOptions.defaults());
         return new UmabootConfig(connection, generation);
     }
 

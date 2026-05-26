@@ -57,7 +57,8 @@ public record GeneratorContext(
         UmabootConfig.DddOptions ddd,
         boolean overlay,
         String dbDriver,
-        UmabootConfig.Connection connection) {
+        UmabootConfig.Connection connection,
+        UmabootConfig.ApplicationConfigOptions applicationConfig) {
 
     public GeneratorContext {
         Objects.requireNonNull(basePackage, "basePackage");
@@ -95,6 +96,9 @@ public record GeneratorContext(
         }
         security = security == null ? UmabootConfig.SecurityOptions.defaults() : security;
         dbDriver = dbDriver == null ? "postgres" : dbDriver.toLowerCase();
+        applicationConfig = applicationConfig == null
+                ? UmabootConfig.ApplicationConfigOptions.defaults()
+                : applicationConfig;
     }
 
     /** Defaults: MVC + JPA + Spring Boot 3.3.5 + Java 17 + Lombok, standalone mode. */
@@ -115,6 +119,7 @@ public record GeneratorContext(
                 UmabootConfig.DddOptions.defaults(),
                 false,
                 "postgres",
+                null,
                 null);
     }
 
@@ -191,6 +196,19 @@ public record GeneratorContext(
     /** Driver class name, derived from {@link #dbDriver}. */
     public String jdbcDriverClass() {
         return isDbMysql() ? "com.mysql.cj.jdbc.Driver" : "org.postgresql.Driver";
+    }
+
+    public boolean isApplicationConfigYaml() {
+        return applicationConfig != null && applicationConfig.isYaml();
+    }
+
+    public boolean isApplicationConfigProperties() {
+        return applicationConfig != null && applicationConfig.isProperties();
+    }
+
+    /** File name of the generated application config — e.g. "application.yml" or "application.properties". */
+    public String applicationConfigFileName() {
+        return isApplicationConfigProperties() ? "application.properties" : "application.yml";
     }
 
     public boolean isPaginationOffset() { return "offset".equalsIgnoreCase(paginationStyle); }

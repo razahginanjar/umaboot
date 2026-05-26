@@ -32,7 +32,7 @@ class DddGeneratorTest {
                 UmabootConfig.AuditOptions.defaults(), UmabootConfig.SoftDeleteOptions.defaults(),
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(), UmabootConfig.LoggingOptions.defaults(),
                 UmabootConfig.TestOptions.defaults(), "offset", UmabootConfig.SecurityOptions.defaults(),
-                UmabootConfig.DddOptions.defaults(), false, "postgres", null);
+                UmabootConfig.DddOptions.defaults(), false, "postgres", null, null);
         TemplateEngine engine = new TemplateEngine(null);
 
         List<GeneratedUnit> units = new DddGenerator(engine, ctx).generate(schema);
@@ -95,7 +95,7 @@ class DddGeneratorTest {
                 UmabootConfig.AuditOptions.defaults(), UmabootConfig.SoftDeleteOptions.defaults(),
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(), UmabootConfig.LoggingOptions.defaults(),
                 UmabootConfig.TestOptions.defaults(), "offset", UmabootConfig.SecurityOptions.defaults(),
-                UmabootConfig.DddOptions.defaults(), false, "postgres", null);
+                UmabootConfig.DddOptions.defaults(), false, "postgres", null, null);
         assertThatThrownBy(() -> new DddGenerator(engine, ctx))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("jpa or mybatis");
@@ -120,7 +120,7 @@ class DddGeneratorTest {
                         List.of(),
                         java.util.Map.of(),
                         "shared"),
-                false, "postgres", null);
+                false, "postgres", null, null);
 
         TemplateEngine engine = new TemplateEngine(null);
         List<GeneratedUnit> units = new DddGenerator(engine, ctx).generate(schema);

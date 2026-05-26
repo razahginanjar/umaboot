@@ -159,6 +159,7 @@ Full annotated example: see `umaboot.example.yaml`. The high-value settings:
 | `generation.security.jwt.expirationMinutes` | int | Token lifetime. Default: 60 |
 | `generation.output.mode` | `standalone \| overlay` | `standalone` writes a fresh project under `outputDir`; `overlay` drops sources into your existing project root |
 | `generation.outputDir` | path | Where files are written; relative paths resolve from the config file |
+| `generation.applicationConfig.format` | `yaml \| properties` | Format of the generated application config (`application.yml` vs `application.properties`). Default `yaml`. Both formats Spring Boot reads identically. |
 | `generation.tables.include` | `[globs]` | Whitelist (empty = "all") |
 | `generation.tables.exclude` | `[globs]` | Blacklist |
 | `generation.jpa.useMapStruct` | `true \| false` | Use compile-time MapStruct mappers |

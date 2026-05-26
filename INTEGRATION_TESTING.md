@@ -137,6 +137,7 @@ Use these three artifacts for everything below.
 | **I-22** | Refresh project view | `generated/` folder appears with `pom.xml`, `src/main/java/com/test/shop/...` populated | ☐ |
 | **I-22b** | Open the panel again, tick **Use project directory** under Output mode, click **Apply** | The Output dir text field becomes disabled. `umaboot.yaml` now contains `outputDir: .`. | ☐ |
 | **I-22c** | Run **Tools → Umaboot: Generate** with the project-directory checkbox ticked | Generated files land directly in the project root (next to `umaboot.yaml`), not under `generated/`. The notification path matches the project root. | ☐ |
+| **I-22d** | Set **App config format: properties** in the Settings panel and run Generate | Generated project has `src/main/resources/application.properties` (dotted-key form, same content) and **no** `application.yml`. Switching back to `yaml` and re-generating produces the inverse. | ☐ |
 | **I-23** | Right-click `generated/pom.xml` → "Add as Maven Project" → run `mvn package` | Build succeeds; produces a JAR | ☐ |
 | **I-24** | In the generated project, run `mvn spring-boot:run` and `curl http://localhost:8080/api/customers` | Returns `200` with `PageResponse` JSON shape | ☐ |
 

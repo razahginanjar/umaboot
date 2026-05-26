@@ -186,6 +186,10 @@ public final class UmabootYamlIO {
         ddd.put("sharedKernelPackage", config.generation().ddd().sharedKernelPackage());
         gen.put("ddd", ddd);
 
+        Map<String, Object> applicationConfig = new LinkedHashMap<>();
+        applicationConfig.put("format", config.generation().applicationConfig().format());
+        gen.put("applicationConfig", applicationConfig);
+
         root.put("generation", gen);
         return root;
     }

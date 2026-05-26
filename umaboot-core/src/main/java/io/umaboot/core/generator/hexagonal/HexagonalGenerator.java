@@ -61,7 +61,11 @@ public final class HexagonalGenerator implements ArchitectureGenerator {
         Map<String, Object> pm = projectModel(schema);
         if (!ctx.overlay()) {
             units.add(unit("pom.xml", "hexagonal/pom.xml.ftl", pm));
-            units.add(unit(resources + "/application.yml", "hexagonal/application.yml.ftl", pm));
+            units.add(unit(resources + "/" + ctx.applicationConfigFileName(),
+                    ctx.isApplicationConfigProperties()
+                            ? "hexagonal/application.properties.ftl"
+                            : "hexagonal/application.yml.ftl",
+                    pm));
             units.add(unit(javaSrc + "/Application.java", "hexagonal/Application.java.ftl", pm));
             units.add(unit(javaSrc + "/adapter/in/web/GlobalExceptionHandler.java",
                     "hexagonal/GlobalExceptionHandler.java.ftl", pm));

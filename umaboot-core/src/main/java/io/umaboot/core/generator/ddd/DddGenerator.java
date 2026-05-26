@@ -62,7 +62,11 @@ public final class DddGenerator implements ArchitectureGenerator {
         Map<String, Object> pm = projectModel(schema);
         if (!ctx.overlay()) {
             units.add(unit("pom.xml", "ddd/pom.xml.ftl", pm));
-            units.add(unit(resources + "/application.yml", "ddd/application.yml.ftl", pm));
+            units.add(unit(resources + "/" + ctx.applicationConfigFileName(),
+                    ctx.isApplicationConfigProperties()
+                            ? "ddd/application.properties.ftl"
+                            : "ddd/application.yml.ftl",
+                    pm));
             units.add(unit(javaSrc + "/Application.java", "ddd/Application.java.ftl", pm));
             units.add(unit(javaSrc + "/interfaces/rest/GlobalExceptionHandler.java",
                     "ddd/GlobalExceptionHandler.java.ftl", pm));

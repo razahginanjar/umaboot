@@ -159,7 +159,8 @@ public record UmabootConfig(Connection connection, Generation generation) {
             MyBatisOptions mybatis,
             TableFilterOptions tables,
             DddOptions ddd,
-            OutputOptions output) {
+            OutputOptions output,
+            ApplicationConfigOptions applicationConfig) {
 
         public Generation {
             architecture = architecture == null ? "mvc" : architecture.toLowerCase();
@@ -180,6 +181,7 @@ public record UmabootConfig(Connection connection, Generation generation) {
             tables = tables == null ? TableFilterOptions.allowAll() : tables;
             ddd = ddd == null ? DddOptions.defaults() : ddd;
             output = output == null ? OutputOptions.defaults() : output;
+            applicationConfig = applicationConfig == null ? ApplicationConfigOptions.defaults() : applicationConfig;
             openapi = openapi == null ? OpenApiOptions.defaults() : openapi;
             injection = injection == null ? InjectionOptions.defaults() : injection;
             validation = validation == null ? ValidationOptions.defaults() : validation;
@@ -405,6 +407,39 @@ public record UmabootConfig(Connection connection, Generation generation) {
         public boolean isYaml() { return "yaml".equals(style); }
         public boolean isAnnotation() { return "annotation".equals(style); }
         public boolean isEnabled() { return !"none".equals(style); }
+    }
+
+    /**
+     * Format of the generated application configuration file.
+     *
+     * <ul>
+     *   <li>{@code yaml} (default) — emits {@code src/main/resources/application.yml}.
+     *       Indented mapping syntax. The Spring Boot ecosystem default.</li>
+     *   <li>{@code properties} — emits {@code src/main/resources/application.properties}
+     *       in dotted-key form. Same content, different format. Some teams prefer it
+     *       for grep-ability or because their tooling expects it.</li>
+     * </ul>
+     *
+     * <p>Both formats are read identically by Spring Boot; the choice is purely about
+     * what file the generated project ships with. Overlay mode is unaffected — the
+     * existing {@link ApplicationConfigMerger} already handles either format when
+     * appending Umaboot-required entries.</p>
+     */
+    public record ApplicationConfigOptions(String format) {
+        public ApplicationConfigOptions {
+            format = format == null ? "yaml" : format.toLowerCase();
+            if (!"yaml".equals(format) && !"properties".equals(format)) {
+                throw new IllegalArgumentException(
+                        "applicationConfig.format must be 'yaml' or 'properties' (got: " + format + ")");
+            }
+        }
+
+        public static ApplicationConfigOptions defaults() {
+            return new ApplicationConfigOptions("yaml");
+        }
+
+        public boolean isYaml() { return "yaml".equals(format); }
+        public boolean isProperties() { return "properties".equals(format); }
     }
 
     /**

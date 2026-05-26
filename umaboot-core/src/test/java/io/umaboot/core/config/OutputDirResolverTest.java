@@ -134,7 +134,8 @@ class OutputDirResolverTest {
                 new UmabootConfig.MyBatisOptions("xml"),
                 UmabootConfig.TableFilterOptions.allowAll(),
                 UmabootConfig.DddOptions.defaults(),
-                UmabootConfig.OutputOptions.defaults());
+                UmabootConfig.OutputOptions.defaults(),
+                null);
         return new UmabootConfig(conn, gen);
     }
 }
