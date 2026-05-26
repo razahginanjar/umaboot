@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!--
+        Content-Security-Policy: scripts only via nonce, styles only from this
+        webview. The {{cspSource}} and {{nonce}} placeholders are substituted
+        at panel-open time by configEditor.ts.
+    -->
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'none'; img-src {{cspSource}} https: data:;
+                   style-src {{cspSource}} 'unsafe-inline'; font-src {{cspSource}};
+                   script-src 'nonce-{{nonce}}';">
+    <link href="{{styleUri}}" rel="stylesheet">
+    <title>Umaboot Configuration</title>
+</head>
+<body>
+<form id="config-form" novalidate>
+
+    <header class="hdr">
+        <h1>Umaboot configuration</h1>
+        <div class="status" id="status" aria-live="polite"></div>
+    </header>
+
+    <!-- ============================== Connection ============================== -->
+    <section class="block">
+        <h2>Connection</h2>
+        <div class="row">
+            <label for="connectionUrl">JDBC URL</label>
+            <input id="connectionUrl" type="text" placeholder="jdbc:postgresql://localhost:5432/your_db">
+        </div>
+        <div class="row two">
+            <div>
+                <label for="connectionUsername">Username</label>
+                <input id="connectionUsername" type="text" placeholder="postgres">
+            </div>
+            <div>
+                <label for="connectionPassword">Password</label>
+                <input id="connectionPassword" type="password" placeholder="postgres">
+            </div>
+        </div>
+        <div class="row">
+            <label for="connectionSchema">Schema (Postgres) / Database (MySQL)</label>
+            <input id="connectionSchema" type="text" placeholder="public">
+        </div>
+        <div class="actions inline">
+            <button type="button" id="btn-test-connection" class="ghost">Test Connection</button>
+            <button type="button" id="btn-refresh-tables" class="ghost">Refresh Tables</button>
+        </div>
+        <div id="connection-result" class="hint"></div>
+    </section>
+
+    <!-- ============================== Project =============================== -->
+    <section class="block">
+        <h2>Project</h2>
+        <div class="row two">
+            <div>
+                <label for="architecture">Architecture</label>
+                <select id="architecture">
+                    <option value="mvc">mvc</option>
+                    <option value="hexagonal">hexagonal</option>
+                    <option value="ddd">ddd</option>
+                </select>
+            </div>
+            <div>
+                <label for="persistence">Persistence</label>
+                <select id="persistence">
+                    <option value="jpa">jpa</option>
+                    <option value="mybatis">mybatis</option>
+                    <option value="jooq">jooq</option>
+                </select>
+            </div>
+        </div>
+        <div class="row">
+            <label for="basePackage">Base package</label>
+            <input id="basePackage" type="text" placeholder="com.example.app">
+        </div>
+        <div class="row two">
+            <div>
+                <label for="projectName">Project name</label>
+                <input id="projectName" type="text" placeholder="example-app">
+            </div>
+            <div>
+                <label for="projectGroup">Project group</label>
+                <input id="projectGroup" type="text" placeholder="com.example">
+            </div>
+        </div>
+        <div class="row two">
+            <div>
+                <label for="javaVersion">Java version</label>
+                <select id="javaVersion">
+                    <option value="8">8</option>
+                    <option value="11">11</option>
+                    <option value="17">17</option>
+                    <option value="21">21</option>
+                </select>
+            </div>
+            <div>
+                <label for="springBootVersion">Spring Boot version</label>
+                <input id="springBootVersion" type="text" placeholder="3.3.5">
+            </div>
+        </div>
+        <label class="checkbox">
+            <input id="useLombok" type="checkbox"> Use Lombok
+        </label>
+    </section>
+
+    <!-- ============================ Code style ============================== -->
+    <section class="block">
+        <h2>Code style</h2>
+        <div class="grid">
+            <div>
+                <label for="injectionStyle">Injection</label>
+                <select id="injectionStyle">
+                    <option value="constructor">constructor</option>
+                    <option value="lombok">lombok</option>
+                    <option value="autowired">autowired</option>
+                </select>
+            </div>
+            <div>
+                <label for="validationStyle">Validation</label>
+                <select id="validationStyle">
+                    <option value="jakarta">jakarta</option>
+                    <option value="none">none</option>
+                    <option value="service">service</option>
+                </select>
+            </div>
+            <div>
+                <label for="dtoStyle">DTO style</label>
+                <select id="dtoStyle">
+                    <option value="class">class</option>
+                    <option value="record">record</option>
+                </select>
+            </div>
+            <div>
+                <label for="dtoShape">DTO shape</label>
+                <select id="dtoShape">
+                    <option value="separate">separate</option>
+                    <option value="single">single</option>
+                </select>
+            </div>
+            <div>
+                <label for="exceptionStyle">Exception</label>
+                <select id="exceptionStyle">
+                    <option value="problemdetail">problemdetail</option>
+                    <option value="envelope">envelope</option>
+                </select>
+            </div>
+            <div>
+                <label for="openapiStyle">OpenAPI</label>
+                <select id="openapiStyle">
+                    <option value="yaml">yaml</option>
+                    <option value="annotation">annotation</option>
+                    <option value="none">none</option>
+                </select>
+            </div>
+            <div>
+                <label for="paginationStyle">Pagination</label>
+                <select id="paginationStyle">
+                    <option value="offset">offset</option>
+                    <option value="cursor">cursor</option>
+                </select>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========================== Schema-aware ============================== -->
+    <section class="block">
+        <h2>Schema-aware features</h2>
+        <label class="checkbox">
+            <input id="auditEnabled" type="checkbox"> Audit fields (created_at / updated_at / created_by / updated_by detection)
+        </label>
+        <label class="checkbox">
+            <input id="softDeleteEnabled" type="checkbox"> Soft delete (deleted_at / is_deleted detection)
+        </label>
+    </section>
+
+    <!-- ========================== Project tooling =========================== -->
+    <section class="block">
+        <h2>Project tooling</h2>
+        <label class="checkbox">
+            <input id="dockerEnabled" type="checkbox"> Emit Dockerfile + docker-compose.yml
+        </label>
+        <div class="row">
+            <label for="ciStyle">CI pipeline</label>
+            <select id="ciStyle">
+                <option value="none">none</option>
+                <option value="github">github</option>
+                <option value="gitlab">gitlab</option>
+            </select>
+        </div>
+        <div class="row two">
+            <div>
+                <label for="loggingStyle">Logging</label>
+                <select id="loggingStyle">
+                    <option value="plain">plain</option>
+                    <option value="json">json</option>
+                </select>
+            </div>
+            <label class="checkbox">
+                <input id="loggingCorrelationId" type="checkbox"> Add correlation-id filter (X-Correlation-Id → MDC)
+            </label>
+        </div>
+        <label class="checkbox">
+            <input id="testsEnabled" type="checkbox"> Generate integration tests (@SpringBootTest + Testcontainers)
+        </label>
+    </section>
+
+    <!-- ============================== Security ============================== -->
+    <section class="block">
+        <h2>Security</h2>
+        <div class="row">
+            <label for="securityStyle">Style</label>
+            <select id="securityStyle">
+                <option value="none">none</option>
+                <option value="basic">basic</option>
+                <option value="jwt">jwt</option>
+            </select>
+        </div>
+        <div id="security-jwt" class="hidden">
+            <div class="row two">
+                <div>
+                    <label for="jwtSecret">JWT secret (≥ 32 chars)</label>
+                    <input id="jwtSecret" type="text" placeholder="externalize via SPRING_SECURITY_JWT_SECRET">
+                </div>
+                <div>
+                    <label for="jwtExpirationMinutes">Expiration (minutes)</label>
+                    <input id="jwtExpirationMinutes" type="number" min="1" value="60">
+                </div>
+            </div>
+        </div>
+        <div id="security-users" class="hidden">
+            <label for="securityUsers">Users (one per line: <code>username:password:ROLE1,ROLE2</code>)</label>
+            <textarea id="securityUsers" rows="3" placeholder="admin:admin:ADMIN,USER&#10;user:user:USER"></textarea>
+        </div>
+    </section>
+
+    <!-- ============================== Output ================================ -->
+    <section class="block">
+        <h2>Output</h2>
+        <div class="row two">
+            <div>
+                <label for="outputMode">Mode</label>
+                <select id="outputMode">
+                    <option value="standalone">standalone</option>
+                    <option value="overlay">overlay</option>
+                </select>
+            </div>
+            <div>
+                <label for="outputDir">Directory (override)</label>
+                <input id="outputDir" type="text" placeholder="leave blank to use the mode default">
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================== Tables ================================ -->
+    <section class="block">
+        <h2>Tables</h2>
+        <div class="row">
+            <label for="tablesInclude">Include globs (one per line)</label>
+            <textarea id="tablesInclude" rows="3" placeholder="customer*&#10;order*"></textarea>
+        </div>
+        <div class="row">
+            <label for="tablesExclude">Exclude globs (one per line)</label>
+            <textarea id="tablesExclude" rows="3" placeholder="audit_*&#10;flyway_schema_history"></textarea>
+        </div>
+    </section>
+
+    <!-- ============================== Footer ================================ -->
+    <footer class="footer">
+        <button type="button" id="btn-revert" class="ghost">Revert</button>
+        <button type="submit" id="btn-save" class="primary">Save</button>
+    </footer>
+
+</form>
+<script nonce="{{nonce}}" src="{{scriptUri}}"></script>
+</body>
+</html>

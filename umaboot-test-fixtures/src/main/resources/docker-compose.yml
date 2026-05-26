@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: umaboot-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: umaboot
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./fixtures/postgres/sample-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+
+  mysql:
+    image: mysql:8.0
+    container_name: umaboot-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: umaboot
+      MYSQL_USER: umaboot
+      MYSQL_PASSWORD: umaboot
+    ports:
+      - "3306:3306"
+

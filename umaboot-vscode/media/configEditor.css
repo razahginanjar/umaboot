@@ -1,0 +1,198 @@
+/*
+ * Webview styles. Uses VS Code's built-in CSS variables so the panel matches
+ * whatever theme the user has active (light / dark / high-contrast). Form
+ * controls stay close to native VS Code widgets via --vscode-input-* and
+ * --vscode-button-* tokens.
+ */
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-foreground);
+    background: var(--vscode-editor-background);
+    padding: 16px 24px 32px;
+    margin: 0;
+}
+
+.hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    padding-bottom: 12px;
+    margin-bottom: 18px;
+}
+
+h1 {
+    font-size: 1.25em;
+    font-weight: 600;
+    margin: 0;
+}
+
+h2 {
+    font-size: 0.95em;
+    font-weight: 600;
+    margin: 0 0 10px;
+    color: var(--vscode-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.85;
+}
+
+.block {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.block:last-of-type {
+    border-bottom: none;
+}
+
+.row {
+    margin-bottom: 12px;
+}
+
+.row.two {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+label {
+    display: block;
+    font-size: 0.85em;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: var(--vscode-input-foreground);
+    opacity: 0.8;
+}
+
+label.checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+    opacity: 1;
+}
+
+label.checkbox input {
+    width: auto;
+    margin: 0;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+select,
+textarea {
+    width: 100%;
+    padding: 6px 8px;
+    font: inherit;
+    color: var(--vscode-input-foreground);
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border, transparent);
+    border-radius: 2px;
+    outline: none;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--vscode-focusBorder);
+}
+
+textarea {
+    font-family: var(--vscode-editor-font-family);
+    resize: vertical;
+}
+
+button {
+    padding: 6px 14px;
+    font: inherit;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+button.primary {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+button.primary:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+button.ghost {
+    background: var(--vscode-button-secondaryBackground, transparent);
+    color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+    border-color: var(--vscode-input-border, var(--vscode-panel-border));
+}
+
+button.ghost:hover {
+    background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
+}
+
+.actions.inline {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.footer {
+    position: sticky;
+    bottom: 0;
+    margin-top: 24px;
+    padding: 12px 0;
+    background: var(--vscode-editor-background);
+    border-top: 1px solid var(--vscode-panel-border);
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.hint {
+    margin-top: 8px;
+    font-size: 0.85em;
+    min-height: 1.2em;
+}
+
+.hint.ok {
+    color: var(--vscode-charts-green, var(--vscode-testing-iconPassed, #4caf50));
+}
+
+.hint.err {
+    color: var(--vscode-errorForeground, #f44336);
+}
+
+.status {
+    font-size: 0.85em;
+    color: var(--vscode-descriptionForeground);
+}
+
+.status.dirty::before {
+    content: "● ";
+    color: var(--vscode-charts-orange);
+}
+
+.hidden {
+    display: none;
+}
+
+code {
+    font-family: var(--vscode-editor-font-family);
+    background: var(--vscode-textBlockQuote-background, var(--vscode-input-background));
+    padding: 1px 4px;
+    border-radius: 2px;
+}

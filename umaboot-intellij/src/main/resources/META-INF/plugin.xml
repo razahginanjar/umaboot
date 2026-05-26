@@ -1,0 +1,45 @@
+<idea-plugin>
+    <id>io.umaboot.intellij</id>
+    <name>Umaboot</name>
+    <vendor email="support@umaboot.io" url="https://umaboot.io">Umaboot</vendor>
+
+    <description><![CDATA[
+        Generate a complete Spring Boot CRUD project from a relational schema —
+        without leaving your IDE. Supports JPA, MyBatis (XML or annotation),
+        and jOOQ; MVC, Hexagonal, and DDD architectures.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.java</depends>
+    <depends>org.jetbrains.plugins.yaml</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="Umaboot"
+                           displayType="BALLOON"
+                           toolWindowId="Umaboot"/>
+        <toolWindow id="Umaboot"
+                    secondary="false"
+                    anchor="right"
+                    icon="io.umaboot.intellij.UmabootIcons.TOOL_WINDOW"
+                    factoryClass="io.umaboot.intellij.UmabootToolWindowFactory"/>
+        <iconProvider implementation="io.umaboot.intellij.UmabootFileIconProvider"/>
+
+        <!-- Settings -> Tools -> Umaboot: form-based config editor. -->
+        <projectConfigurable parentId="tools"
+                             instance="io.umaboot.intellij.settings.UmabootSettingsConfigurable"
+                             id="io.umaboot.intellij.settings.UmabootSettingsConfigurable"
+                             displayName="Umaboot"/>
+
+        <!-- Gutter "play" icon on umaboot.yaml that runs the Generate action. -->
+        <codeInsight.lineMarkerProvider language="yaml"
+                                        implementationClass="io.umaboot.intellij.UmabootRunLineMarkerProvider"/>
+    </extensions>
+
+    <actions>
+        <action id="Umaboot.Generate"
+                class="io.umaboot.intellij.GenerateAction"
+                icon="io.umaboot.intellij.UmabootIcons.ACTION">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>

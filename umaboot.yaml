@@ -1,0 +1,74 @@
+connection:
+  mode: host
+  type: mysql
+  host: localhost:5432
+  database: your_db
+  schema: public
+  username: postgres
+  password: postgres
+generation:
+  architecture: mvc
+  persistence: jpa
+  basePackage: com.example.app
+  projectName: example-app
+  projectGroup: com.example
+  springBootVersion: 3.3.5
+  javaVersion: '17'
+  useLombok: true
+  openapi:
+    style: yaml
+  injection:
+    style: constructor
+  validation:
+    style: jakarta
+  dto:
+    style: class
+    shape: separate
+  exception:
+    style: problemdetail
+  audit:
+    enabled: true
+    createdAt: created_at
+    updatedAt: updated_at
+    createdBy: created_by
+    updatedBy: updated_by
+  softDelete:
+    enabled: true
+  docker:
+    enabled: false
+    baseImage: eclipse-temurin:17-jre-alpine
+    port: 8080
+  ci:
+    style: none
+  logging:
+    style: plain
+    correlationId: false
+  tests:
+    enabled: false
+  pagination:
+    style: offset
+  security:
+    style: none
+    users: [
+      ]
+    jwt:
+      expirationMinutes: 60
+      header: Authorization
+      prefix: 'Bearer '
+  outputDir: ./generated
+  output:
+    mode: standalone
+  jpa:
+    useMapStruct: false
+  mybatis:
+    style: xml
+  tables:
+    include: &id001 [
+      ]
+    exclude: *id001
+  ddd:
+    aggregateRoots: *id001
+    nonRoots: *id001
+    belongsTo: {
+      }
+    sharedKernelPackage: shared

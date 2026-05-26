@@ -1,0 +1,21 @@
+# Source — only the compiled output ships
+src/**
+**/*.ts
+!out/**/*.js
+tsconfig.json
+
+# Tooling
+.vscode/**
+.gitignore
+.npmrc
+package-lock.json
+
+# IDE / OS noise
+.DS_Store
+Thumbs.db
+
+# Anything under node_modules that's a dev dep gets stripped automatically by
+# vsce, but kill the obvious noise just in case.
+node_modules/typescript/**
+node_modules/@types/**
+node_modules/.bin/**

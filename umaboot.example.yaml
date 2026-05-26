@@ -1,0 +1,244 @@
+# Example Umaboot configuration. Copy to umaboot.yaml and edit.
+#
+# The `connection:` section supports two equivalent shapes — pick whichever
+# you prefer:
+#
+#   1. Host mode (recommended): set `mode: host`, then `type` + `host` +
+#      `database` (+ optional `params` for extra JDBC properties). The program
+#      composes the JDBC URL automatically as
+#         jdbc:<type>://<host>/<database>[?<params>]
+#
+#   2. URL mode: set `mode: url` and provide the full `url:` string verbatim.
+#      Useful for unusual hosts, SSH-tunnel setups, or pasting from a
+#      colleague's connection screen.
+#
+# Legacy yamls written before v0.8 used a flat `url:` + `schema:` shape with
+# no `mode:` key. Those are still accepted — the loader auto-migrates them in
+# memory and rewrites the file in the new shape on the first save.
+connection:
+  mode: host                                       # host | url
+  type: postgresql                                 # postgresql | mysql
+  host: localhost:5432                             # everything after jdbc:<type>://, before /<database>
+  database: umaboot                                # required in host mode
+  schema: public                                   # postgres schema; mysql usually leaves this empty
+  params: ""                                       # optional extra params, no leading "?"
+  username: postgres
+  password: postgres
+
+  # --- equivalent URL-mode form (uncomment to use instead) ---
+  # mode: url
+  # type: postgresql
+  # url: jdbc:postgresql://localhost:5432/umaboot?useSSL=false
+  # database: umaboot
+  # schema: public
+  # username: postgres
+  # password: postgres
+
+generation:
+  architecture: mvc          # mvc | hexagonal | ddd
+  persistence: jpa           # jpa | mybatis | jooq
+  basePackage: com.example.app
+  projectName: example-app
+  projectGroup: com.example
+  # Java target + Spring Boot version. Validated as a pair:
+  #   Java 8/11  -> Spring Boot 2.7.x  (template support pending — see README)
+  #   Java 17/21 -> Spring Boot 3.x    (current default)
+  # Setting javaVersion to "8" or "11" auto-defaults springBootVersion to 2.7.18.
+  springBootVersion: 3.3.5
+  javaVersion: "17"
+  useLombok: true
+
+  # OpenAPI emission strategy
+  #
+  #   yaml        - writes src/main/resources/openapi.yaml (default).
+  #   annotation  - adds springdoc-openapi-starter-webmvc-ui to pom.xml,
+  #                 emits OpenApiConfig.java, decorates controllers with
+  #                 @Tag and @Operation. Spring Boot serves /swagger-ui.html
+  #                 and /v3/api-docs at runtime.
+  #   none        - skip OpenAPI entirely.
+  openapi:
+    style: yaml
+
+  # Bean injection style for services and controllers.
+  #
+  #   constructor - explicit constructor with private final fields (default).
+  #                 The modern Spring best practice; works without Lombok.
+  #
+  #   lombok      - @RequiredArgsConstructor on the class; fields stay private final.
+  #                 Requires useLombok: true.
+  #
+  #   autowired   - @Autowired on each field (field injection). Fields are NOT final.
+  #                 Legacy style; included for teams with existing codebases using it.
+  injection:
+    style: constructor
+
+  # Validation strategy for Request DTOs.
+  #
+  #   jakarta - Jakarta Bean Validation (@NotBlank, @NotNull, @Size) on DTO fields,
+  #             plus @Valid on controllers. Default — Spring auto-validates.
+  #   none    - no validation annotations anywhere. Trust your callers.
+  #   service - DTOs and controllers stay annotation-free; expect the service layer
+  #             to perform domain validation manually.
+  validation:
+    style: jakarta
+
+  # DTO emission style.
+  #
+  #   style: class  - regular classes with getters/setters (or Lombok @Data when enabled).
+  #   style: record - Java records (immutable, automatic accessors). Java 17+.
+  #
+  #   shape: separate - distinct RequestDTO and ResponseDTO per entity (default).
+  #   shape: single   - reserved. Currently behaves as 'separate'; full single-DTO
+  #                     support is on the roadmap.
+  dto:
+    style: class
+    shape: separate
+
+  # Exception handler shape.
+  #
+  #   problemdetail - Spring 6 ProblemDetail (RFC 7807). Default. Standard, simple.
+  #   envelope      - emits an ApiError record { code, message, path, timestamp } and
+  #                   GlobalExceptionHandler returns ResponseEntity<ApiError>. Useful
+  #                   when frontends expect a uniform envelope across success/error.
+  exception:
+    style: problemdetail
+
+  # Audit-field auto-detection (JPA only).
+  #
+  # When enabled, Umaboot inspects each table for the configured columns. If any
+  # are present, the generated entity extends a generated Auditable @MappedSuperclass
+  # and the application class is annotated @EnableJpaAuditing. Detection is
+  # case-insensitive. Override the column names below if your schema uses
+  # different conventions (e.g. createdAt vs created_at).
+  audit:
+    enabled: true
+    createdAt: created_at
+    updatedAt: updated_at
+    createdBy: created_by
+    updatedBy: updated_by
+
+  # Soft-delete auto-detection (JPA only).
+  #
+  # When enabled, the generator looks for a deleted_at (timestamp) or is_deleted
+  # (boolean) column. When found, the entity is annotated @SQLDelete (so .delete()
+  # performs an UPDATE) and @Where (so .findAll() excludes deleted rows).
+  # Override 'column' to point at a custom column name; otherwise auto-detection
+  # picks up: deleted_at, is_deleted, deleted, deletedAt, isDeleted.
+  softDelete:
+    enabled: true
+    # column: deleted_at
+
+  # Generated-project tooling (Phase H). All optional.
+
+  # Dockerfile + docker-compose.yml. The compose file picks postgres or mysql to
+  # match your connection.url and externalizes credentials as DB_NAME / DB_USER /
+  # DB_PASSWORD env vars so secrets stay out of version control.
+  docker:
+    enabled: false
+    baseImage: eclipse-temurin:17-jre-alpine
+    port: 8080
+
+  # CI pipeline scaffolding.
+  #   none   - skip
+  #   github - .github/workflows/ci.yml (push + PR; setup-java + mvn package/test)
+  #   gitlab - .gitlab-ci.yml (build + test stages with Maven cache)
+  ci:
+    style: none
+
+  # Application logging.
+  #   style: plain - Spring Boot default text logs
+  #   style: json  - emits logback-spring.xml using logstash-logback-encoder + adds
+  #                  the encoder to pom.xml
+  #   correlationId: true emits a CorrelationIdFilter that reads the X-Correlation-Id
+  #                       header (or generates a UUID) and pushes it into the SLF4J MDC
+  #                       for each request. Works with either logging style.
+  logging:
+    style: plain
+    correlationId: false
+
+  # Integration tests. When enabled, generates one @SpringBootTest per non-junction
+  # table that boots a real Spring context against a Testcontainer (postgres or
+  # mysql, matched to your connection driver). The base class lives at
+  # ${basePackage}.AbstractIntegrationTest.
+  #
+  # Requires Docker at test time. Adds testcontainers + the matching jdbc module
+  # to pom.xml in test scope.
+  tests:
+    enabled: false
+
+  # Pagination style for list endpoints.
+  #
+  #   offset - Spring's standard ?page=&size=&sort= via Pageable + PageResponse<T>.
+  #            Default. Works with every architecture and persistence backend.
+  #   cursor - keyset/cursor pagination over the simple primary key. The list
+  #            endpoint accepts ?cursor=&limit= and returns CursorPage<T> with
+  #            { content, nextCursor, limit, hasMore }. Currently MVC + JPA only;
+  #            mismatched architecture or persistence is rejected at config load.
+  #            Tables with composite primary keys fall back to offset for that
+  #            table.
+  pagination:
+    style: offset
+
+  # Spring Security scaffolding.
+  #
+  #   none  - no Spring Security on classpath. Default. Existing v1.x behavior.
+  #   basic - HTTP Basic auth, in-memory UserDetailsService seeded from `users`
+  #           below. All /api/** requires authentication.
+  #   jwt   - JWT bearer auth (HS256). Generates POST /api/auth/login that
+  #           returns a token, plus a filter that validates Authorization
+  #           headers on subsequent requests. /api/auth/** is public; everything
+  #           else under /api/** requires a valid token.
+  #
+  # In-memory users only in this phase. Swap in a JDBC- or LDAP-backed
+  # UserDetailsService bean when ready.
+  #
+  # SECURITY: when using style: jwt, externalize jwt.secret before deploying.
+  # The generated application.yml reads ${SPRING_SECURITY_JWT_SECRET:default}
+  # so an env var or secret manager can override the placeholder.
+  security:
+    style: none
+    users:
+      - username: admin
+        password: admin
+        roles: [ADMIN, USER]
+    jwt:
+      # secret: replace-this-with-32-chars-of-real-entropy
+      expirationMinutes: 60
+      header: Authorization
+      prefix: "Bearer "
+
+  # Output mode and target directory
+  #
+  #   standalone  - emits a complete project (pom.xml, Application.java, application.yml).
+  #                 Default outputDir = ./generated. Use this for greenfield projects.
+  #
+  #   overlay     - emits ONLY the per-table source files. Skips pom.xml,
+  #                 Application.java, application.yml, GlobalExceptionHandler.
+  #                 Default outputDir = .   Use this to drop generated code into
+  #                 an existing Spring Boot project without overwriting your build files.
+  #
+  # The IntelliJ plugin auto-switches to overlay if it detects a pom.xml at the
+  # project root and you haven't set this explicitly.
+  output:
+    mode: standalone
+  # outputDir: ./generated   # leave unset to use the mode's default
+
+  # JPA-only options
+  jpa:
+    useMapStruct: false
+
+  # MyBatis-only options
+  mybatis:
+    style: xml               # xml | annotation
+
+  # Pick which tables get generated. Globs (* and ?), case-insensitive.
+  tables:
+    include: []
+    exclude: []
+
+  # DDD-only options.
+  ddd:
+    aggregateRoots: []
+    nonRoots: []
+    belongsTo:
+    sharedKernelPackage: shared

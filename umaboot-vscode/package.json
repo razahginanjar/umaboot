@@ -1,0 +1,168 @@
+{
+  "name": "umaboot",
+  "displayName": "Umaboot",
+  "description": "Generate Spring Boot CRUD projects from a database schema.",
+  "version": "0.5.0",
+  "publisher": "umaboot",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": ["Other"],
+  "icon": "resources/icon.png",
+  "activationEvents": [
+    "workspaceContains:umaboot.yaml",
+    "workspaceContains:crudforge.yaml",
+    "onView:umaboot.dashboard",
+    "onLanguage:yaml"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "umaboot",
+          "title": "Umaboot",
+          "icon": "resources/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "umaboot": [
+        {
+          "id": "umaboot.dashboard",
+          "name": "Dashboard",
+          "icon": "resources/icon.png",
+          "contextualTitle": "Umaboot"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "umaboot.dashboard",
+        "contents": "No `umaboot.yaml` found in this workspace.\n\n[Create umaboot.yaml](command:umaboot.createConfig)\n[Edit configuration with form](command:umaboot.editConfig)\n\nOnce created, the dashboard will show your connection, table list, and Generate / Diff / Apply actions."
+      }
+    ],
+    "commands": [
+      {
+        "command": "umaboot.generate",
+        "title": "Umaboot: Generate",
+        "icon": "$(play)"
+      },
+      {
+        "command": "umaboot.diff",
+        "title": "Umaboot: Diff",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "umaboot.apply",
+        "title": "Umaboot: Apply",
+        "icon": "$(check)"
+      },
+      {
+        "command": "umaboot.testConnection",
+        "title": "Umaboot: Test Connection",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "umaboot.refreshTables",
+        "title": "Umaboot: Refresh Tables",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "umaboot.refreshDashboard",
+        "title": "Umaboot: Refresh Dashboard",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "umaboot.openConfig",
+        "title": "Umaboot: Open umaboot.yaml",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "umaboot.createConfig",
+        "title": "Umaboot: Create umaboot.yaml",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "umaboot.editConfig",
+        "title": "Umaboot: Edit Configuration",
+        "icon": "$(edit)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "umaboot.editConfig",
+          "when": "view == umaboot.dashboard",
+          "group": "navigation@1"
+        },
+        {
+          "command": "umaboot.refreshDashboard",
+          "when": "view == umaboot.dashboard",
+          "group": "navigation@2"
+        },
+        {
+          "command": "umaboot.openConfig",
+          "when": "view == umaboot.dashboard",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "umaboot.testConnection",
+          "when": "view == umaboot.dashboard && viewItem == umaboot.section.config",
+          "group": "inline"
+        },
+        {
+          "command": "umaboot.refreshTables",
+          "when": "view == umaboot.dashboard && viewItem == umaboot.section.tables",
+          "group": "inline"
+        },
+        {
+          "command": "umaboot.generate",
+          "when": "view == umaboot.dashboard && viewItem == umaboot.action.generate",
+          "group": "inline"
+        },
+        {
+          "command": "umaboot.diff",
+          "when": "view == umaboot.dashboard && viewItem == umaboot.action.diff",
+          "group": "inline"
+        },
+        {
+          "command": "umaboot.apply",
+          "when": "view == umaboot.dashboard && viewItem == umaboot.action.apply",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Umaboot",
+      "properties": {
+        "umaboot.cliPath": {
+          "type": "string",
+          "default": "umaboot",
+          "description": "Path to the Umaboot CLI executable. Use `java -jar /path/to/umaboot.jar` to run the fat JAR directly."
+        },
+        "umaboot.configFile": {
+          "type": "string",
+          "default": "umaboot.yaml",
+          "description": "Workspace-relative path to the Umaboot configuration file."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "tsc -p ./",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.16.10",
+    "@types/vscode": "^1.92.0",
+    "typescript": "^5.5.4"
+  }
+}
