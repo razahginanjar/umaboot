@@ -4,6 +4,7 @@ import io.umaboot.core.GenerationPipeline;
 import io.umaboot.core.architecture.ArchitectureRenderer;
 import io.umaboot.core.architecture.ArchitectureRenderers;
 import io.umaboot.core.config.ApplicationConfigMerger;
+import io.umaboot.core.config.OutputDirResolver;
 import io.umaboot.core.config.UmabootConfig;
 import io.umaboot.core.config.UmabootConfigLoader;
 import org.slf4j.Logger;
@@ -12,7 +13,6 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.concurrent.Callable;
 
 @Command(name = "generate",
@@ -43,8 +43,9 @@ public final class GenerateCommand implements Callable<Integer> {
 
             GenerationPipeline.Result r = GenerationPipeline.run(config, templatesDir);
             ArchitectureRenderer renderer = ArchitectureRenderers.forContext(r.ctx());
-            Path output = outputOverride != null ? outputOverride
-                    : Paths.get(config.generation().outputDir());
+            Path output = outputOverride != null
+                    ? outputOverride.toAbsolutePath().normalize()
+                    : OutputDirResolver.resolve(config, configFile);
             renderer.render(r.units(), output);
 
             // In overlay mode, append our required entries (e.g. mybatis.mapper-locations)

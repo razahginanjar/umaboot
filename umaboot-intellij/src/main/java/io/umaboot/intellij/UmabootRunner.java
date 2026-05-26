@@ -9,7 +9,6 @@ import io.umaboot.core.config.UmabootConfigLoader;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 /**
  * Runs the generation pipeline against the workspace's {@code umaboot.yaml}.
@@ -114,10 +113,6 @@ final class UmabootRunner {
 
     /** Resolve relative outputDir against the project root (config file's parent). */
     private static Path resolveOutputDir(UmabootConfig config, Path configFile) {
-        Path raw = Paths.get(config.generation().outputDir());
-        if (raw.isAbsolute()) return raw.toAbsolutePath().normalize();
-        Path projectRoot = configFile.getParent();
-        if (projectRoot == null) return raw.toAbsolutePath().normalize();
-        return projectRoot.resolve(raw).toAbsolutePath().normalize();
+        return io.umaboot.core.config.OutputDirResolver.resolve(config, configFile);
     }
 }

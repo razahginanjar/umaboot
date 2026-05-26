@@ -3,6 +3,7 @@ package io.umaboot.cli;
 import io.umaboot.core.GenerationPipeline;
 import io.umaboot.core.architecture.ArchitectureRenderer;
 import io.umaboot.core.architecture.ArchitectureRenderers;
+import io.umaboot.core.config.OutputDirResolver;
 import io.umaboot.core.config.UmabootConfig;
 import io.umaboot.core.config.UmabootConfigLoader;
 import io.umaboot.core.diff.DiffEngine;
@@ -18,7 +19,6 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -62,8 +62,9 @@ public final class ApplyCommand implements Callable<Integer> {
         try {
             UmabootConfig config = UmabootConfigLoader.load(configFile);
             GenerationPipeline.Result r = GenerationPipeline.run(config, templatesDir);
-            Path output = outputOverride != null ? outputOverride
-                    : Paths.get(config.generation().outputDir());
+            Path output = outputOverride != null
+                    ? outputOverride.toAbsolutePath().normalize()
+                    : OutputDirResolver.resolve(config, configFile);
 
             ArchitectureRenderer renderer = ArchitectureRenderers.forContext(r.ctx());
             // First, run the units through the renderer's path-rewrite logic by

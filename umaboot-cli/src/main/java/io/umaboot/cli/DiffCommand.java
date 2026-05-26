@@ -1,6 +1,7 @@
 package io.umaboot.cli;
 
 import io.umaboot.core.GenerationPipeline;
+import io.umaboot.core.config.OutputDirResolver;
 import io.umaboot.core.config.UmabootConfig;
 import io.umaboot.core.config.UmabootConfigLoader;
 import io.umaboot.core.diff.DiffEngine;
@@ -10,7 +11,6 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.concurrent.Callable;
 
 /**
@@ -48,8 +48,9 @@ public final class DiffCommand implements Callable<Integer> {
         try {
             UmabootConfig config = UmabootConfigLoader.load(configFile);
             GenerationPipeline.Result r = GenerationPipeline.run(config, templatesDir);
-            Path output = outputOverride != null ? outputOverride
-                    : Paths.get(config.generation().outputDir());
+            Path output = outputOverride != null
+                    ? outputOverride.toAbsolutePath().normalize()
+                    : OutputDirResolver.resolve(config, configFile);
             DiffEngine.DiffResult diff = new DiffEngine().diff(r.units(), output);
 
             System.out.println("Diff against " + output.toAbsolutePath() + ":");
