@@ -56,7 +56,8 @@ public record GeneratorContext(
         UmabootConfig.SecurityOptions security,
         UmabootConfig.DddOptions ddd,
         boolean overlay,
-        String dbDriver) {
+        String dbDriver,
+        UmabootConfig.Connection connection) {
 
     public GeneratorContext {
         Objects.requireNonNull(basePackage, "basePackage");
@@ -113,7 +114,8 @@ public record GeneratorContext(
                 UmabootConfig.SecurityOptions.defaults(),
                 UmabootConfig.DddOptions.defaults(),
                 false,
-                "postgres");
+                "postgres",
+                null);
     }
 
     public String basePackagePath() {
@@ -153,6 +155,43 @@ public record GeneratorContext(
 
     public boolean isDbMysql() { return "mysql".equalsIgnoreCase(dbDriver); }
     public boolean isDbPostgres() { return !isDbMysql(); }
+
+    /**
+     * Effective JDBC URL written into the generated {@code application.yml/.properties}
+     * as the default value of {@code spring.datasource.url}. Comes from the
+     * loaded {@link UmabootConfig.Connection#url()} when available, otherwise
+     * falls back to a localhost URL so tests that don't bind a connection
+     * still render a syntactically valid yaml.
+     */
+    public String jdbcUrl() {
+        if (connection != null && connection.url() != null && !connection.url().isBlank()) {
+            return connection.url();
+        }
+        return isDbMysql()
+                ? "jdbc:mysql://localhost:3306/" + projectName
+                : "jdbc:postgresql://localhost:5432/" + projectName;
+    }
+
+    /** JDBC username for the generated app — from connection block, or engine default. */
+    public String jdbcUsername() {
+        if (connection != null && connection.username() != null && !connection.username().isEmpty()) {
+            return connection.username();
+        }
+        return isDbMysql() ? "root" : "postgres";
+    }
+
+    /** JDBC password for the generated app — from connection block, or engine default. */
+    public String jdbcPassword() {
+        if (connection != null && connection.password() != null && !connection.password().isEmpty()) {
+            return connection.password();
+        }
+        return isDbMysql() ? "root" : "postgres";
+    }
+
+    /** Driver class name, derived from {@link #dbDriver}. */
+    public String jdbcDriverClass() {
+        return isDbMysql() ? "com.mysql.cj.jdbc.Driver" : "org.postgresql.Driver";
+    }
 
     public boolean isPaginationOffset() { return "offset".equalsIgnoreCase(paginationStyle); }
     public boolean isPaginationCursor() { return "cursor".equalsIgnoreCase(paginationStyle); }

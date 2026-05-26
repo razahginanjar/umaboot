@@ -106,8 +106,13 @@
         </dependency>
 </#if>
         <dependency>
+<#if dbIsMysql>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+<#else>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
+</#if>
             <scope>runtime</scope>
         </dependency>
 <#if useLombok>
@@ -206,21 +211,27 @@
                 </executions>
                 <dependencies>
                     <dependency>
+<#if dbIsMysql>
+                        <groupId>com.mysql</groupId>
+                        <artifactId>mysql-connector-j</artifactId>
+                        <version>8.4.0</version>
+<#else>
                         <groupId>org.postgresql</groupId>
                         <artifactId>postgresql</artifactId>
                         <version>42.7.4</version>
+</#if>
                     </dependency>
                 </dependencies>
                 <configuration>
                     <jdbc>
-                        <driver>org.postgresql.Driver</driver>
-                        <url>jdbc:postgresql://localhost:5432/${projectName}</url>
-                        <user>postgres</user>
-                        <password>postgres</password>
+                        <driver>${jdbcDriverClass}</driver>
+                        <url>${jdbcUrl}</url>
+                        <user>${jdbcUsername}</user>
+                        <password>${jdbcPassword}</password>
                     </jdbc>
                     <generator>
                         <database>
-                            <name>org.jooq.meta.postgres.PostgresDatabase</name>
+                            <name><#if dbIsMysql>org.jooq.meta.mysql.MySQLDatabase<#else>org.jooq.meta.postgres.PostgresDatabase</#if></name>
                             <inputSchema>${schemaName}</inputSchema>
                         </database>
                         <generate>

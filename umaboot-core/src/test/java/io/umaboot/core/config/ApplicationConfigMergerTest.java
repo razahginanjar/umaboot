@@ -100,6 +100,6 @@ class ApplicationConfigMergerTest {
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(), UmabootConfig.LoggingOptions.defaults(),
                 UmabootConfig.TestOptions.defaults(), "offset", UmabootConfig.SecurityOptions.defaults(),
                 UmabootConfig.DddOptions.defaults(),
-                true /* overlay */, "postgres");
+                true /* overlay */, "postgres", null);
     }
 }

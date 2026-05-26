@@ -2,17 +2,19 @@ spring:
   application:
     name: ${projectName}
   datasource:
-    url: jdbc:postgresql://localhost:5432/${projectName}
-    username: postgres
-    password: postgres
-    driver-class-name: org.postgresql.Driver
+    url: ${r"${SPRING_DATASOURCE_URL:"}${jdbcUrl}${r"}"}
+    username: ${r"${SPRING_DATASOURCE_USERNAME:"}${jdbcUsername}${r"}"}
+    password: ${r"${SPRING_DATASOURCE_PASSWORD:"}${jdbcPassword}${r"}"}
+    driver-class-name: ${jdbcDriverClass}
 <#if isJpa>
   jpa:
     hibernate:
       ddl-auto: validate
     properties:
       hibernate:
+<#if dbIsPostgres>
         default_schema: ${schemaName}
+</#if>
         format_sql: true
     open-in-view: false
 </#if>

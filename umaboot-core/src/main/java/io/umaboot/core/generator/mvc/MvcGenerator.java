@@ -256,6 +256,10 @@ public final class MvcGenerator implements ArchitectureGenerator {
         m.put("dbDriver", ctx.dbDriver());
         m.put("dbIsMysql", ctx.isDbMysql());
         m.put("dbIsPostgres", ctx.isDbPostgres());
+        m.put("jdbcUrl", ctx.jdbcUrl());
+        m.put("jdbcUsername", ctx.jdbcUsername());
+        m.put("jdbcPassword", ctx.jdbcPassword());
+        m.put("jdbcDriverClass", ctx.jdbcDriverClass());
         m.put("eeNamespace", ctx.eeNamespace());
         m.put("springBoot2", ctx.isSpringBoot2());
         m.put("springBoot3", ctx.isSpringBoot3());

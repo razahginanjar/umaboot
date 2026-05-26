@@ -100,7 +100,7 @@ class HexagonalMyBatisGeneratorTest {
                 UmabootConfig.AuditOptions.defaults(), UmabootConfig.SoftDeleteOptions.defaults(),
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(), UmabootConfig.LoggingOptions.defaults(),
                 UmabootConfig.TestOptions.defaults(), "offset", UmabootConfig.SecurityOptions.defaults(),
-                UmabootConfig.DddOptions.defaults(), false, "postgres");
+                UmabootConfig.DddOptions.defaults(), false, "postgres", null);
         return new HexagonalGenerator(new TemplateEngine(null), ctx).generate(schema);
     }
 

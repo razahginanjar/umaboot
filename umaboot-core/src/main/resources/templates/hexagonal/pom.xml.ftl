@@ -97,8 +97,13 @@
         </dependency>
 </#if>
         <dependency>
+<#if dbIsMysql>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+<#else>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
+</#if>
             <scope>runtime</scope>
         </dependency>
 <#if useLombok>
