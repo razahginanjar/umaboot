@@ -175,10 +175,11 @@ public record GeneratorContext(
 
     public boolean isDbMysql() { return "mysql".equalsIgnoreCase(dbDriver); }
     public boolean isDbMariadb() { return "mariadb".equalsIgnoreCase(dbDriver); }
+    public boolean isDbSqlserver() { return "sqlserver".equalsIgnoreCase(dbDriver); }
     /** True for any MySQL-family engine (MySQL or MariaDB). DDL parser routing + Testcontainers
      *  lookups treat them together; only the JDBC URL / driver coords / pom artifact differ. */
     public boolean isDbMysqlFamily() { return isDbMysql() || isDbMariadb(); }
-    public boolean isDbPostgres() { return !isDbMysqlFamily(); }
+    public boolean isDbPostgres() { return !isDbMysqlFamily() && !isDbSqlserver(); }
 
     /**
      * Effective JDBC URL written into the generated {@code application.yml/.properties}
@@ -191,8 +192,9 @@ public record GeneratorContext(
         if (connection != null && connection.url() != null && !connection.url().isBlank()) {
             return connection.url();
         }
-        if (isDbMariadb()) return "jdbc:mariadb://localhost:3306/" + projectName;
-        if (isDbMysql())   return "jdbc:mysql://localhost:3306/" + projectName;
+        if (isDbMariadb())  return "jdbc:mariadb://localhost:3306/" + projectName;
+        if (isDbMysql())    return "jdbc:mysql://localhost:3306/" + projectName;
+        if (isDbSqlserver()) return "jdbc:sqlserver://localhost:1433;databaseName=" + projectName + ";encrypt=false;trustServerCertificate=true";
         return "jdbc:postgresql://localhost:5432/" + projectName;
     }
 
@@ -201,6 +203,7 @@ public record GeneratorContext(
         if (connection != null && connection.username() != null && !connection.username().isEmpty()) {
             return connection.username();
         }
+        if (isDbSqlserver()) return "sa";
         return isDbMysqlFamily() ? "root" : "postgres";
     }
 
@@ -209,13 +212,15 @@ public record GeneratorContext(
         if (connection != null && connection.password() != null && !connection.password().isEmpty()) {
             return connection.password();
         }
+        if (isDbSqlserver()) return "Your_password123";
         return isDbMysqlFamily() ? "root" : "postgres";
     }
 
     /** Driver class name, derived from {@link #dbDriver}. */
     public String jdbcDriverClass() {
-        if (isDbMariadb()) return "org.mariadb.jdbc.Driver";
-        if (isDbMysql())   return "com.mysql.cj.jdbc.Driver";
+        if (isDbMariadb())   return "org.mariadb.jdbc.Driver";
+        if (isDbMysql())     return "com.mysql.cj.jdbc.Driver";
+        if (isDbSqlserver()) return "com.microsoft.sqlserver.jdbc.SQLServerDriver";
         return "org.postgresql.Driver";
     }
 

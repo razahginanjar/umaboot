@@ -12,7 +12,7 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
-<#if dbIsPostgres>
+<#if dbIsPostgres || dbIsSqlserver>
         default_schema: ${schemaName}
 </#if>
         format_sql: true

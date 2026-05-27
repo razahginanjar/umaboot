@@ -90,7 +90,7 @@ generation:
   outputDir: ./generated
 ```
 
-> **Tip:** to skip the live-DB requirement, replace `connection:` with `schemaFile: ./schema.sql` and point to a `.sql` DDL file. Umaboot will parse it via JSqlParser. Postgres / MySQL / MariaDB syntax supported. `persistence: jooq` is rejected in this mode — use `jpa` or `mybatis`.
+> **Tip:** to skip the live-DB requirement, replace `connection:` with `schemaFile: ./schema.sql` and point to a `.sql` DDL file. Umaboot will parse it via JSqlParser. Postgres / MySQL / MariaDB / SQL Server syntax supported. `persistence: jooq` is rejected in this mode — use `jpa` or `mybatis`.
 
 ### 4. Run
 

@@ -33,6 +33,7 @@
         <postgresql.version>42.7.4</postgresql.version>
         <mysql.version>8.4.0</mysql.version>
         <mariadb.version>3.4.1</mariadb.version>
+        <mssql.version>12.6.4.jre11</mssql.version>
         <jsqlparser.version>5.0</jsqlparser.version>
         <freemarker.version>2.3.33</freemarker.version>
         <java-diff-utils.version>4.12</java-diff-utils.version>
@@ -87,6 +88,11 @@
                 <groupId>org.mariadb.jdbc</groupId>
                 <artifactId>mariadb-java-client</artifactId>
                 <version>${mariadb.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.microsoft.sqlserver</groupId>
+                <artifactId>mssql-jdbc</artifactId>
+                <version>${mssql.version}</version>
             </dependency>
 
             <!-- SQL parser (codegen-time only — used by SqlFileIntrospector) -->

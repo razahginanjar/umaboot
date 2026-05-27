@@ -5,7 +5,7 @@ spring.datasource.password=${r"${SPRING_DATASOURCE_PASSWORD:"}${jdbcPassword}${r
 spring.datasource.driver-class-name=${jdbcDriverClass}
 <#if isJpa>
 spring.jpa.hibernate.ddl-auto=validate
-<#if dbIsPostgres>
+<#if dbIsPostgres || dbIsSqlserver>
 spring.jpa.properties.hibernate.default_schema=${schemaName}
 </#if>
 spring.jpa.properties.hibernate.format_sql=true

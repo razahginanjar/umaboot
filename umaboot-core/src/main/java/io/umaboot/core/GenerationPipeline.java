@@ -11,6 +11,7 @@ import io.umaboot.core.introspection.JdbcDrivers;
 import io.umaboot.core.introspection.mysql.MysqlIntrospector;
 import io.umaboot.core.introspection.postgres.PostgresIntrospector;
 import io.umaboot.core.introspection.sqlfile.SqlFileIntrospector;
+import io.umaboot.core.introspection.sqlserver.SqlServerIntrospector;
 import io.umaboot.core.model.SchemaModel;
 import io.umaboot.core.relationship.RelationshipEngine;
 import io.umaboot.core.template.TemplateEngine;
@@ -105,10 +106,15 @@ public final class GenerationPipeline {
                     connection.url(),
                     connection.username(),
                     connection.password())) {
-                Introspector introspector = "mysql".equalsIgnoreCase(connection.driver())
-                        || "mariadb".equalsIgnoreCase(connection.driver())
-                        ? new MysqlIntrospector(conn)
-                        : new PostgresIntrospector(conn);
+                String driver = connection.driver();
+                Introspector introspector;
+                if ("sqlserver".equalsIgnoreCase(driver)) {
+                    introspector = new SqlServerIntrospector(conn);
+                } else if ("mysql".equalsIgnoreCase(driver) || "mariadb".equalsIgnoreCase(driver)) {
+                    introspector = new MysqlIntrospector(conn);
+                } else {
+                    introspector = new PostgresIntrospector(conn);
+                }
                 schema = introspector.introspect(connection.introspectionTarget());
             }
             LOG.info("Introspected {} tables from live database", schema.tables().size());

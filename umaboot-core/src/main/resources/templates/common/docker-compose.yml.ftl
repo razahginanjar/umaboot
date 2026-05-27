@@ -57,6 +57,30 @@ services:
       retries: 10
     volumes:
       - db-data:/var/lib/mysql
+<#elseif dbIsSqlserver>
+    # NOTE: SQL Server image requires accepting Microsoft's EULA via ACCEPT_EULA=Y
+    # and a strong sa password (≥8 chars: upper+lower+digit+symbol).
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:sqlserver://db:1433;databaseName=${r"${DB_NAME:-master}"};encrypt=false;trustServerCertificate=true
+      SPRING_DATASOURCE_USERNAME: ${r"${DB_USER:-sa}"}
+      SPRING_DATASOURCE_PASSWORD: ${r"${DB_PASSWORD:-Your_password123}"}
+
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: ${projectName}-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${r"${DB_PASSWORD:-Your_password123}"}
+      MSSQL_PID: Express
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - db-data:/var/opt/mssql
 <#else>
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${r"${DB_NAME:-app}"}

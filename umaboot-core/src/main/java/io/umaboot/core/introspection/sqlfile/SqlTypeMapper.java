@@ -101,7 +101,21 @@ public final class SqlTypeMapper {
             Map.entry("cidr",            Types.OTHER),
             Map.entry("macaddr",         Types.OTHER),
             Map.entry("interval",        Types.OTHER),
-            Map.entry("tsvector",        Types.OTHER)
+            Map.entry("tsvector",        Types.OTHER),
+
+            // SQL Server / T-SQL types
+            Map.entry("ntext",           Types.LONGNVARCHAR),
+            Map.entry("datetime2",       Types.TIMESTAMP),
+            Map.entry("datetimeoffset",  Types.TIMESTAMP_WITH_TIMEZONE),
+            Map.entry("smalldatetime",   Types.TIMESTAMP),
+            Map.entry("uniqueidentifier", Types.OTHER),  // SQL Server GUID (no clean JDBC equivalent)
+            Map.entry("smallmoney",      Types.DECIMAL),
+            Map.entry("image",           Types.LONGVARBINARY),
+            Map.entry("rowversion",      Types.BINARY),
+            Map.entry("sql_variant",     Types.OTHER),
+            Map.entry("hierarchyid",     Types.OTHER),
+            Map.entry("geography",       Types.OTHER),
+            Map.entry("geometry",        Types.OTHER)
     );
 
     /**

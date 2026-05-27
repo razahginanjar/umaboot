@@ -17,10 +17,10 @@
 # memory and rewrites the file in the new shape on the first save.
 connection:
   mode: host                                       # host | url
-  type: postgresql                                 # postgresql | mysql | mariadb
+  type: postgresql                                 # postgresql | mysql | mariadb | sqlserver
   host: localhost:5432                             # everything after jdbc:<type>://, before /<database>
   database: umaboot                                # required in host mode
-  schema: public                                   # postgres schema; mysql/mariadb usually leaves this empty
+  schema: public                                   # postgres + sqlserver schema (default: public / dbo); mysql/mariadb usually leave this empty
   params: ""                                       # optional extra params, no leading "?"
   username: postgres
   password: postgres
@@ -43,6 +43,8 @@ connection:
 # Restriction: persistence: jooq requires `connection:` (the generated
 # jooq-codegen-maven plugin needs JDBC at `mvn compile` time).
 # schemaFile: ./schema.sql
+# Postgres / MySQL / MariaDB / SQL Server DDL all supported. SQLite parsing
+# lands in a follow-up branch.
 
 generation:
   architecture: mvc          # mvc | hexagonal | ddd

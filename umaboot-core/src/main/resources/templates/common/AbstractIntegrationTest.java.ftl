@@ -4,6 +4,8 @@ package ${basePackage};
 import org.testcontainers.containers.MariaDBContainer;
 <#elseif dbIsMysql>
 import org.testcontainers.containers.MySQLContainer;
+<#elseif dbIsSqlserver>
+import org.testcontainers.containers.MSSQLServerContainer;
 <#else>
 import org.testcontainers.containers.PostgreSQLContainer;
 </#if>
@@ -39,6 +41,15 @@ public abstract class AbstractIntegrationTest {
             .withDatabaseName("test")
             .withUsername("test")
             .withPassword("test");
+<#elseif dbIsSqlserver>
+    // SQL Server's Testcontainers image requires explicit license acceptance.
+    // The default sa password meets MS's complexity requirement (≥8 chars,
+    // upper+lower+digit+symbol). The container connects to the `master` DB
+    // by default; create test schemas via setup SQL if needed.
+    @Container
+    @SuppressWarnings("resource")
+    static final MSSQLServerContainer<?> DB = new MSSQLServerContainer<>("mcr.microsoft.com/mssql/server:2022-latest")
+            .acceptLicense();
 <#else>
     @Container
     @SuppressWarnings("resource")

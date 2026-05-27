@@ -123,6 +123,9 @@
 <#elseif dbIsMysql>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
+<#elseif dbIsSqlserver>
+            <groupId>com.microsoft.sqlserver</groupId>
+            <artifactId>mssql-jdbc</artifactId>
 <#else>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
@@ -150,7 +153,7 @@
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId><#if dbIsMariadb>mariadb<#elseif dbIsMysql>mysql<#else>postgresql</#if></artifactId>
+            <artifactId><#if dbIsMariadb>mariadb<#elseif dbIsMysql>mysql<#elseif dbIsSqlserver>mssqlserver<#else>postgresql</#if></artifactId>
             <version>1.20.4</version>
             <scope>test</scope>
         </dependency>
@@ -199,6 +202,10 @@
                         <groupId>com.mysql</groupId>
                         <artifactId>mysql-connector-j</artifactId>
                         <version>8.4.0</version>
+<#elseif dbIsSqlserver>
+                        <groupId>com.microsoft.sqlserver</groupId>
+                        <artifactId>mssql-jdbc</artifactId>
+                        <version>12.6.4.jre11</version>
 <#else>
                         <groupId>org.postgresql</groupId>
                         <artifactId>postgresql</artifactId>
@@ -215,7 +222,7 @@
                     </jdbc>
                     <generator>
                         <database>
-                            <name><#if dbIsMariadb>org.jooq.meta.mariadb.MariaDBDatabase<#elseif dbIsMysql>org.jooq.meta.mysql.MySQLDatabase<#else>org.jooq.meta.postgres.PostgresDatabase</#if></name>
+                            <name><#if dbIsMariadb>org.jooq.meta.mariadb.MariaDBDatabase<#elseif dbIsMysql>org.jooq.meta.mysql.MySQLDatabase<#elseif dbIsSqlserver>org.jooq.meta.sqlserver.SQLServerDatabase<#else>org.jooq.meta.postgres.PostgresDatabase</#if></name>
                             <inputSchema>${schemaName}</inputSchema>
                         </database>
                         <generate>

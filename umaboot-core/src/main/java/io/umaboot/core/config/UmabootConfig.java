@@ -78,7 +78,11 @@ public record UmabootConfig(Connection connection, Generation generation) {
             host     = host == null ? "" : host;
             params   = params == null ? "" : params;
             database = database == null ? "" : database;
-            schema   = schema == null ? "public" : schema;
+            // SQL Server's default schema is `dbo`; Postgres uses `public`.
+            // (mysql/mariadb don't really use this field, but default to `public` for parity.)
+            schema   = schema == null
+                    ? ("sqlserver".equals(type) ? "dbo" : "public")
+                    : schema;
             username = username == null ? "" : username;
             password = password == null ? "" : password;
 
@@ -128,14 +132,27 @@ public record UmabootConfig(Connection connection, Generation generation) {
             if ("mysql".equals(type) || "mariadb".equals(type)) {
                 return database.isBlank() ? schema : database;
             }
+            // sqlserver and postgresql both use schema-based introspection.
+            // SQL Server's default schema is `dbo` — fall back to that if blank.
+            if ("sqlserver".equals(type) && schema.isBlank()) {
+                return "dbo";
+            }
             return schema;
         }
 
         /**
          * {@code jdbc:<type>://<host>/<database>[?<params>]}.
          * Always single '?'; never '/?'. Empty params produces no '?'.
+         *
+         * <p>SQL Server's JDBC URL syntax differs: parameters use {@code ;name=value}
+         * pairs and the database goes in {@code ;databaseName=foo} rather than the
+         * URL path. Example: {@code jdbc:sqlserver://host:1433;databaseName=foo;encrypt=false}.</p>
          */
         public static String composeUrl(String type, String host, String database, String params) {
+            if ("sqlserver".equals(type)) {
+                String base = "jdbc:sqlserver://" + host + ";databaseName=" + database;
+                return (params == null || params.isBlank()) ? base : base + ";" + params;
+            }
             String base = "jdbc:" + type + "://" + host + "/" + database;
             return (params == null || params.isBlank()) ? base : base + "?" + params;
         }
@@ -143,9 +160,20 @@ public record UmabootConfig(Connection connection, Generation generation) {
         /**
          * Best-effort extraction of the database name from a JDBC URL.
          * Returns "" if not detectable.
+         *
+         * <p>Handles the SQL Server {@code ;databaseName=} idiom in addition to
+         * the path-style of postgres/mysql/mariadb URLs.</p>
          */
         public static String parseDatabaseFromUrl(String url) {
             if (url == null) return "";
+            if (url.startsWith("jdbc:sqlserver:")) {
+                String lower = url.toLowerCase();
+                int idx = lower.indexOf("databasename=");
+                if (idx < 0) return "";
+                int valStart = idx + "databasename=".length();
+                int valEnd = url.indexOf(';', valStart);
+                return valEnd < 0 ? url.substring(valStart) : url.substring(valStart, valEnd);
+            }
             int afterScheme = url.indexOf("://");
             if (afterScheme < 0) return "";
             int pathStart = url.indexOf('/', afterScheme + 3);
@@ -161,6 +189,7 @@ public record UmabootConfig(Connection connection, Generation generation) {
             if (url == null) return "postgresql";
             if (url.startsWith("jdbc:mariadb:")) return "mariadb";
             if (url.startsWith("jdbc:mysql:")) return "mysql";
+            if (url.startsWith("jdbc:sqlserver:")) return "sqlserver";
             return "postgresql";
         }
     }

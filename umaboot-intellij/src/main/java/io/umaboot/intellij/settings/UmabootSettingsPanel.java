@@ -67,7 +67,7 @@ public final class UmabootSettingsPanel {
     //   * URL card          : urlField
     //   * Always-visible    : databaseField, schemaField, username, password
     private final ComboBox<String> databaseTypeCombo =
-            new ComboBox<>(new String[]{"postgresql", "mysql", "mariadb"});
+            new ComboBox<>(new String[]{"postgresql", "mysql", "mariadb", "sqlserver"});
     private final javax.swing.JRadioButton hostModeRadio = new javax.swing.JRadioButton("Host");
     private final javax.swing.JRadioButton urlModeRadio  = new javax.swing.JRadioButton("URL");
     private final JBTextField hostField     = new JBTextField();
@@ -529,12 +529,12 @@ public final class UmabootSettingsPanel {
                 ? databaseField.getText().trim()
                 : UmabootConfig.Connection.parseDatabaseFromUrl(urlField.getText().trim());
         String schema = schemaField.getText().trim();
-        String target = "mysql".equals(type)
+        String target = ("mysql".equals(type) || "mariadb".equals(type))
                 ? (database.isBlank() ? schema : database)
                 : schema;
 
         if (!target.isBlank()) return null;
-        String label = "mysql".equals(type) ? "Database" : "Schema";
+        String label = ("mysql".equals(type) || "mariadb".equals(type)) ? "Database" : "Schema";
         return label + " is empty — fill in before Apply / Refresh Tables";
     }
 
@@ -735,7 +735,8 @@ public final class UmabootSettingsPanel {
         // Level 1 — fail fast if the introspection target is empty. Without this,
         // we'd open a JDBC connection just to silently get 0 tables back.
         if (formConn.introspectionTarget().isBlank()) {
-            String missing = "mysql".equals(formConn.type()) ? "Database" : "Schema";
+            String missing = ("mysql".equals(formConn.type()) || "mariadb".equals(formConn.type()))
+                    ? "Database" : "Schema";
             tablesStatusLabel.setText("Please fill in " + missing + " before refreshing tables");
             tablesStatusLabel.setForeground(Color.RED);
             refreshTablesButton.setEnabled(true);
@@ -746,7 +747,7 @@ public final class UmabootSettingsPanel {
         final String user = formConn.username();
         final String pass = formConn.password();
         final String introspectionTarget = formConn.introspectionTarget();
-        final boolean isMysql = "mysql".equals(formConn.type());
+        final String dbType = formConn.type();
 
         // Capture currently-selected tables so we preserve them after refresh
         final List<String> currentlySelected = new ArrayList<>();
@@ -761,8 +762,14 @@ public final class UmabootSettingsPanel {
             List<String> tables = List.of();
             JdbcDrivers.registerAll();
             try (Connection conn = DriverManager.getConnection(url, user, pass)) {
-                Introspector introspector = isMysql
-                        ? new MysqlIntrospector(conn) : new PostgresIntrospector(conn);
+                Introspector introspector;
+                if ("sqlserver".equals(dbType)) {
+                    introspector = new io.umaboot.core.introspection.sqlserver.SqlServerIntrospector(conn);
+                } else if ("mysql".equals(dbType) || "mariadb".equals(dbType)) {
+                    introspector = new MysqlIntrospector(conn);
+                } else {
+                    introspector = new PostgresIntrospector(conn);
+                }
                 SchemaModel sm = introspector.introspect(introspectionTarget);
                 lastIntrospectedSchema = sm;
                 tables = sm.tables().stream()

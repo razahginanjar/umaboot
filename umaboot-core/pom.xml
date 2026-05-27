@@ -31,6 +31,16 @@
             <artifactId>mysql-connector-j</artifactId>
         </dependency>
 
+        <!--
+          mssql-jdbc is declared in main scope so the Settings panel's "Test Connection"
+          / "Refresh Tables" buttons can hit a live SQL Server. Also used by SqlServerIntrospector.
+          For generated user projects the driver is added via the pom template gated on dbIsSqlserver.
+        -->
+        <dependency>
+            <groupId>com.microsoft.sqlserver</groupId>
+            <artifactId>mssql-jdbc</artifactId>
+        </dependency>
+
         <!-- SQL parser used by SqlFileIntrospector; codegen-time only, not bundled into generated projects -->
         <dependency>
             <groupId>com.github.jsqlparser</groupId>
@@ -105,6 +115,11 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>mysql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mssqlserver</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

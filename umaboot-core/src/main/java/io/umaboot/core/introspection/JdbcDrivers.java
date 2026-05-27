@@ -40,6 +40,7 @@ public final class JdbcDrivers {
             registerSilently("org.postgresql.Driver");
             registerSilently("com.mysql.cj.jdbc.Driver");
             registerSilently("org.mariadb.jdbc.Driver");
+            registerSilently("com.microsoft.sqlserver.jdbc.SQLServerDriver");
             registered = true;
         }
     }

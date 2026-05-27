@@ -368,6 +368,7 @@ public final class SqlFileIntrospector implements Introspector {
                 case "UNIQUE" -> unique = true;
                 case "AUTO_INCREMENT", "AUTOINCREMENT" -> autoIncrement = true;
                 case "GENERATED" -> autoIncrement = autoIncrement || lookaheadContainsIdentity(specs, i);
+                case "IDENTITY" -> autoIncrement = true;  // T-SQL plain IDENTITY (rare)
                 case "DEFAULT" -> {
                     if (i + 1 < specs.size()) {
                         defaultValue = stripQuotes(specs.get(i + 1));
@@ -397,7 +398,12 @@ public final class SqlFileIntrospector implements Introspector {
                         }
                     }
                 }
-                default -> { /* ignore CHECK(...), COLLATE, CHARACTER SET, etc. */ }
+                default -> {
+                    // T-SQL IDENTITY(1,1) — JSqlParser emits this as a single token like "IDENTITY(1,1)".
+                    // Detect via prefix match so the trailing "(seed,increment)" doesn't matter.
+                    if (tok.startsWith("IDENTITY")) autoIncrement = true;
+                    /* otherwise ignore CHECK(...), COLLATE, CHARACTER SET, etc. */
+                }
             }
         }
 
