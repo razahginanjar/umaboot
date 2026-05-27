@@ -70,6 +70,7 @@ public final class UmabootSettingsPanel {
             new ComboBox<>(new String[]{"postgresql", "mysql", "mariadb", "sqlserver", "sqlite"});
     private final javax.swing.JRadioButton hostModeRadio = new javax.swing.JRadioButton("Host");
     private final javax.swing.JRadioButton urlModeRadio  = new javax.swing.JRadioButton("URL");
+    private final javax.swing.JRadioButton scriptModeRadio = new javax.swing.JRadioButton("Script");
     private final JBTextField hostField     = new JBTextField();
     private final JBTextField paramsField   = new JBTextField();
     private final JBTextField urlField      = new JBTextField();
@@ -79,19 +80,20 @@ public final class UmabootSettingsPanel {
     private final JBPasswordField passwordField = new JBPasswordField();
     private final JBPanel<JBPanel<?>> connectionCardContainer =
             new JBPanel<>(new java.awt.CardLayout());
+    /** Wraps Schema/Username/Password rows so they can hide as a unit when Script mode is active. */
+    private final JBPanel<JBPanel<?>> credentialsPanel = new JBPanel<>(new GridBagLayout());
+    /** Wraps the Test Connection button + status — hidden in Script mode (parsing a file doesn't need a probe). */
+    private final JBPanel<JBPanel<?>> testConnectionPanel = new JBPanel<>(new BorderLayout());
     private final JButton testConnectionButton = new JButton("Test Connection");
     private final JBLabel connectionStatusLabel = new JBLabel(" ");
 
-    // SQL-file source — optional alternative to the live-DB connection above.
-    // When non-empty, GenerationPipeline parses this .sql via JSqlParser instead of
-    // hitting JDBC. The cross-field XOR check in UmabootConfig rejects "both set"
-    // and "neither set" at apply time. persistence:jooq is also rejected when this
-    // is set — the generated jooq-codegen-maven plugin needs a live JDBC connection
-    // at `mvn compile` time, which sqlFile mode can't satisfy.
+    // Script-source widgets — live inside the "script" card.
+    // schemaFileField + Browse button replace host/url fields when Script mode is selected.
+    // Validation/parsing is folded into the existing "Refresh Tables" button: it already
+    // populates the table list from a SchemaModel, and SqlFileIntrospector produces the
+    // same shape, so the two flows unify cleanly.
     private final JBTextField schemaFileField = new JBTextField();
     private final JButton schemaFileBrowseButton = new JButton("Browse…");
-    private final JButton validateSchemaFileButton = new JButton("Validate SQL file");
-    private final JBLabel schemaFileStatusLabel = new JBLabel(" ");
 
     // Tables
     private final JButton refreshTablesButton = new JButton("Refresh Tables");
@@ -189,27 +191,47 @@ public final class UmabootSettingsPanel {
 
         addRow(g, r++, "Database type:", databaseTypeCombo);
 
-        // Mode toggle row
+        // Source mode toggle — Host | URL | Script. Script disables the live-DB
+        // pipeline and routes Refresh Tables through SqlFileIntrospector instead.
         javax.swing.ButtonGroup modeGroup = new javax.swing.ButtonGroup();
         modeGroup.add(hostModeRadio);
         modeGroup.add(urlModeRadio);
+        modeGroup.add(scriptModeRadio);
         hostModeRadio.setSelected(true);
         JBPanel<JBPanel<?>> modeRow = new JBPanel<>(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 8, 0));
         modeRow.add(hostModeRadio);
         modeRow.add(urlModeRadio);
-        addRow(g, r++, "Connection mode:", modeRow);
+        modeRow.add(scriptModeRadio);
+        addRow(g, r++, "Source:", modeRow);
 
-        // Card container — swaps between Host card and URL card.
-        // Database lives INSIDE the host card so URL mode is self-contained
-        // (the URL is the only source of connection info in URL mode).
+        // Card container — swaps between Host / URL / Script cards.
+        // Database lives INSIDE the host card so URL and Script modes are
+        // self-contained (URL: full URL is the only datasource info; Script:
+        // schemaFile is the only one).
         JBPanel<JBPanel<?>> hostCard = new JBPanel<>(new GridBagLayout());
         addRow(hostCard, 0, "Host:",       hostField);
         addRow(hostCard, 1, "Database:",   databaseField);
         addRow(hostCard, 2, "Parameters:", paramsField);
+
         JBPanel<JBPanel<?>> urlCard = new JBPanel<>(new GridBagLayout());
         addRow(urlCard, 0, "JDBC URL:", urlField);
-        connectionCardContainer.add(hostCard, "host");
-        connectionCardContainer.add(urlCard,  "url");
+
+        JBPanel<JBPanel<?>> scriptCard = new JBPanel<>(new GridBagLayout());
+        JBPanel<JBPanel<?>> filePicker = new JBPanel<>(new BorderLayout(6, 0));
+        filePicker.add(schemaFileField, BorderLayout.CENTER);
+        filePicker.add(schemaFileBrowseButton, BorderLayout.EAST);
+        addRow(scriptCard, 0, "Schema file:", filePicker);
+        // Helpful note inside the script card so users know what Refresh Tables
+        // does in this mode.
+        GridBagConstraints noteC = new GridBagConstraints();
+        noteC.gridx = 0; noteC.gridy = 1; noteC.gridwidth = 2;
+        noteC.fill = GridBagConstraints.HORIZONTAL; noteC.weightx = 1.0;
+        noteC.insets = JBUI.insets(2, 4);
+        scriptCard.add(new JBLabel("<html><i>Use Refresh Tables below to parse the file.</i></html>"), noteC);
+
+        connectionCardContainer.add(hostCard,   "host");
+        connectionCardContainer.add(urlCard,    "url");
+        connectionCardContainer.add(scriptCard, "script");
 
         GridBagConstraints cardC = new GridBagConstraints();
         cardC.gridx = 0; cardC.gridy = r++; cardC.gridwidth = 2;
@@ -217,49 +239,28 @@ public final class UmabootSettingsPanel {
         cardC.insets = JBUI.insets(2, 4);
         g.add(connectionCardContainer, cardC);
 
-        // Shared fields (visible in both modes) — note: Database is NOT here anymore.
-        addRow(g, r++, "Schema:",   schemaField);
-        addRow(g, r++, "Username:", usernameField);
-        addRow(g, r++, "Password:", passwordField);
+        // Credentials sub-panel — Schema / Username / Password rows wrapped so
+        // they can be hidden as a unit when Script mode is active. Field-level
+        // labels stay inside this sub-panel rather than the parent grid.
+        addRow(credentialsPanel, 0, "Schema:",   schemaField);
+        addRow(credentialsPanel, 1, "Username:", usernameField);
+        addRow(credentialsPanel, 2, "Password:", passwordField);
+        GridBagConstraints credC = new GridBagConstraints();
+        credC.gridx = 0; credC.gridy = r++; credC.gridwidth = 2;
+        credC.fill = GridBagConstraints.HORIZONTAL; credC.weightx = 1.0;
+        g.add(credentialsPanel, credC);
 
-        // Test Connection button + status label
-        JBPanel<JBPanel<?>> buttons = new JBPanel<>(new BorderLayout());
-        buttons.add(testConnectionButton, BorderLayout.WEST);
-        buttons.add(connectionStatusLabel, BorderLayout.CENTER);
+        // Test Connection button + status — also hidden in Script mode (parsing
+        // a file is not "testing a connection"; Refresh Tables handles that).
+        testConnectionPanel.add(testConnectionButton, BorderLayout.WEST);
+        testConnectionPanel.add(connectionStatusLabel, BorderLayout.CENTER);
         connectionStatusLabel.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
+        GridBagConstraints btnC = new GridBagConstraints();
+        btnC.gridx = 0; btnC.gridy = r; btnC.gridwidth = 2;
+        btnC.fill = GridBagConstraints.HORIZONTAL; btnC.weightx = 1.0;
+        btnC.insets = JBUI.insets(2, 4);
+        g.add(testConnectionPanel, btnC);
 
-        GridBagConstraints c = new GridBagConstraints();
-        c.gridx = 0; c.gridy = r; c.gridwidth = 2;
-        c.fill = GridBagConstraints.HORIZONTAL; c.weightx = 1.0;
-        c.insets = JBUI.insets(2, 4);
-        g.add(buttons, c);
-        r++;
-
-        // ---------- SQL-file source (optional alternative to live DB) ----------
-        // Layout: a divider label, then a Path: <field> [Browse] row, then a
-        // Validate button + status label row. Keeping the live-DB widgets above
-        // visible (rather than card-swapping) preserves the simple layout — the
-        // cross-field XOR check at apply time gives a clear error if both are set.
-        GridBagConstraints divC = new GridBagConstraints();
-        divC.gridx = 0; divC.gridy = r++; divC.gridwidth = 2;
-        divC.fill = GridBagConstraints.HORIZONTAL; divC.weightx = 1.0;
-        divC.insets = JBUI.insets(8, 4, 0, 4);
-        g.add(new JBLabel("Or, parse a checked-in .sql file instead of connecting:"), divC);
-
-        JBPanel<JBPanel<?>> filePicker = new JBPanel<>(new BorderLayout(6, 0));
-        filePicker.add(schemaFileField, BorderLayout.CENTER);
-        filePicker.add(schemaFileBrowseButton, BorderLayout.EAST);
-        addRow(g, r++, "Schema file:", filePicker);
-
-        JBPanel<JBPanel<?>> validateRow = new JBPanel<>(new BorderLayout());
-        validateRow.add(validateSchemaFileButton, BorderLayout.WEST);
-        validateRow.add(schemaFileStatusLabel, BorderLayout.CENTER);
-        schemaFileStatusLabel.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
-        GridBagConstraints valC = new GridBagConstraints();
-        valC.gridx = 0; valC.gridy = r; valC.gridwidth = 2;
-        valC.fill = GridBagConstraints.HORIZONTAL; valC.weightx = 1.0;
-        valC.insets = JBUI.insets(2, 4);
-        g.add(validateRow, valC);
         return g;
     }
 
@@ -359,7 +360,6 @@ public final class UmabootSettingsPanel {
         testConnectionButton.addActionListener(e -> testConnection());
         refreshTablesButton.addActionListener(e -> refreshTables());
         schemaFileBrowseButton.addActionListener(e -> browseForSchemaFile());
-        validateSchemaFileButton.addActionListener(e -> validateSchemaFile());
         schemaFileField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             @Override public void insertUpdate(javax.swing.event.DocumentEvent e)  { dirty = true; }
             @Override public void removeUpdate(javax.swing.event.DocumentEvent e)  { dirty = true; }
@@ -415,18 +415,24 @@ public final class UmabootSettingsPanel {
         javaVersionCombo.addActionListener(mark);
         databaseTypeCombo.addActionListener(mark);
 
-        // Connection mode radios — swap the card AND mark dirty.
+        // Connection mode radios — swap the card, toggle credentials/test-connection
+        // visibility for Script mode, and mark dirty. The same helper handles all
+        // three so the visibility logic stays in one place.
         hostModeRadio.addActionListener(e -> {
             if (hostModeRadio.isSelected()) {
-                ((java.awt.CardLayout) connectionCardContainer.getLayout())
-                        .show(connectionCardContainer, "host");
+                applySourceMode("host");
                 dirty = true;
             }
         });
         urlModeRadio.addActionListener(e -> {
             if (urlModeRadio.isSelected()) {
-                ((java.awt.CardLayout) connectionCardContainer.getLayout())
-                        .show(connectionCardContainer, "url");
+                applySourceMode("url");
+                dirty = true;
+            }
+        });
+        scriptModeRadio.addActionListener(e -> {
+            if (scriptModeRadio.isSelected()) {
+                applySourceMode("script");
                 dirty = true;
             }
         });
@@ -639,21 +645,57 @@ public final class UmabootSettingsPanel {
     }
 
     /**
-     * Parses {@link #schemaFileField}'s SQL with {@link SqlFileIntrospector} and
-     * reports table count + names in the status label. Also populates the same
-     * table list that Refresh Tables uses, so the user can pick which tables to
-     * generate from the parsed schema.
+     * Apply the visual + interaction state for one of the three Source modes:
+     * {@code "host"}, {@code "url"}, or {@code "script"}. Swaps the card,
+     * shows/hides the credentials sub-panel and Test Connection row, and
+     * triggers a layout revalidate.
+     *
+     * <p>Called from each radio's listener and from {@link #applyToFields}
+     * when loading config — the single source of truth for "what does the
+     * Connection group look like in mode X".</p>
      */
-    private void validateSchemaFile() {
-        schemaFileStatusLabel.setForeground(Color.GRAY);
-        schemaFileStatusLabel.setText("Parsing...");
-        validateSchemaFileButton.setEnabled(false);
+    private void applySourceMode(String mode) {
+        ((java.awt.CardLayout) connectionCardContainer.getLayout())
+                .show(connectionCardContainer, mode);
+        boolean live = !"script".equals(mode);
+        credentialsPanel.setVisible(live);
+        testConnectionPanel.setVisible(live);
+        connectionCardContainer.revalidate();
+        connectionCardContainer.repaint();
+    }
 
+    private void refreshTables() {
+        tablesStatusLabel.setForeground(Color.GRAY);
+        tablesStatusLabel.setText("Reading schema...");
+        refreshTablesButton.setEnabled(false);
+
+        // Capture currently-selected tables so we preserve them across refresh
+        final List<String> currentlySelected = new ArrayList<>();
+        for (int i = 0; i < tableList.getItemsCount(); i++) {
+            String name = tableList.getItemAt(i);
+            if (name != null && tableList.isItemSelected(i)) currentlySelected.add(name);
+        }
+
+        if (scriptModeRadio.isSelected()) {
+            refreshTablesFromScript(currentlySelected);
+        } else {
+            refreshTablesFromConnection(currentlySelected);
+        }
+    }
+
+    /**
+     * Script-mode Refresh Tables: read the {@code schemaFileField} path, parse
+     * with {@link io.umaboot.core.introspection.sqlfile.SqlFileIntrospector},
+     * populate the table list. The {@link #databaseTypeCombo} value is the
+     * dialect hint (which decides parser quirks like SQLite's INTEGER-PK
+     * rowid-alias rule).
+     */
+    private void refreshTablesFromScript(List<String> currentlySelected) {
         String rel = schemaFileField.getText().trim();
         if (rel.isEmpty()) {
-            schemaFileStatusLabel.setText("Empty path — pick a .sql file first");
-            schemaFileStatusLabel.setForeground(Color.RED);
-            validateSchemaFileButton.setEnabled(true);
+            tablesStatusLabel.setText("Pick a .sql file first");
+            tablesStatusLabel.setForeground(Color.RED);
+            refreshTablesButton.setEnabled(true);
             return;
         }
         java.io.File f = new java.io.File(rel);
@@ -661,23 +703,14 @@ public final class UmabootSettingsPanel {
             f = new java.io.File(project.getBasePath(), rel);
         }
         if (!f.isFile() || !f.canRead()) {
-            schemaFileStatusLabel.setText("Cannot read: " + f.getAbsolutePath());
-            schemaFileStatusLabel.setForeground(Color.RED);
-            validateSchemaFileButton.setEnabled(true);
+            tablesStatusLabel.setText("Cannot read: " + f.getAbsolutePath());
+            tablesStatusLabel.setForeground(Color.RED);
+            refreshTablesButton.setEnabled(true);
             return;
         }
 
-        // Use the database type combo as the dialect hint — same logic the
-        // pipeline uses when choosing how to interpret type names.
         final java.io.File fileRef = f;
         final String dialect = (String) databaseTypeCombo.getSelectedItem();
-
-        // Capture currently-selected tables so we preserve them after re-parsing
-        final List<String> currentlySelected = new ArrayList<>();
-        for (int i = 0; i < tableList.getItemsCount(); i++) {
-            String name = tableList.getItemAt(i);
-            if (name != null && tableList.isItemSelected(i)) currentlySelected.add(name);
-        }
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             String status;
@@ -693,34 +726,34 @@ public final class UmabootSettingsPanel {
                         .map(t -> t.name())
                         .sorted()
                         .toList();
-                status = "Parsed " + tables.size() + " tables from " + fileRef.getName();
+                status = tables.size() + " tables parsed from " + fileRef.getName();
                 color = new Color(0x2E7D32);
             } catch (Throwable t) {
                 status = "Parse failed: " + t.getMessage();
                 color = Color.RED;
             }
-            final String msg = status;
-            final Color finalColor = color;
-            final List<String> tableNames = tables;
+            final List<String> tablesFinal = tables;
+            final String statusFinal = status;
+            final Color colorFinal = color;
             SwingUtilities.invokeLater(() -> {
-                schemaFileStatusLabel.setText(msg);
-                schemaFileStatusLabel.setForeground(finalColor);
-                if (!tableNames.isEmpty()) {
-                    tableList.clear();
-                    for (String name : tableNames) {
-                        tableList.addItem(name, name, currentlySelected.isEmpty() || currentlySelected.contains(name));
-                    }
+                tableList.clear();
+                for (String name : tablesFinal) {
+                    boolean wasSelected = currentlySelected.contains(name)
+                            || (loaded != null && loaded.generation().tables().include().contains(name));
+                    boolean defaultInclude = loaded == null
+                            || loaded.generation().tables().include().isEmpty();
+                    tableList.addItem(name, name, defaultInclude || wasSelected);
                 }
-                validateSchemaFileButton.setEnabled(true);
+                tablesStatusLabel.setText(statusFinal);
+                tablesStatusLabel.setForeground(colorFinal);
+                refreshTablesButton.setEnabled(true);
+                dirty = true;
             });
         });
     }
 
-    private void refreshTables() {
-        tablesStatusLabel.setForeground(Color.GRAY);
-        tablesStatusLabel.setText("Reading schema...");
-        refreshTablesButton.setEnabled(false);
-
+    /** Live-DB Refresh Tables — opens a JDBC connection and walks DatabaseMetaData. */
+    private void refreshTablesFromConnection(List<String> currentlySelected) {
         // Refresh Tables needs the introspect target (db for mysql, schema for
         // postgres), so we go through the strict Connection record. Validation
         // errors (missing host/database, leading '?' in params) surface here.
@@ -752,13 +785,6 @@ public final class UmabootSettingsPanel {
         final String pass = formConn.password();
         final String introspectionTarget = formConn.introspectionTarget();
         final String dbType = formConn.type();
-
-        // Capture currently-selected tables so we preserve them after refresh
-        final List<String> currentlySelected = new ArrayList<>();
-        for (int i = 0; i < tableList.getItemsCount(); i++) {
-            String name = tableList.getItemAt(i);
-            if (name != null && tableList.isItemSelected(i)) currentlySelected.add(name);
-        }
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             String status;
@@ -894,17 +920,19 @@ public final class UmabootSettingsPanel {
         // Schema-file source
         String schemaFile = c.generation().schemaFile();
         schemaFileField.setText(schemaFile == null ? "" : schemaFile);
-        // Select mode + show the corresponding card (skip when no connection — sqlFile mode)
-        if (conn != null) {
-            if ("url".equals(conn.mode())) {
-                urlModeRadio.setSelected(true);
-                ((java.awt.CardLayout) connectionCardContainer.getLayout())
-                        .show(connectionCardContainer, "url");
-            } else {
-                hostModeRadio.setSelected(true);
-                ((java.awt.CardLayout) connectionCardContainer.getLayout())
-                        .show(connectionCardContainer, "host");
-            }
+        // Drive the Source radio + visibility from the loaded config:
+        //   * schemaFile set → Script mode (connection block was absent in YAML)
+        //   * connection.mode == url → URL mode
+        //   * everything else → Host mode (the v0.x default)
+        if (schemaFile != null && !schemaFile.isBlank()) {
+            scriptModeRadio.setSelected(true);
+            applySourceMode("script");
+        } else if (conn != null && "url".equals(conn.mode())) {
+            urlModeRadio.setSelected(true);
+            applySourceMode("url");
+        } else {
+            hostModeRadio.setSelected(true);
+            applySourceMode("host");
         }
 
         architectureCombo.setSelectedItem(c.generation().architecture());
@@ -969,7 +997,16 @@ public final class UmabootSettingsPanel {
             }
         }
 
-        var connection = currentFormConnection();
+        // Drive the schema source from the radio state, not from field text.
+        // In Script mode the user's host/url/credentials may be stale leftovers
+        // from a previous session — they're not authoritative when the radio
+        // says "Script". Same in reverse: stale schemaFileField text doesn't
+        // win over an active Host/URL radio.
+        boolean scriptMode = scriptModeRadio.isSelected();
+        var connection = scriptMode ? null : currentFormConnection();
+        String effectiveSchemaFile = scriptMode
+                ? (schemaFileField.getText().trim().isEmpty() ? null : schemaFileField.getText().trim())
+                : null;
         var jpa = new UmabootConfig.JpaOptions(useMapStructCheckbox.isSelected());
         var mybatis = new UmabootConfig.MyBatisOptions(
                 Optional.ofNullable((String) mybatisStyleCombo.getSelectedItem()).orElse("xml"));
@@ -1081,12 +1118,9 @@ public final class UmabootSettingsPanel {
                                 ? null
                                 : outputDirField.getText().trim()),
                 jpa, mybatis, tables, ddd, output, applicationConfig,
-                schemaFileField.getText().trim().isEmpty() ? null : schemaFileField.getText().trim());
+                effectiveSchemaFile);
 
-        // When schemaFile is set, pass null connection so UmabootConfig's XOR
-        // validation accepts the form. (Both-set / neither-set throw at construction.)
-        var effectiveConnection = schemaFileField.getText().trim().isEmpty() ? connection : null;
-        return new UmabootConfig(effectiveConnection, generation);
+        return new UmabootConfig(connection, generation);
     }
 
     private Path configFile() {

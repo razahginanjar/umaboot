@@ -20,14 +20,15 @@ IntelliJ plugin that runs the Umaboot generation pipeline directly inside the ID
 `Ctrl+Alt+S` → **Tools → Umaboot**.
 
 ### 1. Connection
-The Connection group has been redesigned in v0.8 around two equivalent input modes:
+The Connection group has a 3-way **Source** radio at the top that decides where the schema comes from:
 
-- **Database type** — dropdown: `postgresql` or `mysql`. Drives the JDBC URL prefix and tells the introspector which engine to use. More engines slot in here later.
-- **Connection mode** — radio toggle that swaps the field card:
-  - **Host mode** (default): you provide `Host:` (e.g. `localhost:5432`), `Database:` (the database name — Postgres calls it the catalog, MySQL the database), and optional `Parameters:` (extra JDBC params, **no leading `?`** — the program adds it automatically). The program composes the JDBC URL as `jdbc:<type>://<host>/<database>[?<params>]`. Trying to type `?useSSL=false` in Parameters surfaces a clear error.
-  - **URL mode**: a single **JDBC URL** field. Paste a full URL verbatim. The host / database / params fields are hidden — the URL is the only source of connection info, and the database is parsed out of the URL path. Useful for unusual hosts, SSH tunnels, or pasting from a colleague's connection screen.
-- **Schema** — Postgres schema (e.g. `public`), shared across modes. MySQL leaves it empty by default but is permitted to fill it (legacy "I-typed-the-DB-name-here" workaround still works as a fallback).
-- **Username / Password / Test Connection** — same as before. **Test Connection** is now lenient: it works even when `Database:` is empty, so you can verify host + credentials before deciding on a database.
+- **Database type** — dropdown: `postgresql` / `mysql` / `mariadb` / `sqlserver` / `sqlite`. Drives the JDBC URL prefix in live modes, and the dialect hint for JSqlParser in Script mode.
+- **Source** — radio toggle that swaps the field card and shows/hides the credentials block:
+  - **Host mode** (default): you provide `Host:` (e.g. `localhost:5432`), `Database:` (the database name — Postgres / SQL Server call it the catalog, MySQL / MariaDB the database; SQLite leaves it as the file path), and optional `Parameters:` (extra JDBC params, **no leading `?`** — the program adds it automatically). The program composes the JDBC URL as `jdbc:<type>://<host>/<database>[?<params>]` (or T-SQL's `;databaseName=...` for SQL Server, or just `jdbc:sqlite:<path>` for SQLite). Trying to type `?useSSL=false` in Parameters surfaces a clear error.
+  - **URL mode**: a single **JDBC URL** field. Paste a full URL verbatim. The host / database / params fields are hidden — the URL is the only source of connection info, and the database is parsed out of the URL path (or `databaseName=` for SQL Server, or the path/`:memory:` for SQLite). Useful for unusual hosts, SSH tunnels, or pasting from a colleague's connection screen.
+  - **Script mode**: a **Schema file** field with a Browse button. Pick a checked-in `.sql` DDL file. The Schema / Username / Password rows and the Test Connection button hide — they don't apply when there's no live database. Click **Refresh Tables** to parse the file via JSqlParser and populate the table picker.
+- **Schema / Username / Password** — visible in Host + URL modes. Postgres + SQL Server use `Schema:` for filtering (default `public` / `dbo`). MySQL / MariaDB leave it empty. SQLite has no schema concept.
+- **Test Connection** — lenient JDBC probe (works even when `Database:` is empty so you can verify host + credentials first). Visible in Host + URL modes; hidden in Script mode (parsing the file is what Refresh Tables already does).
 
 The first save of an existing project rewrites a pre-v0.8 `umaboot.yaml` (flat `url:` + `schema:` shape) into the new mode-aware shape. The legacy file still loads — no manual editing required.
 
