@@ -11,6 +11,7 @@ import io.umaboot.core.introspection.JdbcDrivers;
 import io.umaboot.core.introspection.mysql.MysqlIntrospector;
 import io.umaboot.core.introspection.postgres.PostgresIntrospector;
 import io.umaboot.core.introspection.sqlfile.SqlFileIntrospector;
+import io.umaboot.core.introspection.sqlite.SqliteIntrospector;
 import io.umaboot.core.introspection.sqlserver.SqlServerIntrospector;
 import io.umaboot.core.model.SchemaModel;
 import io.umaboot.core.relationship.RelationshipEngine;
@@ -110,6 +111,8 @@ public final class GenerationPipeline {
                 Introspector introspector;
                 if ("sqlserver".equalsIgnoreCase(driver)) {
                     introspector = new SqlServerIntrospector(conn);
+                } else if ("sqlite".equalsIgnoreCase(driver)) {
+                    introspector = new SqliteIntrospector(conn);
                 } else if ("mysql".equalsIgnoreCase(driver) || "mariadb".equalsIgnoreCase(driver)) {
                     introspector = new MysqlIntrospector(conn);
                 } else {

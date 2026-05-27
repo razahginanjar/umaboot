@@ -8,10 +8,21 @@ services:
     container_name: ${projectName}
     ports:
       - "${dockerPort?c}:${dockerPort?c}"
+<#if !dbIsSqlite>
     depends_on:
       db:
         condition: service_healthy
-<#if dbIsMariadb>
+</#if>
+<#if dbIsSqlite>
+    # SQLite is embedded — the database lives inside the app container as a
+    # file. We mount a named volume so the file survives container restarts.
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:sqlite:/data/${projectName}.db
+      SPRING_DATASOURCE_USERNAME: ""
+      SPRING_DATASOURCE_PASSWORD: ""
+    volumes:
+      - db-data:/data
+<#elseif dbIsMariadb>
     environment:
       SPRING_DATASOURCE_URL: jdbc:mariadb://db:3306/${r"${DB_NAME:-app}"}
       SPRING_DATASOURCE_USERNAME: ${r"${DB_USER:-app}"}

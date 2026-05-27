@@ -8,6 +8,9 @@ spring.jpa.hibernate.ddl-auto=validate
 <#if dbIsPostgres || dbIsSqlserver>
 spring.jpa.properties.hibernate.default_schema=${schemaName}
 </#if>
+<#if dbIsSqlite>
+spring.jpa.properties.hibernate.dialect=org.hibernate.community.dialect.SQLiteDialect
+</#if>
 spring.jpa.properties.hibernate.format_sql=true
 spring.jpa.open-in-view=false
 </#if>

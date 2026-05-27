@@ -67,7 +67,7 @@ public final class UmabootSettingsPanel {
     //   * URL card          : urlField
     //   * Always-visible    : databaseField, schemaField, username, password
     private final ComboBox<String> databaseTypeCombo =
-            new ComboBox<>(new String[]{"postgresql", "mysql", "mariadb", "sqlserver"});
+            new ComboBox<>(new String[]{"postgresql", "mysql", "mariadb", "sqlserver", "sqlite"});
     private final javax.swing.JRadioButton hostModeRadio = new javax.swing.JRadioButton("Host");
     private final javax.swing.JRadioButton urlModeRadio  = new javax.swing.JRadioButton("URL");
     private final JBTextField hostField     = new JBTextField();
@@ -529,6 +529,8 @@ public final class UmabootSettingsPanel {
                 ? databaseField.getText().trim()
                 : UmabootConfig.Connection.parseDatabaseFromUrl(urlField.getText().trim());
         String schema = schemaField.getText().trim();
+        // SQLite has no schema/database concept — the warning doesn't apply.
+        if ("sqlite".equals(type)) return null;
         String target = ("mysql".equals(type) || "mariadb".equals(type))
                 ? (database.isBlank() ? schema : database)
                 : schema;
@@ -733,8 +735,10 @@ public final class UmabootSettingsPanel {
         }
 
         // Level 1 — fail fast if the introspection target is empty. Without this,
-        // we'd open a JDBC connection just to silently get 0 tables back.
-        if (formConn.introspectionTarget().isBlank()) {
+        // we'd open a JDBC connection just to silently get 0 tables back. SQLite
+        // is the exception — it has no schema/database concept, so its
+        // introspectionTarget() returns "" intentionally.
+        if (formConn.introspectionTarget().isBlank() && !"sqlite".equals(formConn.type())) {
             String missing = ("mysql".equals(formConn.type()) || "mariadb".equals(formConn.type()))
                     ? "Database" : "Schema";
             tablesStatusLabel.setText("Please fill in " + missing + " before refreshing tables");
@@ -765,6 +769,8 @@ public final class UmabootSettingsPanel {
                 Introspector introspector;
                 if ("sqlserver".equals(dbType)) {
                     introspector = new io.umaboot.core.introspection.sqlserver.SqlServerIntrospector(conn);
+                } else if ("sqlite".equals(dbType)) {
+                    introspector = new io.umaboot.core.introspection.sqlite.SqliteIntrospector(conn);
                 } else if ("mysql".equals(dbType) || "mariadb".equals(dbType)) {
                     introspector = new MysqlIntrospector(conn);
                 } else {

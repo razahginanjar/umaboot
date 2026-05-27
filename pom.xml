@@ -34,6 +34,7 @@
         <mysql.version>8.4.0</mysql.version>
         <mariadb.version>3.4.1</mariadb.version>
         <mssql.version>12.6.4.jre11</mssql.version>
+        <sqlite.version>3.47.0.0</sqlite.version>
         <jsqlparser.version>5.0</jsqlparser.version>
         <freemarker.version>2.3.33</freemarker.version>
         <java-diff-utils.version>4.12</java-diff-utils.version>
@@ -93,6 +94,11 @@
                 <groupId>com.microsoft.sqlserver</groupId>
                 <artifactId>mssql-jdbc</artifactId>
                 <version>${mssql.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.xerial</groupId>
+                <artifactId>sqlite-jdbc</artifactId>
+                <version>${sqlite.version}</version>
             </dependency>
 
             <!-- SQL parser (codegen-time only — used by SqlFileIntrospector) -->

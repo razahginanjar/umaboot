@@ -312,6 +312,22 @@ public final class SqlFileIntrospector implements Introspector {
                 mt.columns.set(i, withPrimaryKey(c, true));
             }
         }
+        // SQLite-only post-pass: any single-column INTEGER PRIMARY KEY (declared
+        // inline OR via a table-level PRIMARY KEY clause) is an alias for the
+        // implicit rowid and therefore auto-increments. We can't apply this
+        // unconditionally — Postgres / MySQL / MariaDB / SQL Server require an
+        // explicit SERIAL / AUTO_INCREMENT / IDENTITY for the same effect.
+        if ("sqlite".equals(dialectHint) && mt.primaryKey.size() == 1) {
+            String pkName = mt.primaryKey.get(0);
+            for (int i = 0; i < mt.columns.size(); i++) {
+                ColumnModel c = mt.columns.get(i);
+                if (c.name().equalsIgnoreCase(pkName)
+                        && !c.autoIncrement()
+                        && "integer".equalsIgnoreCase(c.sqlType())) {
+                    mt.columns.set(i, withAutoIncrement(c, true));
+                }
+            }
+        }
         return mt;
     }
 
@@ -415,7 +431,14 @@ public final class SqlFileIntrospector implements Introspector {
                 sizeScale[1],
                 nullable,
                 primaryKey,
-                autoIncrement,
+                // SQLite quirk: any inline `INTEGER PRIMARY KEY` column becomes
+                // an alias for the implicit rowid and auto-increments. AUTOINCREMENT
+                // keyword (without underscore) is already covered above; this
+                // catches the more common bare form. Postgres / MySQL / MariaDB /
+                // SQL Server need an explicit SERIAL / AUTO_INCREMENT / IDENTITY,
+                // so this rule is gated on the dialect hint.
+                autoIncrement
+                        || ("sqlite".equals(dialectHint) && primaryKey && "integer".equalsIgnoreCase(typeName)),
                 defaultValue,
                 comment,
                 enumValues);
@@ -578,6 +601,11 @@ public final class SqlFileIntrospector implements Introspector {
     private static ColumnModel withPrimaryKey(ColumnModel c, boolean pk) {
         return new ColumnModel(c.name(), c.jdbcType(), c.sqlType(), c.size(), c.scale(),
                 c.nullable(), pk, c.autoIncrement(), c.defaultValue(), c.comment(), c.enumValues());
+    }
+
+    private static ColumnModel withAutoIncrement(ColumnModel c, boolean autoInc) {
+        return new ColumnModel(c.name(), c.jdbcType(), c.sqlType(), c.size(), c.scale(),
+                c.nullable(), c.primaryKey(), autoInc, c.defaultValue(), c.comment(), c.enumValues());
     }
 
     private static String truncate(String s) {

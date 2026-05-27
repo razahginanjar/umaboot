@@ -41,6 +41,7 @@ public final class JdbcDrivers {
             registerSilently("com.mysql.cj.jdbc.Driver");
             registerSilently("org.mariadb.jdbc.Driver");
             registerSilently("com.microsoft.sqlserver.jdbc.SQLServerDriver");
+            registerSilently("org.sqlite.JDBC");
             registered = true;
         }
     }

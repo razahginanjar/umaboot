@@ -126,12 +126,21 @@
 <#elseif dbIsSqlserver>
             <groupId>com.microsoft.sqlserver</groupId>
             <artifactId>mssql-jdbc</artifactId>
+<#elseif dbIsSqlite>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
 <#else>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
 </#if>
             <scope>runtime</scope>
         </dependency>
+<#if dbIsSqlite && isJpa>
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-community-dialects</artifactId>
+        </dependency>
+</#if>
 <#if useLombok>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -144,7 +153,7 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-<#if testsEnabled>
+<#if testsEnabled && !dbIsSqlite>
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -206,6 +215,10 @@
                         <groupId>com.microsoft.sqlserver</groupId>
                         <artifactId>mssql-jdbc</artifactId>
                         <version>12.6.4.jre11</version>
+<#elseif dbIsSqlite>
+                        <groupId>org.xerial</groupId>
+                        <artifactId>sqlite-jdbc</artifactId>
+                        <version>3.47.0.0</version>
 <#else>
                         <groupId>org.postgresql</groupId>
                         <artifactId>postgresql</artifactId>
@@ -222,7 +235,7 @@
                     </jdbc>
                     <generator>
                         <database>
-                            <name><#if dbIsMariadb>org.jooq.meta.mariadb.MariaDBDatabase<#elseif dbIsMysql>org.jooq.meta.mysql.MySQLDatabase<#elseif dbIsSqlserver>org.jooq.meta.sqlserver.SQLServerDatabase<#else>org.jooq.meta.postgres.PostgresDatabase</#if></name>
+                            <name><#if dbIsMariadb>org.jooq.meta.mariadb.MariaDBDatabase<#elseif dbIsMysql>org.jooq.meta.mysql.MySQLDatabase<#elseif dbIsSqlserver>org.jooq.meta.sqlserver.SQLServerDatabase<#elseif dbIsSqlite>org.jooq.meta.sqlite.SQLiteDatabase<#else>org.jooq.meta.postgres.PostgresDatabase</#if></name>
                             <inputSchema>${schemaName}</inputSchema>
                         </database>
                         <generate>

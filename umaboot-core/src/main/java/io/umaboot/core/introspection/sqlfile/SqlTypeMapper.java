@@ -115,7 +115,20 @@ public final class SqlTypeMapper {
             Map.entry("sql_variant",     Types.OTHER),
             Map.entry("hierarchyid",     Types.OTHER),
             Map.entry("geography",       Types.OTHER),
-            Map.entry("geometry",        Types.OTHER)
+            Map.entry("geometry",        Types.OTHER),
+
+            // SQLite affinity-driven aliases. SQLite's storage classes are
+            // INTEGER / REAL / TEXT / BLOB / NUMERIC; users still write
+            // typical type names (VARCHAR, BIGINT, DATETIME) and SQLite
+            // applies affinity rules under the hood. These extra aliases
+            // cover the "datetime" + "boolean" cases that aren't already
+            // mapped above. The five storage-class words map cleanly:
+            //   integer → BIGINT (already mapped)
+            //   real    → REAL    (already mapped)
+            //   text    → LONGVARCHAR (already mapped)
+            //   blob    → BLOB    (already mapped)
+            //   numeric → NUMERIC (already mapped)
+            Map.entry("clob",            Types.CLOB)
     );
 
     /**

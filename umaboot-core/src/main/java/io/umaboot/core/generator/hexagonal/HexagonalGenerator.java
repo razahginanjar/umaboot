@@ -283,6 +283,7 @@ public final class HexagonalGenerator implements ArchitectureGenerator {
         m.put("dbIsMysql", ctx.isDbMysql());
         m.put("dbIsMariadb", ctx.isDbMariadb());
         m.put("dbIsSqlserver", ctx.isDbSqlserver());
+        m.put("dbIsSqlite", ctx.isDbSqlite());
         m.put("dbIsPostgres", ctx.isDbPostgres());
         m.put("jdbcUrl", ctx.jdbcUrl());
         m.put("jdbcUsername", ctx.jdbcUsername());

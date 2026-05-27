@@ -41,6 +41,16 @@
             <artifactId>mssql-jdbc</artifactId>
         </dependency>
 
+        <!--
+          sqlite-jdbc declared in main scope so the IntelliJ panel + SqliteIntrospector
+          can hit a live SQLite file (or :memory:) without test-only classpath shuffles.
+          Generated user projects pull it via the pom template gated on dbIsSqlite.
+        -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+        </dependency>
+
         <!-- SQL parser used by SqlFileIntrospector; codegen-time only, not bundled into generated projects -->
         <dependency>
             <groupId>com.github.jsqlparser</groupId>

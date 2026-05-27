@@ -94,11 +94,13 @@ public record UmabootConfig(Connection connection, Generation generation) {
             }
 
             // Compose the URL when in host mode; require host + database to be present.
+            // SQLite is the exception: it has no host/port concept — the database field
+            // carries the file path (or :memory:) and the URL is jdbc:sqlite:<path>.
             if ("host".equals(mode)) {
-                if (host.isBlank()) {
+                if (!"sqlite".equals(type) && host.isBlank()) {
                     throw new IllegalArgumentException("connection.host is required when mode=host");
                 }
-                if (database.isBlank()) {
+                if (database.isBlank() && !"sqlite".equals(type)) {
                     throw new IllegalArgumentException("connection.database is required when mode=host");
                 }
                 url = composeUrl(type, host, database, params);
@@ -137,6 +139,13 @@ public record UmabootConfig(Connection connection, Generation generation) {
             if ("sqlserver".equals(type) && schema.isBlank()) {
                 return "dbo";
             }
+            // SQLite has no schema concept beyond the `main` ATTACH alias. JDBC
+            // metadata calls happily accept null for both catalog and schema, so
+            // returning an empty string is the right "ignore" sentinel here —
+            // SqliteIntrospector explicitly passes null/null to the metadata API.
+            if ("sqlite".equals(type)) {
+                return "";
+            }
             return schema;
         }
 
@@ -152,6 +161,12 @@ public record UmabootConfig(Connection connection, Generation generation) {
             if ("sqlserver".equals(type)) {
                 String base = "jdbc:sqlserver://" + host + ";databaseName=" + database;
                 return (params == null || params.isBlank()) ? base : base + ";" + params;
+            }
+            if ("sqlite".equals(type)) {
+                // SQLite has no host/port — the "database" field carries either a file path
+                // (e.g. "./shop.db") or the literal ":memory:" sentinel.
+                String path = (database == null || database.isBlank()) ? ":memory:" : database;
+                return "jdbc:sqlite:" + path;
             }
             String base = "jdbc:" + type + "://" + host + "/" + database;
             return (params == null || params.isBlank()) ? base : base + "?" + params;
@@ -174,6 +189,11 @@ public record UmabootConfig(Connection connection, Generation generation) {
                 int valEnd = url.indexOf(';', valStart);
                 return valEnd < 0 ? url.substring(valStart) : url.substring(valStart, valEnd);
             }
+            if (url.startsWith("jdbc:sqlite:")) {
+                // SQLite URLs are jdbc:sqlite:<path> or jdbc:sqlite::memory: — the
+                // "database" surfaces as the file path or the :memory: sentinel.
+                return url.substring("jdbc:sqlite:".length());
+            }
             int afterScheme = url.indexOf("://");
             if (afterScheme < 0) return "";
             int pathStart = url.indexOf('/', afterScheme + 3);
@@ -190,6 +210,7 @@ public record UmabootConfig(Connection connection, Generation generation) {
             if (url.startsWith("jdbc:mariadb:")) return "mariadb";
             if (url.startsWith("jdbc:mysql:")) return "mysql";
             if (url.startsWith("jdbc:sqlserver:")) return "sqlserver";
+            if (url.startsWith("jdbc:sqlite:")) return "sqlite";
             return "postgresql";
         }
     }

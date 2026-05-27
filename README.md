@@ -1,6 +1,6 @@
 # Umaboot — v0.7
 
-Java tool that introspects a PostgreSQL, MySQL, MariaDB, or SQL Server schema (live database via JDBC, or a checked-in `.sql` DDL file) and generates a complete Spring Boot CRUD project. Three architectures (MVC, Hexagonal, DDD), three persistence backends (JPA, MyBatis xml/annotation, jOOQ), MapStruct, OpenAPI emission (yaml or springdoc annotations), table include/exclude filters, overlay mode that drops into existing projects, and an IntelliJ plugin with a form-based settings panel.
+Java tool that introspects a PostgreSQL, MySQL, MariaDB, SQL Server, or SQLite schema (live database via JDBC, or a checked-in `.sql` DDL file) and generates a complete Spring Boot CRUD project. Three architectures (MVC, Hexagonal, DDD), three persistence backends (JPA, MyBatis xml/annotation, jOOQ), MapStruct, OpenAPI emission (yaml or springdoc annotations), table include/exclude filters, overlay mode that drops into existing projects, and an IntelliJ plugin with a form-based settings panel.
 
 > **Status:** v0.7. MVC + JPA + Postgres path is fully end-to-end and integration-tested. Hexagonal and DDD have dedicated generators with separate domain models, ports/adapters, aggregate roots, commands, and domain events. MyBatis (XML + annotation), jOOQ (MVC), MapStruct, OpenAPI (yaml + annotation), MySQL, diff/apply commands, overlay mode, and version dropdowns in the IDE plugin all work. 59 unit tests pass.
 
@@ -41,7 +41,7 @@ Two ways to feed Umaboot a schema:
 # Option A: live database introspection via JDBC (the v0.x default)
 connection:
   mode: host
-  type: postgresql            # postgresql | mysql | mariadb | sqlserver
+  type: postgresql            # postgresql | mysql | mariadb | sqlserver | sqlite
   host: localhost:5432
   database: app
   schema: public
@@ -58,9 +58,9 @@ schemaFile: ./schema.sql
 - **`connection:`** — your schema lives in a running database. Best for established projects, rich introspection (Postgres ENUMs from `pg_type`, MySQL ENUMs from `INFORMATION_SCHEMA.COLUMNS`, table/column comments, FKs).
 - **`schemaFile:`** — your schema lives as DDL in version control. Best for new projects, CI-friendly codegen (no Docker / no DB), reproducible output across machines, and pairs nicely with Flyway/Liquibase migrations where the same `V1__init.sql` becomes both the codegen source AND the runtime migration.
 
-**Supported in v1 of `schemaFile:` mode:** Postgres + MySQL + MariaDB + SQL Server DDL. `CREATE TABLE` (with PK, FK, UNIQUE, NOT NULL, DEFAULT, AUTO_INCREMENT/SERIAL/IDENTITY/`IDENTITY(1,1)`), `ALTER TABLE … ADD CONSTRAINT … FOREIGN KEY`, Postgres `CREATE TYPE … AS ENUM`, MySQL inline `ENUM('a','b')`, `COMMENT ON TABLE/COLUMN`, MySQL inline `COMMENT 'text'`. Triggers, functions, views, partitions, generated columns, CHECK enforcement, and `CREATE INDEX` are silently skipped — they don't affect codegen.
+**Supported in v1 of `schemaFile:` mode:** Postgres + MySQL + MariaDB + SQL Server + SQLite DDL. `CREATE TABLE` (with PK, FK, UNIQUE, NOT NULL, DEFAULT, AUTO_INCREMENT/SERIAL/IDENTITY/`IDENTITY(1,1)` / SQLite `INTEGER PRIMARY KEY` rowid alias), `ALTER TABLE … ADD CONSTRAINT … FOREIGN KEY`, Postgres `CREATE TYPE … AS ENUM`, MySQL inline `ENUM('a','b')`, `COMMENT ON TABLE/COLUMN`, MySQL inline `COMMENT 'text'`. Triggers, functions, views, partitions, generated columns, CHECK enforcement, and `CREATE INDEX` are silently skipped — they don't affect codegen.
 
-**Restrictions:** `persistence: jooq` requires `connection:` mode (the generated `jooq-codegen-maven` plugin needs a live JDBC connection at `mvn compile` time — config-load rejects `schemaFile + jooq` with a clear error). SQLite parsing is scoped for a follow-up branch.
+**Restrictions:** `persistence: jooq` requires `connection:` mode (the generated `jooq-codegen-maven` plugin needs a live JDBC connection at `mvn compile` time — config-load rejects `schemaFile + jooq` with a clear error). SQLite + JPA additionally pulls `hibernate-community-dialects` since Hibernate has no built-in SQLite dialect.
 
 ## Configuration highlights (full example: `umaboot.example.yaml`)
 

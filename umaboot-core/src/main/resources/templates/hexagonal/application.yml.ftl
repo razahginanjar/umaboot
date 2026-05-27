@@ -15,6 +15,9 @@ spring:
 <#if dbIsPostgres || dbIsSqlserver>
         default_schema: ${schemaName}
 </#if>
+<#if dbIsSqlite>
+        dialect: org.hibernate.community.dialect.SQLiteDialect
+</#if>
         format_sql: true
     open-in-view: false
 </#if>
