@@ -13,7 +13,6 @@ import java.sql.Types;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Smoke test for the DDD generator — runs a synthetic schema through every
@@ -82,23 +81,6 @@ class DddGeneratorTest {
 
         String repoImpl = readUnit(units, agg + "/infrastructure/persistence/CustomerRepositoryImpl.java");
         assertThat(repoImpl).contains("implements CustomerRepository");
-    }
-
-    @Test
-    void rejectsJooqPersistence() {
-        TemplateEngine engine = new TemplateEngine(null);
-        GeneratorContext ctx = new GeneratorContext(
-                "com.example.shop", "shop-api", "com.example",
-                "3.3.5", "17", true,
-                "ddd", "jooq", "xml", false, "none", "constructor",
-                "jakarta", "class", "separate", "problemdetail",
-                UmabootConfig.AuditOptions.defaults(), UmabootConfig.SoftDeleteOptions.defaults(),
-                UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(), UmabootConfig.LoggingOptions.defaults(),
-                UmabootConfig.TestOptions.defaults(), "offset", UmabootConfig.SecurityOptions.defaults(),
-                UmabootConfig.DddOptions.defaults(), false, "postgres", null, null, "", null);
-        assertThatThrownBy(() -> new DddGenerator(engine, ctx))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("jpa or mybatis");
     }
 
     @Test

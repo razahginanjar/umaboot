@@ -39,9 +39,9 @@ public final class DddGenerator implements ArchitectureGenerator {
     public DddGenerator(TemplateEngine engine, GeneratorContext ctx) {
         this.engine = Objects.requireNonNull(engine, "engine");
         this.ctx = Objects.requireNonNull(ctx, "ctx");
-        if (!ctx.isJpa() && !ctx.isMyBatis()) {
+        if (!ctx.isJpa() && !ctx.isMyBatis() && !ctx.isJooq()) {
             throw new IllegalArgumentException(
-                    "DDD supports persistence=jpa or mybatis; got " + ctx.persistence());
+                    "DDD supports persistence=jpa, mybatis, or jooq; got " + ctx.persistence());
         }
     }
 
@@ -186,8 +186,10 @@ public final class DddGenerator implements ArchitectureGenerator {
             // Infrastructure — branches on persistence
             if (ctx.isJpa()) {
                 emitJpaPersistence(units, javaSrc, entityName, m);
-            } else {
+            } else if (ctx.isMyBatis()) {
                 emitMyBatisPersistence(units, javaSrc, entityName, m);
+            } else {
+                emitJooqPersistence(units, javaSrc, entityName, m);
             }
 
             if (ctx.tests().enabled() && !ctx.overlay()) {
@@ -237,6 +239,16 @@ public final class DddGenerator implements ArchitectureGenerator {
                 "ddd/MyBatisRepositoryImpl.java.ftl", m));
         units.add(unit(javaSrc + "/infrastructure/persistence/" + entityName + "PersistenceMapper.java",
                 "ddd/MyBatisPersistenceMapper.java.ftl", m));
+    }
+
+    private void emitJooqPersistence(List<GeneratedUnit> units, String javaSrc,
+                                     String entityName, Map<String, Object> m) {
+        // jOOQ codegen produces Tables.{TABLE} + Records at mvn compile.
+        // The repository impl uses them directly — no JpaEntity / mapper needed.
+        // The aggregate root's reconstruction constructor (added unconditionally
+        // to AggregateRoot.java.ftl) provides the Record→aggregate path.
+        units.add(unit(javaSrc + "/infrastructure/persistence/" + entityName + "RepositoryImpl.java",
+                "ddd/JooqRepositoryImpl.java.ftl", m));
     }
 
     private GeneratedUnit unit(String relativePath, String template, Map<String, Object> model) {
@@ -322,6 +334,7 @@ public final class DddGenerator implements ArchitectureGenerator {
         m.put("schemaName", schema.schemaName());
         m.put("isJpa", ctx.isJpa());
         m.put("isMyBatis", ctx.isMyBatis());
+        m.put("isJooq", ctx.isJooq());
         m.put("myBatisXml", ctx.myBatisXml());
         return m;
     }

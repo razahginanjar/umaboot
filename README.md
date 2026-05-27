@@ -38,7 +38,7 @@ Then **Settings → Plugins → ⚙ → Install Plugin from Disk** in IntelliJ a
 ```yaml
 generation:
   architecture: mvc | hexagonal | ddd
-  persistence:  jpa | mybatis | jooq           # mvc supports all; hex/ddd: jpa + mybatis
+  persistence:  jpa | mybatis | jooq           # all 3 architectures support all 3 backends
 
   jpa:
     useMapStruct: false                        # JPA-only opt-in
@@ -166,8 +166,8 @@ The plugin's Settings panel narrows combos automatically: pick `Java 8` and the 
 | Architecture | Generator                | JPA               | MyBatis (xml)        | MyBatis (annotation) | jOOQ                         |
 |--------------|--------------------------|-------------------|----------------------|----------------------|------------------------------|
 | MVC          | `MvcGenerator`           | ✅ end-to-end      | ✅                   | ✅                   | ✅ (codegen plugin in pom)    |
-| Hexagonal    | `HexagonalGenerator`     | ✅ dedicated       | ✅ dedicated          | ✅ dedicated          | post-v0.7                     |
-| DDD          | `DddGenerator`           | ✅ dedicated       | ✅ dedicated          | ✅ dedicated          | post-v0.7                     |
+| Hexagonal    | `HexagonalGenerator`     | ✅ dedicated       | ✅ dedicated          | ✅ dedicated          | ✅ adapter via DSLContext     |
+| DDD          | `DddGenerator`           | ✅ dedicated       | ✅ dedicated          | ✅ dedicated          | ✅ repo via DSLContext        |
 
 ## Protected regions — keep your edits across regenerations
 

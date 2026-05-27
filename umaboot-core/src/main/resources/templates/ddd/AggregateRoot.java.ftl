@@ -35,6 +35,18 @@ public class ${entityName} {
     /** Reconstructed-from-storage constructor. Use {@link #create} for new aggregates. */
     public ${entityName}() {}
 
+    /**
+     * Reconstruction constructor for the persistence layer (jOOQ etc.).
+     * Copies all field values verbatim and does NOT record any domain events,
+     * because the aggregate isn't being created — it's being rehydrated from
+     * a row that already exists.
+     */
+    public ${entityName}(<#list fields as f>${f.javaType} ${f.fieldName}<#sep>, </#sep></#list>) {
+<#list fields as f>
+        this.${f.fieldName} = ${f.fieldName};
+</#list>
+    }
+
     /** Factory: create a brand-new aggregate. Records a {@code ${entityName}CreatedEvent}. */
     public static ${entityName} create(<#list fields as f><#if !f.primaryKey>${f.javaType} ${f.fieldName}<#sep>, </#sep></#if></#list>) {
         ${entityName} aggregate = new ${entityName}();

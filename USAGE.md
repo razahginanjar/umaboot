@@ -252,7 +252,7 @@ public class CustomerListener {
 |---|---|
 | **JPA** (default) | You want auto-generated CRUD, `@OneToMany`/`@ManyToMany` magic, and don't mind Hibernate. Best for typical line-of-business apps. |
 | **MyBatis** | You write or maintain hand-tuned SQL. The XML mapper lets your DBA / SQL author edit queries without touching Java. The annotation mode keeps SQL and Java side-by-side. |
-| **jOOQ** | Type-safe SQL DSL. Ideal for complex reporting queries and database-first teams. Umaboot generates the Repository facade and wires the `jooq-codegen-maven` plugin in your generated `pom.xml`; running `mvn compile` populates `${basePackage}.jooq.Tables` with type-safe table references that the Repository imports statically. **MVC only** as of v0.7 — Hexagonal and DDD jOOQ variants are on the roadmap. |
+| **jOOQ** | Type-safe SQL DSL. Ideal for complex reporting queries and database-first teams. Umaboot generates a thin repository / persistence-adapter facade backed by `DSLContext` and wires the `jooq-codegen-maven` plugin in your generated `pom.xml`; running `mvn compile` populates `${basePackage}.jooq.Tables` with type-safe table references that the facade imports statically. **All three architectures** (MVC / Hexagonal / DDD) since v0.9. For Hexagonal the adapter uses reflective `dsl.fetchInto(DomainModel.class)`; for DDD the repository uses the aggregate root's reconstruction constructor (does not record `Created` events on rehydration). |
 
 ### MyBatis: XML vs annotation
 
@@ -274,7 +274,7 @@ You can switch styles by editing the config and re-running `apply` — only the 
 
 ```yaml
 generation:
-  architecture: mvc      # MVC only as of v0.7
+  architecture: mvc      # mvc | hexagonal | ddd
   persistence: jooq
 ```
 

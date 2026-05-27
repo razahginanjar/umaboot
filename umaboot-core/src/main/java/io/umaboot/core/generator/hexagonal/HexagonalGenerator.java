@@ -39,9 +39,9 @@ public final class HexagonalGenerator implements ArchitectureGenerator {
     public HexagonalGenerator(TemplateEngine engine, GeneratorContext ctx) {
         this.engine = Objects.requireNonNull(engine, "engine");
         this.ctx = Objects.requireNonNull(ctx, "ctx");
-        if (!ctx.isJpa() && !ctx.isMyBatis()) {
+        if (!ctx.isJpa() && !ctx.isMyBatis() && !ctx.isJooq()) {
             throw new IllegalArgumentException(
-                    "Hexagonal supports persistence=jpa or mybatis; got " + ctx.persistence());
+                    "Hexagonal supports persistence=jpa, mybatis, or jooq; got " + ctx.persistence());
         }
     }
 
@@ -164,8 +164,10 @@ public final class HexagonalGenerator implements ArchitectureGenerator {
             // Outbound adapter — branches on persistence
             if (ctx.isJpa()) {
                 emitJpaPersistence(units, javaSrc, entityName, m);
-            } else {
+            } else if (ctx.isMyBatis()) {
                 emitMyBatisPersistence(units, javaSrc, entityName, m);
+            } else {
+                emitJooqPersistence(units, javaSrc, entityName, m);
             }
 
             if (ctx.tests().enabled() && !ctx.overlay()) {
@@ -215,6 +217,15 @@ public final class HexagonalGenerator implements ArchitectureGenerator {
                 "hexagonal/MyBatisPersistenceAdapter.java.ftl", m));
         units.add(unit(javaSrc + "/adapter/out/persistence/mapper/" + entityName + "PersistenceMapper.java",
                 "hexagonal/MyBatisPersistenceMapper.java.ftl", m));
+    }
+
+    private void emitJooqPersistence(List<GeneratedUnit> units, String javaSrc,
+                                     String entityName, Map<String, Object> m) {
+        // jOOQ codegen generates Tables.{TABLE} and ${entityName}Record at mvn compile;
+        // the adapter uses them directly. No JpaEntity / PersistenceModel / mapper needed —
+        // the domain model itself is the target of dsl.fetchInto / dsl.newRecord.
+        units.add(unit(javaSrc + "/adapter/out/persistence/" + entityName + "PersistenceAdapter.java",
+                "hexagonal/JooqPersistenceAdapter.java.ftl", m));
     }
 
     private GeneratedUnit unit(String relativePath, String template, Map<String, Object> model) {
@@ -293,6 +304,7 @@ public final class HexagonalGenerator implements ArchitectureGenerator {
         m.put("schemaName", schema.schemaName());
         m.put("isJpa", ctx.isJpa());
         m.put("isMyBatis", ctx.isMyBatis());
+        m.put("isJooq", ctx.isJooq());
         m.put("myBatisXml", ctx.myBatisXml());
         return m;
     }

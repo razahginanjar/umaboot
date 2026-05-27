@@ -24,6 +24,9 @@
 <#if isMyBatis>
         <mybatis.starter.version><#if springBoot2>2.3.2<#else>3.0.4</#if></mybatis.starter.version>
 </#if>
+<#if isJooq>
+        <jooq.version><#if springBoot2>3.16.23<#else>3.19.15</#if></jooq.version>
+</#if>
     </properties>
 
     <dependencies>
@@ -107,6 +110,12 @@
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
 </#if>
+<#if isJooq>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jooq</artifactId>
+        </dependency>
+</#if>
         <dependency>
 <#if dbIsMysql>
             <groupId>com.mysql</groupId>
@@ -161,6 +170,60 @@
                 </configuration>
 </#if>
             </plugin>
+<#if isJooq>
+            <!--
+              jOOQ codegen runs at `mvn compile` and produces ${basePackage}.jooq.* classes.
+              The DDD repository implementation uses Tables.{TABLE} static refs from this package.
+            -->
+            <plugin>
+                <groupId>org.jooq</groupId>
+                <artifactId>jooq-codegen-maven</artifactId>
+                <version>${r"${jooq.version}"}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <dependencies>
+                    <dependency>
+<#if dbIsMysql>
+                        <groupId>com.mysql</groupId>
+                        <artifactId>mysql-connector-j</artifactId>
+                        <version>8.4.0</version>
+<#else>
+                        <groupId>org.postgresql</groupId>
+                        <artifactId>postgresql</artifactId>
+                        <version>42.7.4</version>
+</#if>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <jdbc>
+                        <driver>${jdbcDriverClass}</driver>
+                        <url>${jdbcUrl}</url>
+                        <user>${jdbcUsername}</user>
+                        <password>${jdbcPassword}</password>
+                    </jdbc>
+                    <generator>
+                        <database>
+                            <name><#if dbIsMysql>org.jooq.meta.mysql.MySQLDatabase<#else>org.jooq.meta.postgres.PostgresDatabase</#if></name>
+                            <inputSchema>${schemaName}</inputSchema>
+                        </database>
+                        <generate>
+                            <pojos>true</pojos>
+                            <daos>false</daos>
+                            <records>true</records>
+                        </generate>
+                        <target>
+                            <packageName>${basePackage}.jooq</packageName>
+                            <directory>target/generated-sources/jooq</directory>
+                        </target>
+                    </generator>
+                </configuration>
+            </plugin>
+</#if>
         </plugins>
     </build>
 </project>
