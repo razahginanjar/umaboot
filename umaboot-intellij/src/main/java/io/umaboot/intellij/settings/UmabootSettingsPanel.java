@@ -67,7 +67,7 @@ public final class UmabootSettingsPanel {
     //   * URL card          : urlField
     //   * Always-visible    : databaseField, schemaField, username, password
     private final ComboBox<String> databaseTypeCombo =
-            new ComboBox<>(new String[]{"postgresql", "mysql"});
+            new ComboBox<>(new String[]{"postgresql", "mysql", "mariadb"});
     private final javax.swing.JRadioButton hostModeRadio = new javax.swing.JRadioButton("Host");
     private final javax.swing.JRadioButton urlModeRadio  = new javax.swing.JRadioButton("URL");
     private final JBTextField hostField     = new JBTextField();
@@ -81,6 +81,17 @@ public final class UmabootSettingsPanel {
             new JBPanel<>(new java.awt.CardLayout());
     private final JButton testConnectionButton = new JButton("Test Connection");
     private final JBLabel connectionStatusLabel = new JBLabel(" ");
+
+    // SQL-file source — optional alternative to the live-DB connection above.
+    // When non-empty, GenerationPipeline parses this .sql via JSqlParser instead of
+    // hitting JDBC. The cross-field XOR check in UmabootConfig rejects "both set"
+    // and "neither set" at apply time. persistence:jooq is also rejected when this
+    // is set — the generated jooq-codegen-maven plugin needs a live JDBC connection
+    // at `mvn compile` time, which sqlFile mode can't satisfy.
+    private final JBTextField schemaFileField = new JBTextField();
+    private final JButton schemaFileBrowseButton = new JButton("Browse…");
+    private final JButton validateSchemaFileButton = new JButton("Validate SQL file");
+    private final JBLabel schemaFileStatusLabel = new JBLabel(" ");
 
     // Tables
     private final JButton refreshTablesButton = new JButton("Refresh Tables");
@@ -222,6 +233,33 @@ public final class UmabootSettingsPanel {
         c.fill = GridBagConstraints.HORIZONTAL; c.weightx = 1.0;
         c.insets = JBUI.insets(2, 4);
         g.add(buttons, c);
+        r++;
+
+        // ---------- SQL-file source (optional alternative to live DB) ----------
+        // Layout: a divider label, then a Path: <field> [Browse] row, then a
+        // Validate button + status label row. Keeping the live-DB widgets above
+        // visible (rather than card-swapping) preserves the simple layout — the
+        // cross-field XOR check at apply time gives a clear error if both are set.
+        GridBagConstraints divC = new GridBagConstraints();
+        divC.gridx = 0; divC.gridy = r++; divC.gridwidth = 2;
+        divC.fill = GridBagConstraints.HORIZONTAL; divC.weightx = 1.0;
+        divC.insets = JBUI.insets(8, 4, 0, 4);
+        g.add(new JBLabel("Or, parse a checked-in .sql file instead of connecting:"), divC);
+
+        JBPanel<JBPanel<?>> filePicker = new JBPanel<>(new BorderLayout(6, 0));
+        filePicker.add(schemaFileField, BorderLayout.CENTER);
+        filePicker.add(schemaFileBrowseButton, BorderLayout.EAST);
+        addRow(g, r++, "Schema file:", filePicker);
+
+        JBPanel<JBPanel<?>> validateRow = new JBPanel<>(new BorderLayout());
+        validateRow.add(validateSchemaFileButton, BorderLayout.WEST);
+        validateRow.add(schemaFileStatusLabel, BorderLayout.CENTER);
+        schemaFileStatusLabel.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
+        GridBagConstraints valC = new GridBagConstraints();
+        valC.gridx = 0; valC.gridy = r; valC.gridwidth = 2;
+        valC.fill = GridBagConstraints.HORIZONTAL; valC.weightx = 1.0;
+        valC.insets = JBUI.insets(2, 4);
+        g.add(validateRow, valC);
         return g;
     }
 
@@ -320,6 +358,13 @@ public final class UmabootSettingsPanel {
     private void wireListeners() {
         testConnectionButton.addActionListener(e -> testConnection());
         refreshTablesButton.addActionListener(e -> refreshTables());
+        schemaFileBrowseButton.addActionListener(e -> browseForSchemaFile());
+        validateSchemaFileButton.addActionListener(e -> validateSchemaFile());
+        schemaFileField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e)  { dirty = true; }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e)  { dirty = true; }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { dirty = true; }
+        });
         // Double-click on a table row opens the TableSettingsDialog so the user
         // can pick a per-table className override and per-column Java types.
         tableList.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -553,6 +598,122 @@ public final class UmabootSettingsPanel {
 
     // ------------------------------------------------------------ Refresh Tables
 
+    /**
+     * Opens a native file chooser scoped to the project root and writes the
+     * selected file's path (preferring a project-relative path when possible)
+     * into {@link #schemaFileField}. Filtered to {@code .sql} files.
+     */
+    private void browseForSchemaFile() {
+        var descriptor = com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+                .createSingleFileDescriptor("sql")
+                .withTitle("Select Schema SQL File");
+        com.intellij.openapi.vfs.VirtualFile current = null;
+        String existing = schemaFileField.getText().trim();
+        if (!existing.isEmpty()) {
+            java.io.File f = new java.io.File(existing);
+            if (!f.isAbsolute() && project.getBasePath() != null) {
+                f = new java.io.File(project.getBasePath(), existing);
+            }
+            if (f.exists()) {
+                current = com.intellij.openapi.vfs.LocalFileSystem.getInstance().findFileByIoFile(f);
+            }
+        }
+        if (current == null && project.getBasePath() != null) {
+            current = com.intellij.openapi.vfs.LocalFileSystem.getInstance()
+                    .findFileByIoFile(new java.io.File(project.getBasePath()));
+        }
+        var chosen = com.intellij.openapi.fileChooser.FileChooser.chooseFile(descriptor, project, current);
+        if (chosen == null) return;
+        // Prefer a project-relative path so the umaboot.yaml stays portable across machines.
+        String selected = chosen.getPath();
+        if (project.getBasePath() != null) {
+            String base = project.getBasePath().replace('\\', '/');
+            String norm = selected.replace('\\', '/');
+            if (norm.startsWith(base + "/")) {
+                selected = norm.substring(base.length() + 1);
+            }
+        }
+        schemaFileField.setText(selected);
+    }
+
+    /**
+     * Parses {@link #schemaFileField}'s SQL with {@link SqlFileIntrospector} and
+     * reports table count + names in the status label. Also populates the same
+     * table list that Refresh Tables uses, so the user can pick which tables to
+     * generate from the parsed schema.
+     */
+    private void validateSchemaFile() {
+        schemaFileStatusLabel.setForeground(Color.GRAY);
+        schemaFileStatusLabel.setText("Parsing...");
+        validateSchemaFileButton.setEnabled(false);
+
+        String rel = schemaFileField.getText().trim();
+        if (rel.isEmpty()) {
+            schemaFileStatusLabel.setText("Empty path — pick a .sql file first");
+            schemaFileStatusLabel.setForeground(Color.RED);
+            validateSchemaFileButton.setEnabled(true);
+            return;
+        }
+        java.io.File f = new java.io.File(rel);
+        if (!f.isAbsolute() && project.getBasePath() != null) {
+            f = new java.io.File(project.getBasePath(), rel);
+        }
+        if (!f.isFile() || !f.canRead()) {
+            schemaFileStatusLabel.setText("Cannot read: " + f.getAbsolutePath());
+            schemaFileStatusLabel.setForeground(Color.RED);
+            validateSchemaFileButton.setEnabled(true);
+            return;
+        }
+
+        // Use the database type combo as the dialect hint — same logic the
+        // pipeline uses when choosing how to interpret type names.
+        final java.io.File fileRef = f;
+        final String dialect = (String) databaseTypeCombo.getSelectedItem();
+
+        // Capture currently-selected tables so we preserve them after re-parsing
+        final List<String> currentlySelected = new ArrayList<>();
+        for (int i = 0; i < tableList.getItemsCount(); i++) {
+            String name = tableList.getItemAt(i);
+            if (name != null && tableList.isItemSelected(i)) currentlySelected.add(name);
+        }
+
+        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            String status;
+            Color color;
+            List<String> tables = List.of();
+            try {
+                String sql = java.nio.file.Files.readString(fileRef.toPath());
+                SchemaModel sm = new io.umaboot.core.introspection.sqlfile.SqlFileIntrospector(sql, dialect)
+                        .introspect("public");
+                lastIntrospectedSchema = sm;
+                tables = sm.tables().stream()
+                        .filter(t -> !t.junction())
+                        .map(t -> t.name())
+                        .sorted()
+                        .toList();
+                status = "Parsed " + tables.size() + " tables from " + fileRef.getName();
+                color = new Color(0x2E7D32);
+            } catch (Throwable t) {
+                status = "Parse failed: " + t.getMessage();
+                color = Color.RED;
+            }
+            final String msg = status;
+            final Color finalColor = color;
+            final List<String> tableNames = tables;
+            SwingUtilities.invokeLater(() -> {
+                schemaFileStatusLabel.setText(msg);
+                schemaFileStatusLabel.setForeground(finalColor);
+                if (!tableNames.isEmpty()) {
+                    tableList.clear();
+                    for (String name : tableNames) {
+                        tableList.addItem(name, name, currentlySelected.isEmpty() || currentlySelected.contains(name));
+                    }
+                }
+                validateSchemaFileButton.setEnabled(true);
+            });
+        });
+    }
+
     private void refreshTables() {
         tablesStatusLabel.setForeground(Color.GRAY);
         tablesStatusLabel.setText("Reading schema...");
@@ -703,24 +864,34 @@ public final class UmabootSettingsPanel {
 
     private void applyToFields(UmabootConfig c) {
         // Connection — new shape (mode/type/host/params/url/database/schema)
+        // In schemaFile-mode the connection block is absent (null) — keep the
+        // form's previously-typed values rather than wiping them, so toggling
+        // back to live-DB mode is one click of "Test Connection" away.
         var conn = c.connection();
-        databaseTypeCombo.setSelectedItem(conn.type());
-        hostField.setText(conn.host());
-        paramsField.setText(conn.params());
-        urlField.setText(conn.url());
-        databaseField.setText(conn.database());
-        schemaField.setText(conn.schema());
-        usernameField.setText(conn.username());
-        passwordField.setText(conn.password());
-        // Select mode + show the corresponding card
-        if ("url".equals(conn.mode())) {
-            urlModeRadio.setSelected(true);
-            ((java.awt.CardLayout) connectionCardContainer.getLayout())
-                    .show(connectionCardContainer, "url");
-        } else {
-            hostModeRadio.setSelected(true);
-            ((java.awt.CardLayout) connectionCardContainer.getLayout())
-                    .show(connectionCardContainer, "host");
+        if (conn != null) {
+            databaseTypeCombo.setSelectedItem(conn.type());
+            hostField.setText(conn.host());
+            paramsField.setText(conn.params());
+            urlField.setText(conn.url());
+            databaseField.setText(conn.database());
+            schemaField.setText(conn.schema());
+            usernameField.setText(conn.username());
+            passwordField.setText(conn.password());
+        }
+        // Schema-file source
+        String schemaFile = c.generation().schemaFile();
+        schemaFileField.setText(schemaFile == null ? "" : schemaFile);
+        // Select mode + show the corresponding card (skip when no connection — sqlFile mode)
+        if (conn != null) {
+            if ("url".equals(conn.mode())) {
+                urlModeRadio.setSelected(true);
+                ((java.awt.CardLayout) connectionCardContainer.getLayout())
+                        .show(connectionCardContainer, "url");
+            } else {
+                hostModeRadio.setSelected(true);
+                ((java.awt.CardLayout) connectionCardContainer.getLayout())
+                        .show(connectionCardContainer, "host");
+            }
         }
 
         architectureCombo.setSelectedItem(c.generation().architecture());
@@ -786,7 +957,6 @@ public final class UmabootSettingsPanel {
         }
 
         var connection = currentFormConnection();
-
         var jpa = new UmabootConfig.JpaOptions(useMapStructCheckbox.isSelected());
         var mybatis = new UmabootConfig.MyBatisOptions(
                 Optional.ofNullable((String) mybatisStyleCombo.getSelectedItem()).orElse("xml"));
@@ -897,9 +1067,13 @@ public final class UmabootSettingsPanel {
                         : (outputDirField.getText().trim().isEmpty()
                                 ? null
                                 : outputDirField.getText().trim()),
-                jpa, mybatis, tables, ddd, output, applicationConfig);
+                jpa, mybatis, tables, ddd, output, applicationConfig,
+                schemaFileField.getText().trim().isEmpty() ? null : schemaFileField.getText().trim());
 
-        return new UmabootConfig(connection, generation);
+        // When schemaFile is set, pass null connection so UmabootConfig's XOR
+        // validation accepts the form. (Both-set / neither-set throw at construction.)
+        var effectiveConnection = schemaFileField.getText().trim().isEmpty() ? connection : null;
+        return new UmabootConfig(effectiveConnection, generation);
     }
 
     private Path configFile() {
@@ -942,7 +1116,8 @@ public final class UmabootSettingsPanel {
                 UmabootConfig.TableFilterOptions.allowAll(),
                 UmabootConfig.DddOptions.defaults(),
                 UmabootConfig.OutputOptions.defaults(),
-                UmabootConfig.ApplicationConfigOptions.defaults());
+                UmabootConfig.ApplicationConfigOptions.defaults(),
+                null);
         return new UmabootConfig(connection, generation);
     }
 

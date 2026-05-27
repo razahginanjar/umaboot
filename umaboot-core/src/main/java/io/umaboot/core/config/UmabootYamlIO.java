@@ -50,25 +50,33 @@ public final class UmabootYamlIO {
     /** Build the same nested-map shape that {@link UmabootConfigLoader} consumes. */
     public static Map<String, Object> toMap(UmabootConfig config) {
         Map<String, Object> root = new LinkedHashMap<>();
-        Map<String, Object> conn = new LinkedHashMap<>();
         var c = config.connection();
-        // Always-present fields
-        conn.put("mode", c.mode());
-        conn.put("type", c.type());
-        // Mode-specific shape
-        if ("host".equals(c.mode())) {
-            conn.put("host", c.host());
-            if (c.params() != null && !c.params().isEmpty()) {
-                conn.put("params", c.params());
+        if (c != null) {
+            Map<String, Object> conn = new LinkedHashMap<>();
+            // Always-present fields
+            conn.put("mode", c.mode());
+            conn.put("type", c.type());
+            // Mode-specific shape
+            if ("host".equals(c.mode())) {
+                conn.put("host", c.host());
+                if (c.params() != null && !c.params().isEmpty()) {
+                    conn.put("params", c.params());
+                }
+            } else {
+                conn.put("url", c.url());
             }
-        } else {
-            conn.put("url", c.url());
+            conn.put("database", c.database());
+            conn.put("schema", c.schema());
+            conn.put("username", c.username());
+            conn.put("password", c.password());
+            root.put("connection", conn);
         }
-        conn.put("database", c.database());
-        conn.put("schema", c.schema());
-        conn.put("username", c.username());
-        conn.put("password", c.password());
-        root.put("connection", conn);
+        // schemaFile is the alternative to `connection:`. Emit it at the YAML top level
+        // even though internally it lives on Generation — that matches the user-facing
+        // shape described in USAGE.md and umaboot.example.yaml.
+        if (config.generation().schemaFile() != null && !config.generation().schemaFile().isBlank()) {
+            root.put("schemaFile", config.generation().schemaFile());
+        }
 
         Map<String, Object> gen = new LinkedHashMap<>();
         gen.put("architecture", config.generation().architecture());

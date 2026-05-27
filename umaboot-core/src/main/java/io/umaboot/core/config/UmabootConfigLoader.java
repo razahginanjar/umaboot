@@ -39,15 +39,23 @@ public final class UmabootConfigLoader {
     @SuppressWarnings("unchecked")
     static UmabootConfig fromMap(Map<String, Object> root) {
         Map<String, Object> conn = mapOrEmpty(root, "connection");
-        if (conn.isEmpty()) {
-            throw new IllegalArgumentException("Missing 'connection' section");
-        }
         Map<String, Object> gen = mapOrEmpty(root, "generation");
         if (gen.isEmpty()) {
             throw new IllegalArgumentException("Missing 'generation' section");
         }
+        // Either `connection:` (live JDBC) or `schemaFile:` (parsed .sql file) must be present.
+        // The cross-field XOR check lives in UmabootConfig's compact constructor; here we just
+        // tolerate either one being absent and let the model record reject the bad combinations.
+        boolean hasSchemaFile = root.containsKey("schemaFile")
+                && root.get("schemaFile") != null
+                && !root.get("schemaFile").toString().isBlank();
+        if (conn.isEmpty() && !hasSchemaFile) {
+            throw new IllegalArgumentException(
+                    "Missing schema source: set either 'connection' (live database) "
+                            + "or 'schemaFile' (path to a .sql DDL file).");
+        }
 
-        var connection = parseConnection(conn);
+        var connection = conn.isEmpty() ? null : parseConnection(conn);
 
         Map<String, Object> jpaMap = mapOrEmpty(gen, "jpa");
         Map<String, Object> myBatisMap = mapOrEmpty(gen, "mybatis");
@@ -217,7 +225,8 @@ public final class UmabootConfigLoader {
                 tables,
                 ddd,
                 output,
-                applicationConfig);
+                applicationConfig,
+                str(root, "schemaFile", null));
 
         return new UmabootConfig(connection, generation);
     }

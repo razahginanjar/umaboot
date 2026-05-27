@@ -98,6 +98,10 @@ public record GeneratorContext(
         }
         security = security == null ? UmabootConfig.SecurityOptions.defaults() : security;
         dbDriver = dbDriver == null ? "postgres" : dbDriver.toLowerCase();
+        // Accept "postgres" / "postgresql" interchangeably; canonicalize to "postgresql"
+        // for downstream switches. MariaDB and MySQL share parser logic but have distinct
+        // JDBC driver coordinates and JDBC URL prefixes.
+        if ("postgres".equals(dbDriver)) dbDriver = "postgresql";
         applicationConfig = applicationConfig == null
                 ? UmabootConfig.ApplicationConfigOptions.defaults()
                 : applicationConfig;
@@ -170,7 +174,11 @@ public record GeneratorContext(
     public boolean isExceptionEnvelope() { return "envelope".equalsIgnoreCase(exceptionStyle); }
 
     public boolean isDbMysql() { return "mysql".equalsIgnoreCase(dbDriver); }
-    public boolean isDbPostgres() { return !isDbMysql(); }
+    public boolean isDbMariadb() { return "mariadb".equalsIgnoreCase(dbDriver); }
+    /** True for any MySQL-family engine (MySQL or MariaDB). DDL parser routing + Testcontainers
+     *  lookups treat them together; only the JDBC URL / driver coords / pom artifact differ. */
+    public boolean isDbMysqlFamily() { return isDbMysql() || isDbMariadb(); }
+    public boolean isDbPostgres() { return !isDbMysqlFamily(); }
 
     /**
      * Effective JDBC URL written into the generated {@code application.yml/.properties}
@@ -183,9 +191,9 @@ public record GeneratorContext(
         if (connection != null && connection.url() != null && !connection.url().isBlank()) {
             return connection.url();
         }
-        return isDbMysql()
-                ? "jdbc:mysql://localhost:3306/" + projectName
-                : "jdbc:postgresql://localhost:5432/" + projectName;
+        if (isDbMariadb()) return "jdbc:mariadb://localhost:3306/" + projectName;
+        if (isDbMysql())   return "jdbc:mysql://localhost:3306/" + projectName;
+        return "jdbc:postgresql://localhost:5432/" + projectName;
     }
 
     /** JDBC username for the generated app — from connection block, or engine default. */
@@ -193,7 +201,7 @@ public record GeneratorContext(
         if (connection != null && connection.username() != null && !connection.username().isEmpty()) {
             return connection.username();
         }
-        return isDbMysql() ? "root" : "postgres";
+        return isDbMysqlFamily() ? "root" : "postgres";
     }
 
     /** JDBC password for the generated app — from connection block, or engine default. */
@@ -201,12 +209,14 @@ public record GeneratorContext(
         if (connection != null && connection.password() != null && !connection.password().isEmpty()) {
             return connection.password();
         }
-        return isDbMysql() ? "root" : "postgres";
+        return isDbMysqlFamily() ? "root" : "postgres";
     }
 
     /** Driver class name, derived from {@link #dbDriver}. */
     public String jdbcDriverClass() {
-        return isDbMysql() ? "com.mysql.cj.jdbc.Driver" : "org.postgresql.Driver";
+        if (isDbMariadb()) return "org.mariadb.jdbc.Driver";
+        if (isDbMysql())   return "com.mysql.cj.jdbc.Driver";
+        return "org.postgresql.Driver";
     }
 
     public boolean isApplicationConfigYaml() {

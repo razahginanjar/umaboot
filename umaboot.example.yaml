@@ -17,10 +17,10 @@
 # memory and rewrites the file in the new shape on the first save.
 connection:
   mode: host                                       # host | url
-  type: postgresql                                 # postgresql | mysql
+  type: postgresql                                 # postgresql | mysql | mariadb
   host: localhost:5432                             # everything after jdbc:<type>://, before /<database>
   database: umaboot                                # required in host mode
-  schema: public                                   # postgres schema; mysql usually leaves this empty
+  schema: public                                   # postgres schema; mysql/mariadb usually leaves this empty
   params: ""                                       # optional extra params, no leading "?"
   username: postgres
   password: postgres
@@ -33,6 +33,16 @@ connection:
   # schema: public
   # username: postgres
   # password: postgres
+
+# Schema-file source — alternative to live-DB introspection. Mutually exclusive
+# with `connection:` above. Comment out `connection:` (or delete it) and uncomment
+# `schemaFile:` below to read from a checked-in .sql DDL file via JSqlParser
+# instead. Best for CI codegen, schema-first projects, or onboarding new
+# devs without requiring Docker / a live database. Postgres / MySQL / MariaDB
+# DDL supported; SQL Server and SQLite parsing land in follow-up branches.
+# Restriction: persistence: jooq requires `connection:` (the generated
+# jooq-codegen-maven plugin needs JDBC at `mvn compile` time).
+# schemaFile: ./schema.sql
 
 generation:
   architecture: mvc          # mvc | hexagonal | ddd

@@ -10,13 +10,17 @@ import io.umaboot.core.introspection.Introspector;
 import io.umaboot.core.introspection.JdbcDrivers;
 import io.umaboot.core.introspection.mysql.MysqlIntrospector;
 import io.umaboot.core.introspection.postgres.PostgresIntrospector;
+import io.umaboot.core.introspection.sqlfile.SqlFileIntrospector;
 import io.umaboot.core.model.SchemaModel;
 import io.umaboot.core.relationship.RelationshipEngine;
 import io.umaboot.core.template.TemplateEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -51,29 +55,65 @@ public final class GenerationPipeline {
     public static Result run(UmabootConfig config, Path templatesDir) throws SQLException {
         Objects.requireNonNull(config, "config");
 
-        // Fail-fast: silently introspecting against an empty target produces 0 tables
-        // and a confusing "no entities generated" outcome. Better to bail early with
-        // a message that names the missing field.
-        String target = config.connection().introspectionTarget();
-        if (target == null || target.isBlank()) {
-            String missing = "mysql".equals(config.connection().type()) ? "database" : "schema";
-            throw new IllegalArgumentException(
-                    "Cannot generate: connection." + missing + " is empty. "
-                            + "Fill it in before running generate.");
-        }
-
         SchemaModel schema;
-        JdbcDrivers.registerAll();
-        try (Connection conn = DriverManager.getConnection(
-                config.connection().url(),
-                config.connection().username(),
-                config.connection().password())) {
-            Introspector introspector = "mysql".equalsIgnoreCase(config.connection().driver())
-                    ? new MysqlIntrospector(conn)
-                    : new PostgresIntrospector(conn);
-            schema = introspector.introspect(config.connection().introspectionTarget());
+        String dbType;          // canonical: "postgresql" | "mysql" | "mariadb"
+        UmabootConfig.Connection connection = config.connection();
+
+        if (config.isSchemaFileMode()) {
+            // ----- SQL-FILE MODE: parse a checked-in .sql DDL file with JSqlParser -----
+            // No JDBC, no Docker, no live DB needed. Pairs with Flyway-style runtime
+            // migration where the same file is the schema authority at startup.
+            String relPath = config.generation().schemaFile();
+            Path sqlPath = Paths.get(relPath);
+            if (!Files.isReadable(sqlPath)) {
+                throw new IllegalArgumentException(
+                        "schemaFile not readable: " + sqlPath.toAbsolutePath()
+                                + ". Provide a path to a .sql DDL file (CREATE TABLE / ALTER TABLE FK / "
+                                + "CREATE TYPE ENUM / COMMENT statements).");
+            }
+            String sqlText;
+            try {
+                sqlText = Files.readString(sqlPath);
+            } catch (IOException ex) {
+                throw new IllegalArgumentException(
+                        "Failed to read schemaFile " + sqlPath.toAbsolutePath() + ": " + ex.getMessage(), ex);
+            }
+            // Default dialect to postgresql; the file may declare anything but the dialect hint
+            // only affects soft parsing decisions inside the introspector.
+            dbType = "postgresql";
+            // Default schema name when not connecting to a live DB. The user can override via
+            // tables.include/exclude if they want to pre-filter.
+            String logicalSchema = "public";
+            Introspector introspector = new SqlFileIntrospector(sqlText, dbType);
+            schema = introspector.introspect(logicalSchema);
+            LOG.info("Parsed {} tables from {}", schema.tables().size(), sqlPath);
+        } else {
+            // ----- LIVE-DB MODE: introspect via JDBC DatabaseMetaData -----
+            // Fail-fast: silently introspecting against an empty target produces 0 tables
+            // and a confusing "no entities generated" outcome. Better to bail early with
+            // a message that names the missing field.
+            String target = connection.introspectionTarget();
+            if (target == null || target.isBlank()) {
+                String missing = "mysql".equals(connection.type()) ? "database" : "schema";
+                throw new IllegalArgumentException(
+                        "Cannot generate: connection." + missing + " is empty. "
+                                + "Fill it in before running generate.");
+            }
+
+            JdbcDrivers.registerAll();
+            try (Connection conn = DriverManager.getConnection(
+                    connection.url(),
+                    connection.username(),
+                    connection.password())) {
+                Introspector introspector = "mysql".equalsIgnoreCase(connection.driver())
+                        || "mariadb".equalsIgnoreCase(connection.driver())
+                        ? new MysqlIntrospector(conn)
+                        : new PostgresIntrospector(conn);
+                schema = introspector.introspect(connection.introspectionTarget());
+            }
+            LOG.info("Introspected {} tables from live database", schema.tables().size());
+            dbType = connection.driver();
         }
-        LOG.info("Introspected {} tables", schema.tables().size());
 
         schema = new RelationshipEngine().analyze(schema);
 
@@ -113,8 +153,8 @@ public final class GenerationPipeline {
                 config.generation().security(),
                 config.generation().ddd(),
                 config.generation().output().isOverlay(),
-                config.connection().driver(),
-                config.connection(),
+                dbType,
+                connection,
                 config.generation().applicationConfig(),
                 config.generation().tables().classNameStripPrefix(),
                 config.generation().tables().overrides());

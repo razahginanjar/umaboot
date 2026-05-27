@@ -11,7 +11,30 @@ services:
     depends_on:
       db:
         condition: service_healthy
-<#if dbIsMysql>
+<#if dbIsMariadb>
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mariadb://db:3306/${r"${DB_NAME:-app}"}
+      SPRING_DATASOURCE_USERNAME: ${r"${DB_USER:-app}"}
+      SPRING_DATASOURCE_PASSWORD: ${r"${DB_PASSWORD:-app}"}
+
+  db:
+    image: mariadb:11
+    container_name: ${projectName}-db
+    environment:
+      MARIADB_DATABASE: ${r"${DB_NAME:-app}"}
+      MARIADB_USER: ${r"${DB_USER:-app}"}
+      MARIADB_PASSWORD: ${r"${DB_PASSWORD:-app}"}
+      MARIADB_ROOT_PASSWORD: ${r"${DB_ROOT_PASSWORD:-rootpw}"}
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - db-data:/var/lib/mysql
+<#elseif dbIsMysql>
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/${r"${DB_NAME:-app}"}?useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: ${r"${DB_USER:-app}"}

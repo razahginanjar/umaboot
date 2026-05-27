@@ -213,7 +213,7 @@ class SpringBoot2RenderTest {
                         UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(),
                         UmabootConfig.LoggingOptions.defaults(), UmabootConfig.TestOptions.defaults(),
                         UmabootConfig.PaginationOptions.defaults(), UmabootConfig.SecurityOptions.defaults(),
-                        null, null, null, null, null, null, null))
+                        null, null, null, null, null, null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("dto.style: record");
     }
@@ -233,7 +233,7 @@ class SpringBoot2RenderTest {
                         UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(),
                         UmabootConfig.LoggingOptions.defaults(), UmabootConfig.TestOptions.defaults(),
                         UmabootConfig.PaginationOptions.defaults(), UmabootConfig.SecurityOptions.defaults(),
-                        null, null, null, null, null, null, null))
+                        null, null, null, null, null, null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("exception.style: problemdetail");
     }
@@ -342,7 +342,7 @@ class SpringBoot2RenderTest {
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(),
                 UmabootConfig.LoggingOptions.defaults(), UmabootConfig.TestOptions.defaults(),
                 UmabootConfig.PaginationOptions.defaults(), UmabootConfig.SecurityOptions.defaults(),
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null);
     }
 
     private static SchemaModel schema() {

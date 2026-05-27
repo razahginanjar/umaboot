@@ -259,6 +259,7 @@ public final class MvcGenerator implements ArchitectureGenerator {
         m.put("loggingCorrelationId", ctx.logging().correlationId());
         m.put("dbDriver", ctx.dbDriver());
         m.put("dbIsMysql", ctx.isDbMysql());
+        m.put("dbIsMariadb", ctx.isDbMariadb());
         m.put("dbIsPostgres", ctx.isDbPostgres());
         m.put("jdbcUrl", ctx.jdbcUrl());
         m.put("jdbcUsername", ctx.jdbcUsername());

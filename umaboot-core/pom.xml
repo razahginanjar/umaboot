@@ -31,6 +31,12 @@
             <artifactId>mysql-connector-j</artifactId>
         </dependency>
 
+        <!-- SQL parser used by SqlFileIntrospector; codegen-time only, not bundled into generated projects -->
+        <dependency>
+            <groupId>com.github.jsqlparser</groupId>
+            <artifactId>jsqlparser</artifactId>
+        </dependency>
+
         <!-- Template engine -->
         <dependency>
             <groupId>org.freemarker</groupId>

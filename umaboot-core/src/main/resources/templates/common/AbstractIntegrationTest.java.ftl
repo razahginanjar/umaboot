@@ -1,6 +1,8 @@
 package ${basePackage};
 
-<#if dbIsMysql>
+<#if dbIsMariadb>
+import org.testcontainers.containers.MariaDBContainer;
+<#elseif dbIsMysql>
 import org.testcontainers.containers.MySQLContainer;
 <#else>
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -23,7 +25,14 @@ import org.springframework.test.context.DynamicPropertySource;
 @Testcontainers
 public abstract class AbstractIntegrationTest {
 
-<#if dbIsMysql>
+<#if dbIsMariadb>
+    @Container
+    @SuppressWarnings("resource")
+    static final MariaDBContainer<?> DB = new MariaDBContainer<>("mariadb:11")
+            .withDatabaseName("test")
+            .withUsername("test")
+            .withPassword("test");
+<#elseif dbIsMysql>
     @Container
     @SuppressWarnings("resource")
     static final MySQLContainer<?> DB = new MySQLContainer<>("mysql:8.0")

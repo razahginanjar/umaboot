@@ -222,7 +222,8 @@ class TableOverridesTest {
                 tables,
                 UmabootConfig.DddOptions.defaults(),
                 UmabootConfig.OutputOptions.defaults(),
-                UmabootConfig.ApplicationConfigOptions.defaults());
+                UmabootConfig.ApplicationConfigOptions.defaults(),
+                null);
         return new UmabootConfig(conn, gen);
     }
 

@@ -118,7 +118,10 @@
         </dependency>
 </#if>
         <dependency>
-<#if dbIsMysql>
+<#if dbIsMariadb>
+            <groupId>org.mariadb.jdbc</groupId>
+            <artifactId>mariadb-java-client</artifactId>
+<#elseif dbIsMysql>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
 <#else>
@@ -155,7 +158,7 @@
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId><#if dbIsMysql>mysql<#else>postgresql</#if></artifactId>
+            <artifactId><#if dbIsMariadb>mariadb<#elseif dbIsMysql>mysql<#else>postgresql</#if></artifactId>
             <version>1.20.4</version>
             <scope>test</scope>
         </dependency>
@@ -223,7 +226,11 @@
                 </executions>
                 <dependencies>
                     <dependency>
-<#if dbIsMysql>
+<#if dbIsMariadb>
+                        <groupId>org.mariadb.jdbc</groupId>
+                        <artifactId>mariadb-java-client</artifactId>
+                        <version>3.4.1</version>
+<#elseif dbIsMysql>
                         <groupId>com.mysql</groupId>
                         <artifactId>mysql-connector-j</artifactId>
                         <version>8.4.0</version>
@@ -243,7 +250,7 @@
                     </jdbc>
                     <generator>
                         <database>
-                            <name><#if dbIsMysql>org.jooq.meta.mysql.MySQLDatabase<#else>org.jooq.meta.postgres.PostgresDatabase</#if></name>
+                            <name><#if dbIsMariadb>org.jooq.meta.mariadb.MariaDBDatabase<#elseif dbIsMysql>org.jooq.meta.mysql.MySQLDatabase<#else>org.jooq.meta.postgres.PostgresDatabase</#if></name>
                             <inputSchema>${schemaName}</inputSchema>
                         </database>
                         <generate>

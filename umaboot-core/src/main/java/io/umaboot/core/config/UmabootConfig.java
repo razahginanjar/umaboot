@@ -12,8 +12,40 @@ import java.util.Objects;
 public record UmabootConfig(Connection connection, Generation generation) {
 
     public UmabootConfig {
-        Objects.requireNonNull(connection, "connection");
         Objects.requireNonNull(generation, "generation");
+        // The schema source is exactly one of:
+        //   * connection: live JDBC introspection (default for v0.x — backwards compatible)
+        //   * generation.schemaFile: parse a checked-in .sql file with JSqlParser (v1.0+)
+        // Reject both-set or neither-set at config-load — clearer than failing later
+        // with an "introspection target empty" or "no schemaFile" mid-pipeline.
+        boolean hasConnection = connection != null;
+        boolean hasSchemaFile = generation.schemaFile() != null && !generation.schemaFile().isBlank();
+        if (!hasConnection && !hasSchemaFile) {
+            throw new IllegalArgumentException(
+                    "Schema source missing: set either `connection` (live database) "
+                            + "or `generation.schemaFile` (path to a .sql DDL file).");
+        }
+        if (hasConnection && hasSchemaFile) {
+            throw new IllegalArgumentException(
+                    "Schema source ambiguous: set either `connection` or "
+                            + "`generation.schemaFile`, not both. "
+                            + "Comment out the one you don't want to use.");
+        }
+        // jOOQ's generated codegen plugin needs a live JDBC connection at `mvn compile`
+        // time to produce ${basePackage}.jooq.Tables. SqlFile mode skips that, so the
+        // generated adapter wouldn't compile. Reject the combination clearly.
+        if (hasSchemaFile && "jooq".equalsIgnoreCase(generation.persistence())) {
+            throw new IllegalArgumentException(
+                    "persistence: jooq requires a live `connection:` — the generated "
+                            + "jooq-codegen-maven plugin needs JDBC access at `mvn compile` "
+                            + "time to introspect the schema. Use `persistence: jpa` or "
+                            + "`persistence: mybatis` with `schemaFile:` instead.");
+        }
+    }
+
+    /** True when the schema source is a parsed .sql file rather than a live connection. */
+    public boolean isSchemaFileMode() {
+        return generation.schemaFile() != null && !generation.schemaFile().isBlank();
     }
 
     public record Connection(
@@ -93,7 +125,7 @@ public record UmabootConfig(Connection connection, Generation generation) {
          * </ul>
          */
         public String introspectionTarget() {
-            if ("mysql".equals(type)) {
+            if ("mysql".equals(type) || "mariadb".equals(type)) {
                 return database.isBlank() ? schema : database;
             }
             return schema;
@@ -127,7 +159,8 @@ public record UmabootConfig(Connection connection, Generation generation) {
 
         private static String deriveDriver(String url) {
             if (url == null) return "postgresql";
-            if (url.startsWith("jdbc:mysql:") || url.startsWith("jdbc:mariadb:")) return "mysql";
+            if (url.startsWith("jdbc:mariadb:")) return "mariadb";
+            if (url.startsWith("jdbc:mysql:")) return "mysql";
             return "postgresql";
         }
     }
@@ -160,7 +193,8 @@ public record UmabootConfig(Connection connection, Generation generation) {
             TableFilterOptions tables,
             DddOptions ddd,
             OutputOptions output,
-            ApplicationConfigOptions applicationConfig) {
+            ApplicationConfigOptions applicationConfig,
+            String schemaFile) {
 
         public Generation {
             architecture = architecture == null ? "mvc" : architecture.toLowerCase();
@@ -182,6 +216,7 @@ public record UmabootConfig(Connection connection, Generation generation) {
             ddd = ddd == null ? DddOptions.defaults() : ddd;
             output = output == null ? OutputOptions.defaults() : output;
             applicationConfig = applicationConfig == null ? ApplicationConfigOptions.defaults() : applicationConfig;
+            schemaFile = (schemaFile != null && schemaFile.isBlank()) ? null : schemaFile;
             openapi = openapi == null ? OpenApiOptions.defaults() : openapi;
             injection = injection == null ? InjectionOptions.defaults() : injection;
             validation = validation == null ? ValidationOptions.defaults() : validation;
