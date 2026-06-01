@@ -1,0 +1,32 @@
+# .github/workflows/main.yml
+name: Main
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-core:
+  # … same as pr.yml build-core job …
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: build-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-jvm
+        with: { java-version: '17' }
+      - name: Run *IntegrationTest only (Testcontainers)
+        run: mvn -B -pl umaboot-core test "-Dtest=*IntegrationTest"
+      - name: Upload surefire reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports-main
+          path: '**/target/surefire-reports/'
+
+  build-intellij:
+  # … same as pr.yml build-intellij job …
+
+  build-vscode:
+  # … same as pr.yml build-vscode job …
