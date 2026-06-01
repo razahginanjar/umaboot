@@ -1,6 +1,16 @@
 -- CRUDForge integration-test fixture schema.
 -- Exercises: ENUM types, comments, 1:1, 1:N, M:N (junction), self-reference.
 
+DROP TYPE IF EXISTS order_status CASCADE;
+DROP TABLE IF EXISTS customers CASCADE;
+DROP TABLE IF EXISTS addresses CASCADE;
+DROP TABLE IF EXISTS products CASCADE;
+DROP TABLE IF EXISTS orders CASCADE;
+DROP TABLE IF EXISTS order_items CASCADE;
+DROP TABLE IF EXISTS tags CASCADE;
+DROP TABLE IF EXISTS product_tags CASCADE;
+
+
 CREATE TYPE order_status AS ENUM ('PENDING', 'PAID', 'SHIPPED', 'CANCELLED');
 
 CREATE TABLE customers (

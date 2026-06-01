@@ -1,0 +1,82 @@
+# .github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # required to create the GitHub Release
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build Core
+        run: |
+          mvn install -pl umaboot-core -am
+
+      - name: Build CLI
+        run: mvn -B clean package -DskipTests
+
+      - name: Upload CLI
+        uses: actions/upload-artifact@v4
+        with:
+          name: umaboot-cli-fat-jar
+          path: umaboot-cli/target/*.jar
+
+      - name: Build IntelliJ Plugin
+        working-directory: umaboot-intellij
+        run: gradle buildPlugin --no-daemon
+
+      - name: Upload IntelliJ Plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: umaboot-intellij-plugin
+          path: umaboot-intellij/build/distributions/*.zip
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build VSCode Extension
+        working-directory: umaboot-vscode
+        run: |
+          npm ci
+          npm run compile
+          npx @vscode/vsce package
+
+      - name: Upload VSCode Extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: umaboot-vscode-extension
+          path: umaboot-vscode/*.vsix
+
+
+  publish:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with: { path: artifacts }
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          files: |
+            artifacts/umaboot-cli-fat-jar/umaboot.jar
+            artifacts/umaboot-intellij-plugin/*.zip
+            artifacts/umaboot-vscode-extension/*.vsix
+          generate_release_notes: true
