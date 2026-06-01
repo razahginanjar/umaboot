@@ -177,7 +177,7 @@ class TableOverridesTest {
                 UmabootConfig.LoggingOptions.defaults(), UmabootConfig.TestOptions.defaults(),
                 "offset", UmabootConfig.SecurityOptions.defaults(),
                 UmabootConfig.DddOptions.defaults(),
-                false, "postgres", null, null, stripPrefix, overrides);
+                false, "postgres", null, null, stripPrefix, overrides, "maven");
         return new MvcGenerator(new TemplateEngine(null), ctx).generate(schema);
     }
 
@@ -223,7 +223,8 @@ class TableOverridesTest {
                 UmabootConfig.DddOptions.defaults(),
                 UmabootConfig.OutputOptions.defaults(),
                 UmabootConfig.ApplicationConfigOptions.defaults(),
-                null);
+                null,
+                "maven");
         return new UmabootConfig(conn, gen);
     }
 

@@ -92,6 +92,8 @@ generation:
 
 > **Tip:** to skip the live-DB requirement, replace `connection:` with `schemaFile: ./schema.sql` and point to a `.sql` DDL file. Umaboot will parse it via JSqlParser. Postgres / MySQL / MariaDB / SQL Server / SQLite syntax supported. `persistence: jooq` is rejected in this mode — use `jpa` or `mybatis`.
 
+> **Tip:** prefer Gradle? Set `generation.buildTool: gradle` and Umaboot emits `build.gradle.kts` + `settings.gradle.kts` (Kotlin DSL) instead of `pom.xml`. After generating, run `gradle wrapper` once in the project root to materialize the wrapper JAR and scripts. Default is `maven` for backwards-compat.
+
 ### 4. Run
 
 ```bash

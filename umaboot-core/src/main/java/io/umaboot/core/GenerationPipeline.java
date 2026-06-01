@@ -166,7 +166,8 @@ public final class GenerationPipeline {
                 connection,
                 config.generation().applicationConfig(),
                 config.generation().tables().classNameStripPrefix(),
-                config.generation().tables().overrides());
+                config.generation().tables().overrides(),
+                config.generation().buildTool());
 
         TemplateEngine engine = new TemplateEngine(templatesDir);
         ArchitectureGenerator generator = ArchitectureGenerators.forContext(ctx, engine);

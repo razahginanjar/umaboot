@@ -114,6 +114,7 @@ class SchemaSourceXorTest {
                 UmabootConfig.DddOptions.defaults(),
                 UmabootConfig.OutputOptions.defaults(),
                 UmabootConfig.ApplicationConfigOptions.defaults(),
-                schemaFile);
+                schemaFile,
+                "maven");
     }
 }

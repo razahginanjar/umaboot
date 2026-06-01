@@ -81,6 +81,7 @@ public final class UmabootYamlIO {
         Map<String, Object> gen = new LinkedHashMap<>();
         gen.put("architecture", config.generation().architecture());
         gen.put("persistence", config.generation().persistence());
+        gen.put("buildTool", config.generation().buildTool());
         gen.put("basePackage", config.generation().basePackage());
         gen.put("projectName", config.generation().projectName());
         gen.put("projectGroup", config.generation().projectGroup());

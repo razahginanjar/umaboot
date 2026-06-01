@@ -60,7 +60,8 @@ public record GeneratorContext(
         UmabootConfig.Connection connection,
         UmabootConfig.ApplicationConfigOptions applicationConfig,
         String classNameStripPrefix,
-        java.util.Map<String, UmabootConfig.TableOverride> tableOverrides) {
+        java.util.Map<String, UmabootConfig.TableOverride> tableOverrides,
+        String buildTool) {
 
     public GeneratorContext {
         Objects.requireNonNull(basePackage, "basePackage");
@@ -107,6 +108,10 @@ public record GeneratorContext(
                 : applicationConfig;
         classNameStripPrefix = classNameStripPrefix == null ? "" : classNameStripPrefix;
         tableOverrides = tableOverrides == null ? java.util.Map.of() : java.util.Map.copyOf(tableOverrides);
+        // Build tool defaults to maven for backwards-compat with older test fixtures
+        // and existing umaboot.yamls. Validation lives in UmabootConfig — by the time
+        // we reach this ctor, buildTool is either "maven" or "gradle".
+        buildTool = (buildTool == null || buildTool.isBlank()) ? "maven" : buildTool.toLowerCase();
     }
 
     /** Returns the per-table override for {@code tableName}, or empty if none configured. */
@@ -135,7 +140,8 @@ public record GeneratorContext(
                 null,
                 null,
                 "",
-                null);
+                null,
+                "maven");
     }
 
     public String basePackagePath() {
@@ -181,6 +187,10 @@ public record GeneratorContext(
      *  lookups treat them together; only the JDBC URL / driver coords / pom artifact differ. */
     public boolean isDbMysqlFamily() { return isDbMysql() || isDbMariadb(); }
     public boolean isDbPostgres() { return !isDbMysqlFamily() && !isDbSqlserver() && !isDbSqlite(); }
+
+    /** Build tool: maven (status quo) or gradle. */
+    public boolean isMaven()  { return "maven".equalsIgnoreCase(buildTool); }
+    public boolean isGradle() { return "gradle".equalsIgnoreCase(buildTool); }
 
     /**
      * Effective JDBC URL written into the generated {@code application.yml/.properties}

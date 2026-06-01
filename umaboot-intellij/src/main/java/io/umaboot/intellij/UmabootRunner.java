@@ -109,7 +109,8 @@ final class UmabootRunner {
                 gen.ddd(),
                 newOutput,
                 gen.applicationConfig(),
-                gen.schemaFile());
+                gen.schemaFile(),
+                gen.buildTool());
         return new UmabootConfig(config.connection(), newGen);
     }
 

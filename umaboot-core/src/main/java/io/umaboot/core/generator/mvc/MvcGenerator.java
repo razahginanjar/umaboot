@@ -54,7 +54,12 @@ public final class MvcGenerator implements ArchitectureGenerator {
 
         Map<String, Object> projectModel = projectModel(schema);
         if (!ctx.overlay()) {
-            units.add(unit("pom.xml", "mvc-jpa/pom.xml.ftl", projectModel));
+            if (ctx.isGradle()) {
+                units.add(unit("build.gradle.kts", "mvc-jpa/build.gradle.kts.ftl", projectModel));
+                units.add(unit("settings.gradle.kts", "common/settings.gradle.kts.ftl", projectModel));
+            } else {
+                units.add(unit("pom.xml", "mvc-jpa/pom.xml.ftl", projectModel));
+            }
             units.add(unit(resources + "/" + ctx.applicationConfigFileName(),
                     ctx.isApplicationConfigProperties()
                             ? "mvc-jpa/application.properties.ftl"
@@ -263,6 +268,8 @@ public final class MvcGenerator implements ArchitectureGenerator {
         m.put("dbIsSqlserver", ctx.isDbSqlserver());
         m.put("dbIsSqlite", ctx.isDbSqlite());
         m.put("dbIsPostgres", ctx.isDbPostgres());
+        m.put("isMaven", ctx.isMaven());
+        m.put("isGradle", ctx.isGradle());
         m.put("jdbcUrl", ctx.jdbcUrl());
         m.put("jdbcUsername", ctx.jdbcUsername());
         m.put("jdbcPassword", ctx.jdbcPassword());

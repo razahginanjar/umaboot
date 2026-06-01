@@ -135,7 +135,7 @@ class OutputDirResolverTest {
                 UmabootConfig.TableFilterOptions.allowAll(),
                 UmabootConfig.DddOptions.defaults(),
                 UmabootConfig.OutputOptions.defaults(),
-                null, null);
+                null, null, "maven");
         return new UmabootConfig(conn, gen);
     }
 }

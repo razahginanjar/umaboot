@@ -244,7 +244,8 @@ public record UmabootConfig(Connection connection, Generation generation) {
             DddOptions ddd,
             OutputOptions output,
             ApplicationConfigOptions applicationConfig,
-            String schemaFile) {
+            String schemaFile,
+            String buildTool) {
 
         public Generation {
             architecture = architecture == null ? "mvc" : architecture.toLowerCase();
@@ -267,6 +268,13 @@ public record UmabootConfig(Connection connection, Generation generation) {
             output = output == null ? OutputOptions.defaults() : output;
             applicationConfig = applicationConfig == null ? ApplicationConfigOptions.defaults() : applicationConfig;
             schemaFile = (schemaFile != null && schemaFile.isBlank()) ? null : schemaFile;
+            // Build tool: maven (status quo) or gradle. Default to maven for backwards
+            // compatibility — every existing umaboot.yaml with no buildTool key picks Maven.
+            buildTool = buildTool == null ? "maven" : buildTool.toLowerCase();
+            if (!"maven".equals(buildTool) && !"gradle".equals(buildTool)) {
+                throw new IllegalArgumentException(
+                        "buildTool must be 'maven' or 'gradle' (got: " + buildTool + ")");
+            }
             openapi = openapi == null ? OpenApiOptions.defaults() : openapi;
             injection = injection == null ? InjectionOptions.defaults() : injection;
             validation = validation == null ? ValidationOptions.defaults() : validation;

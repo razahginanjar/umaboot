@@ -118,6 +118,7 @@ public final class UmabootSettingsPanel {
     // Generation
     private final ComboBox<String> architectureCombo = new ComboBox<>(new String[]{"mvc", "hexagonal", "ddd"});
     private final ComboBox<String> persistenceCombo = new ComboBox<>(new String[]{"jpa", "mybatis", "jooq"});
+    private final ComboBox<String> buildToolCombo = new ComboBox<>(new String[]{"maven", "gradle"});
     private final ComboBox<String> mybatisStyleCombo = new ComboBox<>(new String[]{"xml", "annotation"});
     private final JBCheckBox useMapStructCheckbox = new JBCheckBox("Use MapStruct (JPA only)");
     private final JBTextField basePackageField = new JBTextField();
@@ -303,6 +304,7 @@ public final class UmabootSettingsPanel {
         int r = 0;
         addRow(g, r++, "Architecture:", architectureCombo);
         addRow(g, r++, "Persistence:", persistenceCombo);
+        addRow(g, r++, "Build tool:", buildToolCombo);
         addRow(g, r++, "MyBatis style:", mybatisStyleCombo);
         addRow(g, r++, "", useMapStructCheckbox);
         addRow(g, r++, "Base package:", basePackageField);
@@ -383,6 +385,7 @@ public final class UmabootSettingsPanel {
         java.awt.event.ActionListener mark = e -> dirty = true;
         architectureCombo.addActionListener(mark);
         persistenceCombo.addActionListener(mark);
+        buildToolCombo.addActionListener(mark);
         mybatisStyleCombo.addActionListener(mark);
         outputModeCombo.addActionListener(mark);
         applicationConfigFormatCombo.addActionListener(mark);
@@ -937,6 +940,7 @@ public final class UmabootSettingsPanel {
 
         architectureCombo.setSelectedItem(c.generation().architecture());
         persistenceCombo.setSelectedItem(c.generation().persistence());
+        buildToolCombo.setSelectedItem(c.generation().buildTool());
         mybatisStyleCombo.setSelectedItem(c.generation().mybatis().style());
         useMapStructCheckbox.setSelected(c.generation().jpa().useMapStruct());
         basePackageField.setText(c.generation().basePackage());
@@ -1118,7 +1122,8 @@ public final class UmabootSettingsPanel {
                                 ? null
                                 : outputDirField.getText().trim()),
                 jpa, mybatis, tables, ddd, output, applicationConfig,
-                effectiveSchemaFile);
+                effectiveSchemaFile,
+                Optional.ofNullable((String) buildToolCombo.getSelectedItem()).orElse("maven"));
 
         return new UmabootConfig(connection, generation);
     }
@@ -1164,7 +1169,8 @@ public final class UmabootSettingsPanel {
                 UmabootConfig.DddOptions.defaults(),
                 UmabootConfig.OutputOptions.defaults(),
                 UmabootConfig.ApplicationConfigOptions.defaults(),
-                null);
+                null,
+                "maven");
         return new UmabootConfig(connection, generation);
     }
 

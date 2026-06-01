@@ -213,7 +213,7 @@ class SpringBoot2RenderTest {
                         UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(),
                         UmabootConfig.LoggingOptions.defaults(), UmabootConfig.TestOptions.defaults(),
                         UmabootConfig.PaginationOptions.defaults(), UmabootConfig.SecurityOptions.defaults(),
-                        null, null, null, null, null, null, null, null))
+                        null, null, null, null, null, null, null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("dto.style: record");
     }
@@ -233,7 +233,7 @@ class SpringBoot2RenderTest {
                         UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(),
                         UmabootConfig.LoggingOptions.defaults(), UmabootConfig.TestOptions.defaults(),
                         UmabootConfig.PaginationOptions.defaults(), UmabootConfig.SecurityOptions.defaults(),
-                        null, null, null, null, null, null, null, null))
+                        null, null, null, null, null, null, null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("exception.style: problemdetail");
     }
@@ -299,7 +299,7 @@ class SpringBoot2RenderTest {
                 UmabootConfig.LoggingOptions.defaults(), UmabootConfig.TestOptions.defaults(),
                 "offset", security,
                 UmabootConfig.DddOptions.defaults(),
-                false, "postgres", null, null, "", null);
+                false, "postgres", null, null, "", null, "maven");
     }
 
     /** SB3-flavored context for parity comparisons. */
@@ -325,7 +325,7 @@ class SpringBoot2RenderTest {
                 UmabootConfig.LoggingOptions.defaults(), UmabootConfig.TestOptions.defaults(),
                 "offset", security,
                 UmabootConfig.DddOptions.defaults(),
-                false, "postgres", null, null, "", null);
+                false, "postgres", null, null, "", null, "maven");
     }
 
     /** Bare-minimum Generation factory used by cross-validation tests. */
@@ -342,7 +342,7 @@ class SpringBoot2RenderTest {
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(),
                 UmabootConfig.LoggingOptions.defaults(), UmabootConfig.TestOptions.defaults(),
                 UmabootConfig.PaginationOptions.defaults(), UmabootConfig.SecurityOptions.defaults(),
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
     }
 
     private static SchemaModel schema() {

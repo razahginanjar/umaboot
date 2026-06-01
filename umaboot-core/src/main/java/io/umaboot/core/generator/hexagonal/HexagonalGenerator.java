@@ -60,7 +60,12 @@ public final class HexagonalGenerator implements ArchitectureGenerator {
         // Project-wide
         Map<String, Object> pm = projectModel(schema);
         if (!ctx.overlay()) {
-            units.add(unit("pom.xml", "hexagonal/pom.xml.ftl", pm));
+            if (ctx.isGradle()) {
+                units.add(unit("build.gradle.kts", "hexagonal/build.gradle.kts.ftl", pm));
+                units.add(unit("settings.gradle.kts", "common/settings.gradle.kts.ftl", pm));
+            } else {
+                units.add(unit("pom.xml", "hexagonal/pom.xml.ftl", pm));
+            }
             units.add(unit(resources + "/" + ctx.applicationConfigFileName(),
                     ctx.isApplicationConfigProperties()
                             ? "hexagonal/application.properties.ftl"
@@ -285,6 +290,8 @@ public final class HexagonalGenerator implements ArchitectureGenerator {
         m.put("dbIsSqlserver", ctx.isDbSqlserver());
         m.put("dbIsSqlite", ctx.isDbSqlite());
         m.put("dbIsPostgres", ctx.isDbPostgres());
+        m.put("isMaven", ctx.isMaven());
+        m.put("isGradle", ctx.isGradle());
         m.put("jdbcUrl", ctx.jdbcUrl());
         m.put("jdbcUsername", ctx.jdbcUsername());
         m.put("jdbcPassword", ctx.jdbcPassword());

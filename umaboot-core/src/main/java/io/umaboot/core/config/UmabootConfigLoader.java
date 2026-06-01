@@ -226,7 +226,8 @@ public final class UmabootConfigLoader {
                 ddd,
                 output,
                 applicationConfig,
-                str(root, "schemaFile", null));
+                str(root, "schemaFile", null),
+                str(gen, "buildTool", "maven"));
 
         return new UmabootConfig(connection, generation);
     }

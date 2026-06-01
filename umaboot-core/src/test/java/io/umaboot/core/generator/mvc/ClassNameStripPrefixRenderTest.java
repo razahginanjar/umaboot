@@ -83,7 +83,7 @@ class ClassNameStripPrefixRenderTest {
                 UmabootConfig.LoggingOptions.defaults(), UmabootConfig.TestOptions.defaults(),
                 "offset", UmabootConfig.SecurityOptions.defaults(),
                 UmabootConfig.DddOptions.defaults(),
-                false, "postgres", null, null, stripPrefix, null);
+                false, "postgres", null, null, stripPrefix, null, "maven");
         return new MvcGenerator(new TemplateEngine(null), ctx).generate(schema);
     }
 

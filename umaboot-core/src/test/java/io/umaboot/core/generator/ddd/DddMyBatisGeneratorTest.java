@@ -93,7 +93,7 @@ class DddMyBatisGeneratorTest {
                 UmabootConfig.AuditOptions.defaults(), UmabootConfig.SoftDeleteOptions.defaults(),
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(), UmabootConfig.LoggingOptions.defaults(),
                 UmabootConfig.TestOptions.defaults(), "offset", UmabootConfig.SecurityOptions.defaults(),
-                UmabootConfig.DddOptions.defaults(), false, "postgres", null, null, "", null);
+                UmabootConfig.DddOptions.defaults(), false, "postgres", null, null, "", null, "maven");
         return new DddGenerator(new TemplateEngine(null), ctx).generate(schema);
     }
 

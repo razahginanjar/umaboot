@@ -48,6 +48,7 @@ connection:
 generation:
   architecture: mvc          # mvc | hexagonal | ddd
   persistence: jpa           # jpa | mybatis | jooq
+  buildTool: maven           # maven | gradle (Kotlin DSL); default maven
   basePackage: com.example.app
   projectName: example-app
   projectGroup: com.example

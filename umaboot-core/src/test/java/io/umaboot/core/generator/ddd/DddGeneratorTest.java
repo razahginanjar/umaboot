@@ -31,7 +31,7 @@ class DddGeneratorTest {
                 UmabootConfig.AuditOptions.defaults(), UmabootConfig.SoftDeleteOptions.defaults(),
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(), UmabootConfig.LoggingOptions.defaults(),
                 UmabootConfig.TestOptions.defaults(), "offset", UmabootConfig.SecurityOptions.defaults(),
-                UmabootConfig.DddOptions.defaults(), false, "postgres", null, null, "", null);
+                UmabootConfig.DddOptions.defaults(), false, "postgres", null, null, "", null, "maven");
         TemplateEngine engine = new TemplateEngine(null);
 
         List<GeneratedUnit> units = new DddGenerator(engine, ctx).generate(schema);
@@ -102,7 +102,7 @@ class DddGeneratorTest {
                         List.of(),
                         java.util.Map.of(),
                         "shared"),
-                false, "postgres", null, null, "", null);
+                false, "postgres", null, null, "", null, "maven");
 
         TemplateEngine engine = new TemplateEngine(null);
         List<GeneratedUnit> units = new DddGenerator(engine, ctx).generate(schema);

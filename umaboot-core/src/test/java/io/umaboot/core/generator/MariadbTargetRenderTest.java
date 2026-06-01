@@ -104,7 +104,7 @@ class MariadbTargetRenderTest {
                 "offset",
                 UmabootConfig.SecurityOptions.defaults(),
                 UmabootConfig.DddOptions.defaults(),
-                false, dbDriver, null, null, "", null);
+                false, dbDriver, null, null, "", null, "maven");
     }
 
     private static SchemaModel schema() {

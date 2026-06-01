@@ -68,6 +68,7 @@ schemaFile: ./schema.sql
 generation:
   architecture: mvc | hexagonal | ddd
   persistence:  jpa | mybatis | jooq           # all 3 architectures support all 3 backends
+  buildTool:    maven | gradle                 # default: maven. gradle = Kotlin DSL build.gradle.kts
 
   jpa:
     useMapStruct: false                        # JPA-only opt-in
