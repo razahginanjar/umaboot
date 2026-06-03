@@ -67,8 +67,6 @@ jobs:
       - uses: ./.github/actions/setup-jvm
         with: { java-version: '21' }
       - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.10.2'
       - name: Re-install umaboot-core into ~/.m2
         run: mvn -B -pl umaboot-core -am install -DskipTests
       - name: Build IntelliJ Plugin
