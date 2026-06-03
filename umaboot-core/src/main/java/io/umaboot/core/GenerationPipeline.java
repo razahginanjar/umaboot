@@ -99,9 +99,13 @@ public final class GenerationPipeline {
         TemplateEngine engine = new TemplateEngine(templatesDir);
         ArchitectureGenerator generator = ArchitectureGenerators.forContext(ctx, engine);
         List<GeneratedUnit> units = generator.generate(schema);
-        return new Result(units, ctx);
+        return new Result(units, ctx, source.warnings());
     }
 
     /** Tuple of generated units and the context they were produced under. */
-    public record Result(List<GeneratedUnit> units, GeneratorContext ctx) {}
+    public record Result(List<GeneratedUnit> units, GeneratorContext ctx, List<String> warnings) {
+        public Result {
+            warnings = warnings == null ? List.of() : List.copyOf(warnings);
+        }
+    }
 }

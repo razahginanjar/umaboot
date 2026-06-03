@@ -11,6 +11,7 @@ import java.sql.Types;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RelationshipEngineTest {
 
@@ -74,6 +75,29 @@ class RelationshipEngineTest {
                 .anyMatch(r -> r.type() instanceof RelationshipType.OneToMany
                         && r.toTable().equals("orders")
                         && !r.owning());
+    }
+
+    @Test
+    void danglingRelationshipTargetFailsWithClearMessage() {
+        RelationshipModel toMissingTags = new RelationshipModel(
+                "product_tags", "tags", new RelationshipType.ManyToOne(),
+                List.of("tag_id"), List.of("id"), "tag", true, false);
+        TableModel productTags = new TableModel(
+                "product_tags", "public", "",
+                List.of(pkColumn("product_id", Types.BIGINT), pkColumn("tag_id", Types.BIGINT)),
+                List.of("product_id", "tag_id"),
+                List.of(),
+                List.of(new RelationshipModel(
+                        "product_tags", "products", new RelationshipType.ManyToOne(),
+                        List.of("product_id"), List.of("id"), "product", true, false),
+                        toMissingTags),
+                false);
+
+        assertThatThrownBy(() -> new RelationshipEngine().analyze(
+                new SchemaModel("public", List.of(simpleTable("products"), productTags))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Relationship target table 'tags'")
+                .hasMessageContaining("product_tags");
     }
 
     private static ColumnModel pkColumn(String name, int jdbcType) {

@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
+import { text, UiLanguage } from './i18n';
 import { isUmabootConfigPath } from './paths';
 
 /**
- * CodeLens provider that surfaces ▶ Generate / ⇄ Diff / ✓ Apply links above
- * the first line of `umaboot.yaml`. The same affordance the IntelliJ plugin
- * provides via the gutter run icon.
+ * CodeLens provider that surfaces Generate / Diff / Preview / Apply Generated
+ * Files links above the first line of `umaboot.yaml`. The same affordance the
+ * IntelliJ plugin provides via the gutter run icon.
  *
  * <p>Activates on any YAML file whose basename matches {@code umaboot.yaml} or
  * the legacy {@code crudforge.yaml}. Anchored at line 0 so it's always
@@ -15,6 +16,8 @@ export class UmabootCodeLensProvider implements vscode.CodeLensProvider {
     private readonly _onDidChange = new vscode.EventEmitter<void>();
     readonly onDidChangeCodeLenses = this._onDidChange.event;
 
+    constructor(private readonly language: () => UiLanguage) {}
+
     refresh(): void {
         this._onDidChange.fire();
     }
@@ -22,30 +25,31 @@ export class UmabootCodeLensProvider implements vscode.CodeLensProvider {
     provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
         if (!isUmabootConfigPath(document.uri.fsPath)) return [];
         const range = new vscode.Range(0, 0, 0, 0);
+        const language = this.language();
         return [
             new vscode.CodeLens(range, {
-                title: '$(play) Generate',
-                tooltip: 'Run Umaboot generate against this config',
+                title: `$(play) ${text(language, 'Generate')}`,
+                tooltip: text(language, 'Run Umaboot generate against this config'),
                 command: 'umaboot.generate',
             }),
             new vscode.CodeLens(range, {
-                title: '$(diff) Diff',
-                tooltip: 'Show pending changes without writing',
+                title: `$(diff) ${text(language, 'Diff')}`,
+                tooltip: text(language, 'Show pending changes without writing'),
                 command: 'umaboot.diff',
             }),
             new vscode.CodeLens(range, {
-                title: '$(diff) Preview / Merge',
-                tooltip: 'Preview generated files and accept selected changes',
+                title: `$(diff) ${text(language, 'Preview / Merge')}`,
+                tooltip: text(language, 'Preview generated files and accept selected changes'),
                 command: 'umaboot.previewMerge',
             }),
             new vscode.CodeLens(range, {
-                title: '$(check) Apply',
-                tooltip: 'Apply changes preserving protected regions',
+                title: `$(check) ${text(language, 'Apply Generated Files')}`,
+                tooltip: text(language, 'Apply generated files preserving protected regions'),
                 command: 'umaboot.apply',
             }),
             new vscode.CodeLens(range, {
-                title: '$(plug) Test Connection',
-                tooltip: 'Verify the JDBC URL is reachable',
+                title: `$(plug) ${text(language, 'Test Connection')}`,
+                tooltip: text(language, 'Verify the JDBC URL is reachable'),
                 command: 'umaboot.testConnection',
             }),
         ];

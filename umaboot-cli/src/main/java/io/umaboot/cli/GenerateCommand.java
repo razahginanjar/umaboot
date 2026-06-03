@@ -42,6 +42,7 @@ public final class GenerateCommand implements Callable<Integer> {
             LOG.info("Loaded config from {}", configFile);
 
             GenerationPipeline.Result r = GenerationPipeline.run(config, templatesDir);
+            CliWarningPrinter.printParserWarnings(r.warnings());
             ArchitectureRenderer renderer = ArchitectureRenderers.forContext(r.ctx());
             Path output = outputOverride != null
                     ? outputOverride.toAbsolutePath().normalize()

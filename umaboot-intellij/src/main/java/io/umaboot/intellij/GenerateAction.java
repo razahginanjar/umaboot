@@ -6,6 +6,7 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
@@ -25,6 +26,8 @@ import java.nio.file.Path;
  * current project has no {@code umaboot.yaml}.</p>
  */
 public final class GenerateAction extends AnAction {
+
+    private static final Logger LOG = Logger.getInstance(GenerateAction.class);
 
     public GenerateAction() {
         super(UiText.text(UiText.Language.ENGLISH, "Umaboot: Generate"),
@@ -61,6 +64,8 @@ public final class GenerateAction extends AnAction {
         }
 
         Path configPath = UmabootConfigLocator.findConfigFile(Path.of(project.getBasePath()));
+        UmabootLog log = UmabootLog.get(project);
+        log.started("generate", "config: " + configPath);
         new Task.Backgroundable(project, UiText.text(language, "Umaboot: Generating"), true) {
             @Override
             public void run(ProgressIndicator indicator) {
@@ -69,6 +74,11 @@ public final class GenerateAction extends AnAction {
 
                 try {
                     UmabootRunner.Result result = new UmabootRunner().run(configPath);
+                    log.detail("generate", "outputDir: " + result.outputDir());
+                    log.detail("generate", "architecture: " + result.architecture());
+                    log.detail("generate", "persistence: " + result.persistence());
+                    log.detail("generate", "mode: " + result.mode() + (result.autoOverlay() ? " (auto)" : ""));
+                    log.finished("generate", "generated " + result.fileCount() + " files");
 
                     ApplicationManager.getApplication().invokeLater(() -> {
                         VirtualFile vf = LocalFileSystem.getInstance()
@@ -85,8 +95,24 @@ public final class GenerateAction extends AnAction {
                                     result.mode(),
                                     result.autoOverlay() ? UiText.text(language, " (auto)") : ""),
                             NotificationType.INFORMATION);
+                    if (!result.warnings().isEmpty()) {
+                        log.parserWarnings("generate", result.warnings());
+                        LOG.warn("Umaboot generated with parser warnings: " + result.warnings());
+                        notifyUser(project,
+                                UiText.format(language,
+                                        "Umaboot: generated with %d parser warning(s). First: %s",
+                                        result.warnings().size(),
+                                        result.warnings().get(0)),
+                                NotificationType.WARNING);
+                    }
                 } catch (Exception ex) {
-                    notifyUser(project, UiText.format(language, "Umaboot failed: %s", ex.getMessage()), NotificationType.ERROR);
+                    log.failed("generate", ex);
+                    log.showDetail();
+                    LOG.warn("Umaboot generation failed", ex);
+                    notifyUser(project,
+                            UiText.format(language, "Umaboot failed: %s. See detail log for diagnostics.",
+                                    UmabootLog.rootMessage(ex)),
+                            NotificationType.ERROR);
                 }
             }
         }.queue();
@@ -103,4 +129,5 @@ public final class GenerateAction extends AnAction {
                 .createNotification(message, type)
                 .notify(project);
     }
+
 }

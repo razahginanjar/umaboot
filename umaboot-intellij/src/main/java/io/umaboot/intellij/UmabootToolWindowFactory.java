@@ -43,7 +43,10 @@ public final class UmabootToolWindowFactory implements ToolWindowFactory {
         root.add(panel.getRoot(), BorderLayout.CENTER);
         root.add(buildButtonBar(project, panel), BorderLayout.SOUTH);
 
-        Content content = ContentFactory.getInstance().createContent(root, "", false);
+        Content content = ContentFactory.getInstance().createContent(
+                root,
+                UiText.text(UiText.load(project), "Configuration"),
+                false);
         toolWindow.getContentManager().addContent(content);
     }
 
@@ -71,6 +74,14 @@ public final class UmabootToolWindowFactory implements ToolWindowFactory {
         previewMerge.setToolTipText(UiText.text(language[0], "Preview generated changes before writing files"));
         previewMerge.addActionListener(e -> runPreviewMergeAction(project));
 
+        JButton summaryLog = new JButton(UiText.text(language[0], "Summary Log"), AllIcons.General.Information);
+        summaryLog.setToolTipText(UiText.text(language[0], "Show concise Umaboot process log"));
+        summaryLog.addActionListener(e -> UmabootLog.get(project).showSummary());
+
+        JButton detailLog = new JButton(UiText.text(language[0], "Detail Log"), AllIcons.General.Information);
+        detailLog.setToolTipText(UiText.text(language[0], "Show detailed Umaboot process log"));
+        detailLog.addActionListener(e -> UmabootLog.get(project).showDetail());
+
         JButton openSettings = new JButton(UiText.text(language[0], "Open in Settings"), AllIcons.General.Settings);
         openSettings.setToolTipText(UiText.text(language[0], "Open this panel inside the IDE Settings dialog"));
         openSettings.addActionListener(e ->
@@ -84,6 +95,10 @@ public final class UmabootToolWindowFactory implements ToolWindowFactory {
             generate.setToolTipText(UiText.text(selected, "Run Umaboot against the current configuration"));
             previewMerge.setText(UiText.text(selected, "Preview / Merge"));
             previewMerge.setToolTipText(UiText.text(selected, "Preview generated changes before writing files"));
+            summaryLog.setText(UiText.text(selected, "Summary Log"));
+            summaryLog.setToolTipText(UiText.text(selected, "Show concise Umaboot process log"));
+            detailLog.setText(UiText.text(selected, "Detail Log"));
+            detailLog.setToolTipText(UiText.text(selected, "Show detailed Umaboot process log"));
             openSettings.setText(UiText.text(selected, "Open in Settings"));
             openSettings.setToolTipText(UiText.text(selected, "Open this panel inside the IDE Settings dialog"));
         });
@@ -91,6 +106,8 @@ public final class UmabootToolWindowFactory implements ToolWindowFactory {
         bar.add(apply);
         bar.add(generate);
         bar.add(previewMerge);
+        bar.add(summaryLog);
+        bar.add(detailLog);
         bar.add(openSettings);
         return bar;
     }

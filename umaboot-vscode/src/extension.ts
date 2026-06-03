@@ -7,7 +7,10 @@ import { UmabootTreeProvider } from './tree';
 import { UmabootCodeLensProvider } from './codeLens';
 import { UmabootFileDecorationProvider } from './fileDecoration';
 import { UmabootConfigEditor } from './configEditor';
+import { format, getLanguage, text, UiLanguage } from './i18n';
+import { UmabootLogger } from './logging';
 import { isUmabootConfigPath } from './paths';
+import { isSchemaFileConfig, tableNamesFromSchemaFileConfig } from './sqlTables';
 
 /**
  * Umaboot VS Code extension entry point.
@@ -20,22 +23,25 @@ import { isUmabootConfigPath } from './paths';
  *        backed by the new umaboot CLI subcommands.
  */
 export function activate(context: vscode.ExtensionContext): void {
-    const channel = vscode.window.createOutputChannel('Umaboot');
+    const logger = new UmabootLogger();
 
     const folder = vscode.workspace.workspaceFolders?.[0];
     const workspaceRoot = folder?.uri.fsPath;
 
     const configRelPath = (): string =>
         vscode.workspace.getConfiguration('umaboot').get<string>('configFile') ?? 'umaboot.yaml';
+    const language = (): UiLanguage => getLanguage(context);
+    const msg = (key: string, ...args: Array<string | number | null | undefined>): string =>
+        format(language(), key, ...args);
 
     // --- Tree view ---------------------------------------------------------
-    const treeProvider = new UmabootTreeProvider(workspaceRoot, configRelPath);
+    const treeProvider = new UmabootTreeProvider(workspaceRoot, configRelPath, language);
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider('umaboot.dashboard', treeProvider),
     );
 
     // --- CodeLens on umaboot.yaml ------------------------------------------
-    const codeLensProvider = new UmabootCodeLensProvider();
+    const codeLensProvider = new UmabootCodeLensProvider(language);
     context.subscriptions.push(
         vscode.languages.registerCodeLensProvider(
             { language: 'yaml', scheme: 'file' },
@@ -55,7 +61,20 @@ export function activate(context: vscode.ExtensionContext): void {
     );
     statusBar.command = 'workbench.view.extension.umaboot';
     context.subscriptions.push(statusBar);
-    refreshStatusBar(statusBar, workspaceRoot, configRelPath);
+    refreshStatusBar(statusBar, workspaceRoot, configRelPath, language());
+
+    const refreshLanguageSensitiveUi = (): void => {
+        treeProvider.refresh();
+        codeLensProvider.refresh();
+        refreshStatusBar(statusBar, workspaceRoot, configRelPath, language());
+    };
+
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration('umaboot.language')
+            || event.affectsConfiguration('umaboot.configFile')) {
+            refreshLanguageSensitiveUi();
+        }
+    }));
 
     // --- File watcher: auto-refresh on yaml changes ------------------------
     if (workspaceRoot) {
@@ -63,10 +82,11 @@ export function activate(context: vscode.ExtensionContext): void {
             new vscode.RelativePattern(workspaceRoot, '{umaboot,crudforge}.yaml'),
         );
         const onAnyChange = (uri: vscode.Uri): void => {
+            logger.detail(`[watcher] changed ${uri.fsPath}`);
             treeProvider.refresh();
             codeLensProvider.refresh();
             fileDecorations.refresh([uri]);
-            refreshStatusBar(statusBar, workspaceRoot, configRelPath);
+            refreshStatusBar(statusBar, workspaceRoot, configRelPath, language());
         };
         watcher.onDidChange(onAnyChange);
         watcher.onDidCreate(onAnyChange);
@@ -77,7 +97,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // --- CLI shell-out helpers --------------------------------------------
     const cliInvocation = (): { cli: string; configPath: string } | undefined => {
         if (!workspaceRoot) {
-            vscode.window.showErrorMessage('Umaboot: open a folder first.');
+            vscode.window.showErrorMessage(msg('Umaboot: open a folder first.'));
             return undefined;
         }
         const cfg = vscode.workspace.getConfiguration('umaboot');
@@ -89,34 +109,54 @@ export function activate(context: vscode.ExtensionContext): void {
         return { cli, configPath };
     };
 
+    const readConfig = (configPath: string): unknown => {
+        try {
+            return fs.existsSync(configPath)
+                ? yaml.load(fs.readFileSync(configPath, 'utf8'))
+                : {};
+        } catch (err) {
+            logger.error('config', `failed to parse ${configPath}: ${err}`);
+            return {};
+        }
+    };
+
     const run = (sub: 'generate' | 'diff' | 'apply') => async () => {
         const inv = cliInvocation();
         if (!inv) return;
         if (!fs.existsSync(inv.configPath)) {
             vscode.window.showErrorMessage(
-                `Umaboot: ${path.basename(inv.configPath)} not found. Use "Umaboot: Create umaboot.yaml" to create one.`,
+                msg('Umaboot: {0} not found. Use "Umaboot: Create umaboot.yaml" to create one.',
+                    path.basename(inv.configPath)),
             );
             return;
         }
 
-        channel.show(true);
-        channel.appendLine(`> ${inv.cli} ${sub} --config ${inv.configPath}`);
+        const args = [sub, '--config', inv.configPath];
+        logger.showDetail(true);
+        logger.command(`cli ${sub}`, inv.cli, args, workspaceRoot!);
 
-        const child = cp.spawn(inv.cli, [sub, '--config', inv.configPath], {
+        const child = cp.spawn(inv.cli, args, {
             cwd: workspaceRoot!,
             shell: true,
         });
-        child.stdout.on('data', (d: Buffer) => channel.append(d.toString()));
-        child.stderr.on('data', (d: Buffer) => channel.append(d.toString()));
+        child.stdout.on('data', (d: Buffer) => logger.detailRaw(d.toString()));
+        child.stderr.on('data', (d: Buffer) => logger.detailRaw(d.toString()));
         child.on('close', (code: number | null) => {
-            channel.appendLine(`\n[exit ${code}]`);
+            logger.result(`cli ${sub}`, code, '', '', {
+                includeStdout: false,
+                includeStderr: false,
+            });
             if (code === 0) {
-                vscode.window.showInformationMessage(`Umaboot ${sub}: success`);
+                vscode.window.showInformationMessage(
+                    msg('Umaboot {0}: success', commandLabel(language(), sub)),
+                );
                 if (sub === 'generate' || sub === 'apply') treeProvider.refresh();
             } else if (code === 1 && sub === 'diff') {
-                vscode.window.showInformationMessage('Umaboot diff: changes detected');
+                vscode.window.showInformationMessage(msg('Umaboot diff: changes detected'));
             } else {
-                vscode.window.showErrorMessage(`Umaboot ${sub} failed (exit ${code}). See output.`);
+                vscode.window.showErrorMessage(
+                    msg('Umaboot {0} failed (exit {1}). See output.', commandLabel(language(), sub), code),
+                );
             }
         });
     };
@@ -131,7 +171,7 @@ export function activate(context: vscode.ExtensionContext): void {
         if (!inv) return { stdout: '', stderr: 'no workspace', code: null };
         return await new Promise(resolve => {
             const args = [subcommand, '--config', inv.configPath, ...extraArgs];
-            channel.appendLine(`> ${inv.cli} ${args.join(' ')}`);
+            logger.command(`cli ${subcommand}`, inv.cli, args, workspaceRoot!);
             const child = cp.spawn(inv.cli, args, { cwd: workspaceRoot!, shell: true });
             let stdout = '';
             let stderr = '';
@@ -144,42 +184,65 @@ export function activate(context: vscode.ExtensionContext): void {
     // --- Introspection: Test Connection ------------------------------------
     const testConnection = async (): Promise<void> => {
         const result = await captureCli('test-connection');
-        channel.append(result.stdout);
-        if (result.stderr) channel.append(result.stderr);
-        channel.appendLine(`[exit ${result.code}]`);
+        logger.result('test connection', result.code, result.stdout, result.stderr);
         if (result.code === 0) {
             const line = result.stdout.trim().split(/\r?\n/)[0] ?? 'OK';
             vscode.window.showInformationMessage(`Umaboot: ${line}`);
         } else {
-            const reason = (result.stderr || result.stdout).trim().split(/\r?\n/)[0] ?? 'Connection failed';
-            vscode.window.showErrorMessage(`Umaboot test connection: ${reason}`);
+            const reason = (result.stderr || result.stdout).trim().split(/\r?\n/)[0]
+                ?? text(language(), 'Connection failed');
+            vscode.window.showErrorMessage(msg('Umaboot test connection: {0}', reason));
         }
     };
 
     // --- Introspection: Refresh Tables (lists the tables in a quick pick) --
     const refreshTables = async (): Promise<void> => {
-        const result = await captureCli('list-tables');
-        channel.append(result.stdout);
-        if (result.stderr) channel.append(result.stderr);
-        channel.appendLine(`[exit ${result.code}]`);
+        const inv = cliInvocation();
+        if (!inv) return;
+        const config = readConfig(inv.configPath);
+        const scriptMode = isSchemaFileConfig(config);
+        if (scriptMode) {
+            const scriptTables = tableNamesFromSchemaFileConfig(config, workspaceRoot!);
+            if (scriptTables.length > 0) {
+                logger.event('refresh tables', `parsed ${scriptTables.length} CREATE TABLE names from schema file`);
+                await showTableQuickPick(scriptTables);
+                return;
+            }
+        }
+        const result = await captureCli('list-tables', ...(scriptMode ? ['--raw', '--all'] : []));
+        logger.result('refresh tables', result.code, result.stdout, result.stderr);
         if (result.code !== 0) {
-            const reason = (result.stderr || result.stdout).trim().split(/\r?\n/)[0] ?? 'Failed';
-            vscode.window.showErrorMessage(`Umaboot list-tables: ${reason}`);
+            const reason = (result.stderr || result.stdout).trim().split(/\r?\n/)[0]
+                ?? text(language(), 'Failed');
+            vscode.window.showErrorMessage(msg('Umaboot list-tables: {0}', reason));
             return;
         }
         const tables = result.stdout.trim().split(/\r?\n/).filter(s => s.length > 0);
         if (tables.length === 0) {
-            vscode.window.showInformationMessage('Umaboot: schema is empty (or all tables filtered out as junctions).');
+            if (scriptMode) {
+                const warning = result.stderr.trim().split(/\r?\n/).filter(s => s.length > 0)[0];
+                vscode.window.showErrorMessage(warning
+                    ? msg('Umaboot list-tables: {0}', warning)
+                    : text(language(), 'Umaboot: no tables parsed from schema file. See output.'));
+            } else {
+                vscode.window.showInformationMessage(
+                    msg('Umaboot: schema is empty (or all tables filtered out as junctions).'),
+                );
+            }
             return;
         }
+        await showTableQuickPick(tables);
+    };
+
+    const showTableQuickPick = async (tables: string[]): Promise<void> => {
         await vscode.window.showQuickPick(tables, {
             title: `Umaboot: ${tables.length} tables`,
-            placeHolder: 'Enter to copy a table name to the clipboard',
+            placeHolder: text(language(), 'Enter to copy a table name to the clipboard'),
             canPickMany: false,
         }).then(picked => {
             if (picked) {
                 vscode.env.clipboard.writeText(picked);
-                vscode.window.showInformationMessage(`Copied "${picked}" to clipboard`);
+                vscode.window.showInformationMessage(msg('Copied "{0}" to clipboard', picked));
             }
         });
     };
@@ -190,7 +253,8 @@ export function activate(context: vscode.ExtensionContext): void {
         if (!inv) return;
         if (!fs.existsSync(inv.configPath)) {
             vscode.window.showErrorMessage(
-                `Umaboot: ${path.basename(inv.configPath)} not found. Use "Umaboot: Create umaboot.yaml" to create one.`,
+                msg('Umaboot: {0} not found. Use "Umaboot: Create umaboot.yaml" to create one.',
+                    path.basename(inv.configPath)),
             );
             return;
         }
@@ -200,19 +264,20 @@ export function activate(context: vscode.ExtensionContext): void {
         try {
             fs.mkdirSync(previewRoot, { recursive: true });
         } catch (err) {
-            vscode.window.showErrorMessage(`Umaboot preview: failed to create preview directory: ${err}`);
+            vscode.window.showErrorMessage(
+                msg('Umaboot preview: failed to create preview directory: {0}', String(err)),
+            );
             return;
         }
 
-        channel.show(true);
-        channel.appendLine(`> ${inv.cli} generate --config ${inv.configPath} --output ${previewRoot}`);
-        const generated = await runCliArgs(inv.cli, ['generate', '--config', inv.configPath, '--output', previewRoot], workspaceRoot!);
-        channel.append(generated.stdout);
-        if (generated.stderr) channel.append(generated.stderr);
-        channel.appendLine(`[exit ${generated.code}]`);
+        const generateArgs = ['generate', '--config', inv.configPath, '--output', previewRoot];
+        logger.showDetail(true);
+        logger.command('preview merge generate', inv.cli, generateArgs, workspaceRoot!);
+        const generated = await runCliArgs(inv.cli, generateArgs, workspaceRoot!);
+        logger.result('preview merge generate', generated.code, generated.stdout, generated.stderr);
         if (generated.code !== 0) {
             const reason = (generated.stderr || generated.stdout).trim().split(/\r?\n/)[0] || 'generation failed';
-            vscode.window.showErrorMessage(`Umaboot preview failed: ${reason}`);
+            vscode.window.showErrorMessage(msg('Umaboot preview failed: {0}', reason));
             return;
         }
 
@@ -220,13 +285,16 @@ export function activate(context: vscode.ExtensionContext): void {
         try {
             outputRoot = resolveOutputDir(inv.configPath, workspaceRoot!);
         } catch (err) {
-            vscode.window.showErrorMessage(`Umaboot preview: failed to resolve outputDir: ${err}`);
+            vscode.window.showErrorMessage(
+                msg('Umaboot preview: failed to resolve outputDir: {0}', String(err)),
+            );
             return;
         }
 
         const changes = collectPreviewChanges(previewRoot, outputRoot);
+        logger.event('preview merge', `found ${changes.length} changed files`);
         if (changes.length === 0) {
-            vscode.window.showInformationMessage('Umaboot preview: no generated file changes found.');
+            vscode.window.showInformationMessage(msg('Umaboot preview: no generated file changes found.'));
             return;
         }
 
@@ -238,8 +306,8 @@ export function activate(context: vscode.ExtensionContext): void {
                 change,
             })),
             {
-                title: `Umaboot Preview / Merge: ${changes.length} changed files`,
-                placeHolder: 'Select files to preview and optionally accept',
+                title: msg('Umaboot Preview / Merge: {0} changed files', changes.length),
+                placeHolder: text(language(), 'Select files to preview and optionally accept'),
                 canPickMany: true,
             },
         );
@@ -261,25 +329,29 @@ export function activate(context: vscode.ExtensionContext): void {
             );
         }
 
+        const acceptLabel = text(language(), 'Accept Selected');
         const accept = await vscode.window.showWarningMessage(
-            `Accept ${picks.length} selected generated file(s)? This writes the generated file content to the configured output directory.`,
+            msg('Accept {0} selected generated file(s)? This writes the generated file content to the configured output directory.',
+                picks.length),
             { modal: true },
-            'Accept Selected',
+            acceptLabel,
         );
-        if (accept !== 'Accept Selected') return;
+        if (accept !== acceptLabel) return;
 
         for (const pick of picks) {
             fs.mkdirSync(path.dirname(pick.change.targetPath), { recursive: true });
             fs.copyFileSync(pick.change.generatedPath, pick.change.targetPath);
+            logger.detail(`[preview merge] accepted ${pick.change.relativePath}`);
         }
         treeProvider.refresh();
-        vscode.window.showInformationMessage(`Umaboot preview: accepted ${picks.length} file(s).`);
+        logger.event('preview merge', `accepted ${picks.length} files`);
+        vscode.window.showInformationMessage(msg('Umaboot preview: accepted {0} file(s).', picks.length));
     };
 
     // --- Helper commands ---------------------------------------------------
     const refreshDashboard = (): void => {
         treeProvider.refresh();
-        refreshStatusBar(statusBar, workspaceRoot, configRelPath);
+        refreshStatusBar(statusBar, workspaceRoot, configRelPath, language());
     };
 
     const openConfig = async (): Promise<void> => {
@@ -292,12 +364,13 @@ export function activate(context: vscode.ExtensionContext): void {
                 await vscode.window.showTextDocument(vscode.Uri.file(legacy));
                 return;
             }
+            const createLabel = text(language(), 'Create');
             const choice = await vscode.window.showWarningMessage(
-                `${path.basename(abs)} doesn't exist yet. Create one?`,
-                'Create',
-                'Cancel',
+                msg('{0} does not exist yet. Create one?', path.basename(abs)),
+                createLabel,
+                text(language(), 'Cancel'),
             );
-            if (choice === 'Create') await createConfig();
+            if (choice === createLabel) await createConfig();
             return;
         }
         await vscode.window.showTextDocument(vscode.Uri.file(abs));
@@ -305,7 +378,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     const createConfig = async (): Promise<void> => {
         if (!workspaceRoot) {
-            vscode.window.showErrorMessage('Umaboot: open a folder first.');
+            vscode.window.showErrorMessage(msg('Umaboot: open a folder first.'));
             return;
         }
         const rel = configRelPath();
@@ -347,9 +420,10 @@ generation:
     mode: standalone         # standalone | overlay
 `;
         fs.writeFileSync(abs, seed, 'utf8');
+        logger.event('config', `created ${abs}`);
         await vscode.window.showTextDocument(vscode.Uri.file(abs));
         treeProvider.refresh();
-        refreshStatusBar(statusBar, workspaceRoot, configRelPath);
+        refreshStatusBar(statusBar, workspaceRoot, configRelPath, language());
     };
 
     context.subscriptions.push(
@@ -360,11 +434,13 @@ generation:
         vscode.commands.registerCommand('umaboot.testConnection', testConnection),
         vscode.commands.registerCommand('umaboot.refreshTables', refreshTables),
         vscode.commands.registerCommand('umaboot.refreshDashboard', refreshDashboard),
+        vscode.commands.registerCommand('umaboot.showSummaryLog', () => logger.showSummary()),
+        vscode.commands.registerCommand('umaboot.showDetailLog', () => logger.showDetail()),
         vscode.commands.registerCommand('umaboot.openConfig', openConfig),
         vscode.commands.registerCommand('umaboot.createConfig', createConfig),
         vscode.commands.registerCommand('umaboot.editConfig',
-            () => UmabootConfigEditor.open(context, channel)),
-        channel,
+            () => UmabootConfigEditor.open(context, logger, refreshLanguageSensitiveUi)),
+        logger,
     );
 }
 
@@ -373,6 +449,7 @@ function refreshStatusBar(
     item: vscode.StatusBarItem,
     workspaceRoot: string | undefined,
     configRelPath: () => string,
+    language: UiLanguage,
 ): void {
     if (!workspaceRoot) {
         item.hide();
@@ -388,8 +465,14 @@ function refreshStatusBar(
     }
     const name = readProjectName(abs) ?? readProjectName(legacy) ?? 'Umaboot';
     item.text = `$(rocket) ${name}`;
-    item.tooltip = `Umaboot config detected. Click to open the dashboard.`;
+    item.tooltip = text(language, 'Umaboot config detected. Click to open the dashboard.');
     item.show();
+}
+
+function commandLabel(language: UiLanguage, subcommand: 'generate' | 'diff' | 'apply'): string {
+    if (subcommand === 'generate') return text(language, 'Generate');
+    if (subcommand === 'diff') return text(language, 'Diff');
+    return text(language, 'Apply Generated Files');
 }
 
 /** Quick-and-dirty regex to pull projectName from the YAML without importing js-yaml here. */

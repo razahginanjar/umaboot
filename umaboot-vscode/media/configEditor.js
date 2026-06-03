@@ -25,6 +25,16 @@
     const liveConnectionFields = $('live-connection-fields');
     const securityJwtBox = $('security-jwt');
     const securityUsersBox = $('security-users');
+    const tableEditor = $('table-editor');
+    const tableEditorList = $('table-editor-list');
+    const tableEditorTitle = $('table-editor-title');
+    const tableEditorDefault = $('table-editor-default');
+    const tableOverrideClassName = $('tableOverrideClassName');
+    const columnEditor = $('column-editor');
+    const clearTableOverrideButton = $('btn-clear-table-override');
+
+    let schemaMetadata = null;
+    let activeTableName = '';
 
     const HELP = {
         connectionSource: ['Source', 'Chooses whether Umaboot builds a JDBC URL from host fields, uses a raw JDBC URL, or parses a SQL schema file.', 'script'],
@@ -75,6 +85,7 @@
         tablesInclude: ['Include globs', 'Only matching tables are generated when this list is not empty.', 'customer*'],
         tablesExclude: ['Exclude globs', 'Matching tables are skipped even if included.', 'audit_*'],
         tableOverrides: ['Table overrides', 'JSON object for per-table className and per-column javaType overrides.', '{"users":{"className":"AccountUser"}}'],
+        tableOverrideClassName: ['Class name override', 'Optional Java class name override for the selected table.', 'AccountUser'],
     };
 
     const TRANSLATIONS = {
@@ -140,6 +151,18 @@
             'Include globs': 'Glob include',
             'Exclude globs': 'Glob exclude',
             'Table overrides (JSON)': 'Override tabel (JSON)',
+            'Customize Tables': 'Kustomisasi Tabel',
+            'Clear Override': 'Hapus Override',
+            'Class name override': 'Override nama class',
+            'Default class': 'Class default',
+            'Column': 'Kolom',
+            'SQL type': 'Tipe SQL',
+            'Java type override': 'Override tipe Java',
+            '(default)': '(default)',
+            'Loading table metadata...': 'Memuat metadata tabel...',
+            'Loaded table metadata.': 'Metadata tabel dimuat.',
+            'No tables available.': 'Tidak ada tabel.',
+            'Failed to load table metadata.': 'Gagal memuat metadata tabel.',
             'Revert': 'Kembalikan',
             'Save': 'Simpan',
             'Modified': 'Diubah',
@@ -215,6 +238,18 @@
             'Include globs': 'Include glob',
             'Exclude globs': 'Exclude glob',
             'Table overrides (JSON)': 'テーブル上書き (JSON)',
+            'Customize Tables': 'テーブルをカスタマイズ',
+            'Clear Override': '上書きをクリア',
+            'Class name override': 'クラス名の上書き',
+            'Default class': '既定クラス',
+            'Column': 'カラム',
+            'SQL type': 'SQL 型',
+            'Java type override': 'Java 型の上書き',
+            '(default)': '(既定)',
+            'Loading table metadata...': 'テーブルメタデータを読み込み中...',
+            'Loaded table metadata.': 'テーブルメタデータを読み込みました。',
+            'No tables available.': 'テーブルがありません。',
+            'Failed to load table metadata.': 'テーブルメタデータの読み込みに失敗しました。',
             'Revert': '元に戻す',
             'Save': '保存',
             'Modified': '変更済み',
@@ -233,6 +268,10 @@
     const initialState = vscode.getState && vscode.getState();
     if (uiLanguage && initialState && initialState.language) {
         uiLanguage.value = initialState.language;
+    }
+
+    function isLanguage(value) {
+        return value === 'en' || value === 'id' || value === 'ja';
     }
 
     function lang() {
@@ -284,6 +323,20 @@
             button.title = formatHelp(id);
             button.setAttribute('aria-label', `${t('Help:')} ${t(HELP[id][0])}`);
         }
+    }
+
+    function saveLanguageState() {
+        if (vscode.setState) {
+            vscode.setState(Object.assign({}, vscode.getState && vscode.getState(), {
+                language: lang(),
+            }));
+        }
+    }
+
+    function setUiLanguage(value) {
+        if (!uiLanguage || !isLanguage(value)) return;
+        uiLanguage.value = value;
+        saveLanguageState();
     }
 
     function readForm() {
@@ -468,6 +521,10 @@
         $('tableOverrides').value = tables.overrides
             ? JSON.stringify(tables.overrides, null, 2)
             : '';
+        if (schemaMetadata) {
+            renderTableList();
+            renderActiveTableDetail();
+        }
 
         applyConditionalSections();
         applyCrossFieldRules();
@@ -522,6 +579,211 @@
             throw new Error('Table overrides must be a JSON object.');
         }
         return parsed;
+    }
+
+    function tableOverridesObject() {
+        return cloneConfig(parseTableOverridesText($('tableOverrides').value) || {});
+    }
+
+    function safeTableOverridesObject() {
+        try {
+            return tableOverridesObject();
+        } catch {
+            return {};
+        }
+    }
+
+    function writeTableOverridesObject(overrides) {
+        const cleaned = cleanOverrides(overrides);
+        $('tableOverrides').value = Object.keys(cleaned).length > 0
+            ? JSON.stringify(cleaned, null, 2)
+            : '';
+    }
+
+    function cleanOverrides(overrides) {
+        const cleaned = {};
+        for (const [tableName, raw] of Object.entries(overrides || {})) {
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+            const className = String(raw.className || '').trim();
+            const columns = {};
+            const rawColumns = raw.columns && typeof raw.columns === 'object' && !Array.isArray(raw.columns)
+                ? raw.columns
+                : {};
+            for (const [columnName, rawColumn] of Object.entries(rawColumns)) {
+                if (!rawColumn || typeof rawColumn !== 'object' || Array.isArray(rawColumn)) continue;
+                const javaType = String(rawColumn.javaType || '').trim();
+                if (javaType) columns[columnName] = { javaType };
+            }
+            if (className || Object.keys(columns).length > 0) {
+                cleaned[tableName] = {};
+                if (className) cleaned[tableName].className = className;
+                if (Object.keys(columns).length > 0) cleaned[tableName].columns = columns;
+            }
+        }
+        return cleaned;
+    }
+
+    function setTableOverride(tableName, updater) {
+        const overrides = safeTableOverridesObject();
+        const current = overrides[tableName] && typeof overrides[tableName] === 'object'
+            ? cloneConfig(overrides[tableName])
+            : {};
+        updater(current);
+        overrides[tableName] = current;
+        writeTableOverridesObject(overrides);
+        renderActiveTableDetail();
+        markDirty();
+    }
+
+    function renderTableMetadata(metadata) {
+        schemaMetadata = normalizeSchemaMetadata(metadata);
+        activeTableName = schemaMetadata.tables[0] ? schemaMetadata.tables[0].name : '';
+        tableEditor.classList.remove('hidden');
+        renderTableList();
+        renderActiveTableDetail();
+    }
+
+    function normalizeSchemaMetadata(metadata) {
+        const root = metadata && typeof metadata === 'object' ? metadata : {};
+        return {
+            javaTypes: Array.isArray(root.javaTypes) ? root.javaTypes.map(String) : [],
+            tables: Array.isArray(root.tables) ? root.tables.map(normalizeTableMetadata) : [],
+        };
+    }
+
+    function normalizeTableMetadata(table) {
+        const raw = table && typeof table === 'object' ? table : {};
+        return {
+            name: String(raw.name || ''),
+            schema: String(raw.schema || ''),
+            defaultClassName: String(raw.defaultClassName || ''),
+            columns: Array.isArray(raw.columns) ? raw.columns.map(normalizeColumnMetadata) : [],
+        };
+    }
+
+    function normalizeColumnMetadata(column) {
+        const raw = column && typeof column === 'object' ? column : {};
+        return {
+            name: String(raw.name || ''),
+            sqlType: String(raw.sqlType || ''),
+            defaultJavaType: String(raw.defaultJavaType || 'Object'),
+            primaryKey: !!raw.primaryKey,
+            nullable: !!raw.nullable,
+        };
+    }
+
+    function renderTableList() {
+        tableEditorList.textContent = '';
+        if (!schemaMetadata || schemaMetadata.tables.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'hint';
+            empty.textContent = t('No tables available.');
+            tableEditorList.appendChild(empty);
+            return;
+        }
+        const overrides = safeTableOverridesObject();
+        for (const table of schemaMetadata.tables) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = table.name;
+            button.title = table.name;
+            if (table.name === activeTableName) button.classList.add('active');
+            if (overrides[table.name]) button.classList.add('has-override');
+            button.addEventListener('click', () => {
+                activeTableName = table.name;
+                renderTableList();
+                renderActiveTableDetail();
+            });
+            tableEditorList.appendChild(button);
+        }
+    }
+
+    function renderActiveTableDetail() {
+        if (!schemaMetadata || !activeTableName) {
+            tableEditorTitle.textContent = t('Table');
+            tableEditorDefault.textContent = '';
+            tableOverrideClassName.value = '';
+            columnEditor.textContent = '';
+            return;
+        }
+        const table = schemaMetadata.tables.find((item) => item.name === activeTableName);
+        if (!table) return;
+        const overrides = safeTableOverridesObject();
+        const override = overrides[table.name] || {};
+        tableEditorTitle.textContent = table.name;
+        tableEditorTitle.title = table.name;
+        tableEditorDefault.textContent = `${t('Default class')}: ${table.defaultClassName || '-'}`;
+        tableOverrideClassName.value = override.className || '';
+        renderColumnEditor(table, override);
+    }
+
+    function renderColumnEditor(table, override) {
+        columnEditor.textContent = '';
+        appendColumnCell(t('Column'), 'head');
+        appendColumnCell(t('SQL type'), 'head');
+        appendColumnCell(t('Java type override'), 'head');
+
+        for (const column of table.columns) {
+            appendColumnCell(column.name + (column.primaryKey ? ' PK' : ''), '', column.name);
+            appendColumnCell(column.sqlType || '-', '', column.sqlType);
+
+            const cell = document.createElement('div');
+            const select = document.createElement('select');
+            select.dataset.column = column.name;
+            const current = override.columns && override.columns[column.name]
+                ? override.columns[column.name].javaType || ''
+                : '';
+            addTypeOption(select, '', `${t('(default)')} ${displayType(column.defaultJavaType)}`);
+            for (const javaType of schemaMetadata.javaTypes) {
+                addTypeOption(select, javaType, displayType(javaType));
+            }
+            select.value = current;
+            if (current && select.value !== current) {
+                addTypeOption(select, current, displayType(current));
+                select.value = current;
+            }
+            select.addEventListener('change', () => {
+                setTableOverride(table.name, (next) => {
+                    const columns = next.columns && typeof next.columns === 'object' ? next.columns : {};
+                    if (select.value) columns[column.name] = { javaType: select.value };
+                    else delete columns[column.name];
+                    next.columns = columns;
+                });
+            });
+            cell.appendChild(select);
+            columnEditor.appendChild(cell);
+        }
+    }
+
+    function appendColumnCell(textValue, className, title) {
+        const cell = document.createElement('div');
+        if (className) cell.className = className;
+        cell.textContent = textValue;
+        if (title) cell.title = title;
+        columnEditor.appendChild(cell);
+    }
+
+    function addTypeOption(select, value, label) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        option.title = value || label;
+        select.appendChild(option);
+    }
+
+    function displayType(javaType) {
+        if (!javaType) return '';
+        if (javaType === 'byte[]') return javaType;
+        const generic = javaType.indexOf('<');
+        if (generic >= 0) {
+            return stripPackage(javaType.substring(0, generic)) + javaType.substring(generic);
+        }
+        return stripPackage(javaType);
+    }
+
+    function stripPackage(value) {
+        const dot = value.lastIndexOf('.');
+        return dot < 0 ? value : value.substring(dot + 1);
     }
 
     function normalizeDatabaseType(value) {
@@ -722,21 +984,24 @@
 
     if (uiLanguage) {
         uiLanguage.addEventListener('change', () => {
-            if (vscode.setState) {
-                vscode.setState(Object.assign({}, vscode.getState && vscode.getState(), {
-                    language: uiLanguage.value,
-                }));
-            }
+            saveLanguageState();
+            vscode.postMessage({ command: 'setLanguage', language: uiLanguage.value });
             applyI18n();
         });
     }
 
-    form.addEventListener('input', () => {
+    function isUiOnlyEvent(event) {
+        return event && event.target && event.target.id === 'uiLanguage';
+    }
+
+    form.addEventListener('input', (event) => {
+        if (isUiOnlyEvent(event)) return;
         applyConditionalSections();
         applyCrossFieldRules();
         markDirty();
     });
-    form.addEventListener('change', () => {
+    form.addEventListener('change', (event) => {
+        if (isUiOnlyEvent(event)) return;
         applyConditionalSections();
         applyCrossFieldRules();
         markDirty();
@@ -780,8 +1045,50 @@
         vscode.postMessage({ command: 'refreshTables', config: cfg });
     });
 
+    $('btn-customize-tables').addEventListener('click', () => {
+        const cfg = readForm();
+        const guard = guardConfig(cfg);
+        if (guard) {
+            showMessage(guard, false);
+            return;
+        }
+        showMessage('Loading table metadata...', undefined);
+        vscode.postMessage({ command: 'describeSchema', config: cfg });
+    });
+
     $('btn-browse-schema').addEventListener('click', () => {
         vscode.postMessage({ command: 'browseSchemaFile' });
+    });
+
+    tableOverrideClassName.addEventListener('change', () => {
+        if (!activeTableName) return;
+        const value = tableOverrideClassName.value.trim();
+        setTableOverride(activeTableName, (next) => {
+            if (value) next.className = value;
+            else delete next.className;
+        });
+    });
+
+    clearTableOverrideButton.addEventListener('click', () => {
+        if (!activeTableName) return;
+        const overrides = safeTableOverridesObject();
+        delete overrides[activeTableName];
+        writeTableOverridesObject(overrides);
+        renderTableList();
+        renderActiveTableDetail();
+        markDirty();
+    });
+
+    $('tableOverrides').addEventListener('input', () => {
+        if (schemaMetadata) {
+            try {
+                tableOverridesObject();
+                renderTableList();
+                renderActiveTableDetail();
+            } catch {
+                // Existing validation reports malformed JSON on save.
+            }
+        }
     });
 
     window.addEventListener('message', (ev) => {
@@ -789,8 +1096,10 @@
         if (!msg || typeof msg.command !== 'string') return;
         switch (msg.command) {
             case 'load':
+                setUiLanguage(msg.language);
                 lastLoaded = cloneConfig(msg.config || {});
                 writeForm(lastLoaded);
+                applyI18n();
                 break;
             case 'saved':
                 clearDirty();
@@ -811,7 +1120,25 @@
                     showMessage(`Imported ${msg.tables.length} tables into the include list.`, true);
                     markDirty();
                 } else {
-                    showMessage('No non-junction tables found.', true);
+                    const detail = typeof msg.message === 'string' ? msg.message.trim() : '';
+                    if (detail) {
+                        showMessage(detail, false);
+                    } else if (msg.scriptMode) {
+                        showMessage('No tables parsed from schema file. See Umaboot output for parser warnings.', false);
+                    } else {
+                        showMessage('No non-junction tables found.', true);
+                    }
+                }
+                break;
+            case 'schemaMetadataResult':
+                if (msg.ok && msg.metadata) {
+                    renderTableMetadata(msg.metadata);
+                    const warnings = Array.isArray(msg.metadata.warnings) ? msg.metadata.warnings : [];
+                    showMessage(warnings.length > 0
+                        ? `Loaded table metadata with ${warnings.length} parser warning(s).`
+                        : 'Loaded table metadata.', true);
+                } else {
+                    showMessage(msg.message || 'Failed to load table metadata.', false);
                 }
                 break;
             case 'schemaFileSelected':

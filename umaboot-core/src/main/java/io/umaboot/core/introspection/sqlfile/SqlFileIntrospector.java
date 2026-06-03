@@ -100,6 +100,7 @@ public final class SqlFileIntrospector implements Introspector {
 
     private final String sqlText;
     private final String dialectHint;
+    private final List<String> warnings = new ArrayList<>();
 
     /**
      * @param sqlText     full SQL DDL contents (already loaded, UTF-8)
@@ -115,6 +116,7 @@ public final class SqlFileIntrospector implements Introspector {
     @Override
     public SchemaModel introspect(String schemaName) throws SQLException {
         Objects.requireNonNull(schemaName, "schemaName");
+        warnings.clear();
 
         // 1. Pre-extract Postgres ENUM types (JSqlParser doesn't model these).
         Map<String, List<String>> enumTypes = extractPostgresEnums(sqlText);
@@ -148,7 +150,7 @@ public final class SqlFileIntrospector implements Introspector {
         for (DelayedFk fk : delayedFks) {
             MutableTable mt = tablesByName.get(fk.fromTable.toLowerCase(Locale.ROOT));
             if (mt == null) {
-                LOG.warn("ALTER TABLE references unknown table {}; skipping FK", fk.fromTable);
+                warn("ALTER TABLE references unknown table " + fk.fromTable + "; skipping FK");
                 continue;
             }
             mt.relationships.add(buildRelationship(
@@ -160,7 +162,7 @@ public final class SqlFileIntrospector implements Introspector {
         for (DelayedComment dc : delayedComments) {
             MutableTable mt = tablesByName.get(dc.tableName.toLowerCase(Locale.ROOT));
             if (mt == null) {
-                LOG.warn("COMMENT references unknown table {}; skipping", dc.tableName);
+                warn("COMMENT references unknown table " + dc.tableName + "; skipping");
                 continue;
             }
             if (dc.columnName == null) {
@@ -181,6 +183,14 @@ public final class SqlFileIntrospector implements Introspector {
                     mt.columns, mt.primaryKey, mt.uniqueConstraints, mt.relationships, false));
         }
         return new SchemaModel(schemaName, tables);
+    }
+
+    /**
+     * Parser warnings captured during the most recent {@link #introspect(String)} call.
+     * The list is intended for UI/CLI summaries; full diagnostics still go to logs.
+     */
+    public List<String> warnings() {
+        return List.copyOf(warnings);
     }
 
     // ------------------------------------------------------------------ preprocessing
@@ -220,7 +230,7 @@ public final class SqlFileIntrospector implements Introspector {
             if (parsed == null || parsed.getStatements() == null) return List.of();
             return parsed.getStatements();
         } catch (JSQLParserException ex) {
-            LOG.warn("Bulk parse failed ({}); falling back to per-statement parsing", ex.getMessage());
+            warn("Bulk parse failed (" + parserMessage(ex) + "); falling back to per-statement parsing");
             return perStatementParse(sql);
         }
     }
@@ -228,8 +238,7 @@ public final class SqlFileIntrospector implements Introspector {
     /** Last-resort: split by semicolon and parse each piece, tolerating individual failures. */
     private List<Statement> perStatementParse(String sql) {
         List<Statement> out = new ArrayList<>();
-        // Naive split — the preprocessor already removed string-literal-heavy CREATE TYPE blocks.
-        String[] pieces = sql.split(";");
+        List<String> pieces = splitStatements(sql);
         int idx = 0;
         for (String piece : pieces) {
             idx++;
@@ -239,11 +248,126 @@ public final class SqlFileIntrospector implements Introspector {
                 Statement s = CCJSqlParserUtil.parse(trimmed);
                 out.add(s);
             } catch (JSQLParserException ex) {
-                LOG.warn("Skipping unparseable SQL statement #{} ({}): {}", idx, ex.getMessage(),
-                        truncate(trimmed));
+                warn("Skipping unparseable SQL statement #" + idx + " (" + parserMessage(ex)
+                        + "): " + truncate(trimmed));
             }
         }
         return out;
+    }
+
+    static List<String> splitStatements(String sql) {
+        if (sql == null || sql.isBlank()) return List.of();
+
+        List<String> statements = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean singleQuote = false;
+        boolean doubleQuote = false;
+        boolean backtick = false;
+        boolean bracket = false;
+        String dollarQuote = null;
+
+        for (int i = 0; i < sql.length(); i++) {
+            char c = sql.charAt(i);
+            char next = i + 1 < sql.length() ? sql.charAt(i + 1) : '\0';
+
+            if (dollarQuote != null) {
+                if (sql.startsWith(dollarQuote, i)) {
+                    current.append(dollarQuote);
+                    i += dollarQuote.length() - 1;
+                    dollarQuote = null;
+                } else {
+                    current.append(c);
+                }
+                continue;
+            }
+
+            if (singleQuote) {
+                current.append(c);
+                if (c == '\'' && next == '\'') {
+                    current.append(next);
+                    i++;
+                } else if (c == '\'') {
+                    singleQuote = false;
+                }
+                continue;
+            }
+
+            if (doubleQuote) {
+                current.append(c);
+                if (c == '"' && next == '"') {
+                    current.append(next);
+                    i++;
+                } else if (c == '"') {
+                    doubleQuote = false;
+                }
+                continue;
+            }
+
+            if (backtick) {
+                current.append(c);
+                if (c == '`') backtick = false;
+                continue;
+            }
+
+            if (bracket) {
+                current.append(c);
+                if (c == ']') bracket = false;
+                continue;
+            }
+
+            if (c == '-' && next == '-') {
+                i = skipLineComment(sql, i + 2);
+                appendStatementWhitespace(current);
+                continue;
+            }
+
+            if (c == '/' && next == '*') {
+                i = skipBlockComment(sql, i + 2);
+                appendStatementWhitespace(current);
+                continue;
+            }
+
+            if (c == '\'') {
+                singleQuote = true;
+                current.append(c);
+                continue;
+            }
+            if (c == '"') {
+                doubleQuote = true;
+                current.append(c);
+                continue;
+            }
+            if (c == '`') {
+                backtick = true;
+                current.append(c);
+                continue;
+            }
+            if (c == '[') {
+                bracket = true;
+                current.append(c);
+                continue;
+            }
+            if (c == '$') {
+                String tag = readDollarQuoteTag(sql, i);
+                if (tag != null) {
+                    dollarQuote = tag;
+                    current.append(tag);
+                    i += tag.length() - 1;
+                    continue;
+                }
+            }
+
+            if (c == ';') {
+                addStatement(statements, current);
+                current.setLength(0);
+                continue;
+            }
+
+            current.append(c);
+        }
+
+        addStatement(statements, current);
+        return splitGoBatches(statements);
     }
 
     // ------------------------------------------------------------------ CREATE TABLE
@@ -521,6 +645,67 @@ public final class SqlFileIntrospector implements Introspector {
 
     // ------------------------------------------------------------------ small helpers
 
+    private void warn(String message) {
+        warnings.add(message);
+        LOG.warn(message);
+    }
+
+    private static void addStatement(List<String> statements, StringBuilder current) {
+        String text = current.toString().trim();
+        if (!text.isEmpty()) statements.add(text);
+    }
+
+    private static void appendStatementWhitespace(StringBuilder current) {
+        if (!current.isEmpty() && !Character.isWhitespace(current.charAt(current.length() - 1))) {
+            current.append(' ');
+        }
+    }
+
+    private static int skipLineComment(String sql, int start) {
+        int i = start;
+        while (i < sql.length()) {
+            char c = sql.charAt(i);
+            if (c == '\n') return i;
+            if (c == '\r') {
+                return i + 1 < sql.length() && sql.charAt(i + 1) == '\n' ? i + 1 : i;
+            }
+            i++;
+        }
+        return sql.length() - 1;
+    }
+
+    private static int skipBlockComment(String sql, int start) {
+        int end = sql.indexOf("*/", start);
+        return end >= 0 ? end + 1 : sql.length() - 1;
+    }
+
+    private static String readDollarQuoteTag(String sql, int start) {
+        int end = sql.indexOf('$', start + 1);
+        if (end < 0) return null;
+        for (int i = start + 1; i < end; i++) {
+            char c = sql.charAt(i);
+            if (!(Character.isLetterOrDigit(c) || c == '_')) return null;
+        }
+        return sql.substring(start, end + 1);
+    }
+
+    private static List<String> splitGoBatches(List<String> statements) {
+        List<String> out = new ArrayList<>();
+        for (String statement : statements) {
+            StringBuilder current = new StringBuilder();
+            for (String line : statement.split("\\R")) {
+                if ("GO".equalsIgnoreCase(line.trim())) {
+                    addStatement(out, current);
+                    current.setLength(0);
+                } else {
+                    current.append(line).append('\n');
+                }
+            }
+            addStatement(out, current);
+        }
+        return out;
+    }
+
     private static String stripSchemaPrefix(String name) {
         if (name == null) return null;
         String n = stripQuotes(name);
@@ -610,6 +795,12 @@ public final class SqlFileIntrospector implements Introspector {
 
     private static String truncate(String s) {
         return s.length() > 80 ? s.substring(0, 80) + "..." : s;
+    }
+
+    private static String parserMessage(Exception ex) {
+        String message = ex.getMessage();
+        if (message == null || message.isBlank()) return ex.getClass().getSimpleName();
+        return truncate(message.replaceAll("\\s+", " ").trim());
     }
 
     // ------------------------------------------------------------------ small mutable holders

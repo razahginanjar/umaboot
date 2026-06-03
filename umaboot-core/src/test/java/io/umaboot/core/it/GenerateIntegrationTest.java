@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>Assert key files were produced and contain expected content.</li>
  * </ol>
  */
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 class GenerateIntegrationTest {
 
     @Container

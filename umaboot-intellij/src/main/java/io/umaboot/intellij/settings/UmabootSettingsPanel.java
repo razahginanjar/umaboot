@@ -21,6 +21,7 @@ import io.umaboot.core.introspection.mysql.MysqlIntrospector;
 import io.umaboot.core.introspection.postgres.PostgresIntrospector;
 import io.umaboot.core.model.SchemaModel;
 import io.umaboot.intellij.UmabootConfigLocator;
+import io.umaboot.intellij.UmabootLog;
 
 import javax.swing.BorderFactory;
 import javax.swing.AbstractButton;
@@ -923,6 +924,8 @@ public final class UmabootSettingsPanel {
 
         final java.io.File fileRef = f;
         final String dialect = (String) databaseTypeCombo.getSelectedItem();
+        UmabootLog log = UmabootLog.get(project);
+        log.started("refresh tables", "script: " + fileRef.toPath() + ", dialect: " + dialect);
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             String statusKey;
@@ -931,18 +934,29 @@ public final class UmabootSettingsPanel {
             List<String> tables = List.of();
             try {
                 String sql = java.nio.file.Files.readString(fileRef.toPath());
-                SchemaModel sm = new io.umaboot.core.introspection.sqlfile.SqlFileIntrospector(sql, dialect)
-                        .introspect("public");
+                io.umaboot.core.introspection.sqlfile.SqlFileIntrospector introspector =
+                        new io.umaboot.core.introspection.sqlfile.SqlFileIntrospector(sql, dialect);
+                SchemaModel sm = introspector.introspect("public");
+                log.parserWarnings("refresh tables", introspector.warnings());
                 lastIntrospectedSchema = sm;
                 tables = sm.tables().stream()
                         .filter(t -> !t.junction())
                         .map(t -> t.name())
                         .sorted()
                         .toList();
-                statusKey = "%d tables parsed from %s";
-                statusArgs = new Object[]{tables.size(), fileRef.getName()};
-                color = new Color(0x2E7D32);
+                if (introspector.warnings().isEmpty()) {
+                    statusKey = "%d tables parsed from %s";
+                    statusArgs = new Object[]{tables.size(), fileRef.getName()};
+                    color = new Color(0x2E7D32);
+                } else {
+                    statusKey = "%d tables parsed from %s (%d parser warnings)";
+                    statusArgs = new Object[]{tables.size(), fileRef.getName(), introspector.warnings().size()};
+                    color = new Color(0xB26A00);
+                }
+                log.finished("refresh tables", tables.size() + " tables parsed from " + fileRef.getName());
             } catch (Throwable t) {
+                log.failed("refresh tables", t);
+                log.showDetail();
                 statusKey = "Parse failed: %s";
                 statusArgs = new Object[]{t.getMessage()};
                 color = Color.RED;
@@ -1003,6 +1017,8 @@ public final class UmabootSettingsPanel {
         final String pass = formConn.password();
         final String introspectionTarget = formConn.introspectionTarget();
         final String dbType = formConn.type();
+        UmabootLog log = UmabootLog.get(project);
+        log.started("refresh tables", "connection: " + dbType + ", target: " + introspectionTarget);
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             String statusKey;
@@ -1031,7 +1047,10 @@ public final class UmabootSettingsPanel {
                 statusKey = "%d tables found";
                 statusArgs = new Object[]{tables.size()};
                 color = new Color(0x2E7D32);
+                log.finished("refresh tables", tables.size() + " tables found");
             } catch (Throwable t) {
+                log.failed("refresh tables", t);
+                log.showDetail();
                 statusKey = "Failed: %s";
                 statusArgs = new Object[]{t.getMessage()};
                 color = Color.RED;

@@ -64,6 +64,16 @@ h2 {
     opacity: 0.85;
 }
 
+h3 {
+    font-size: 1em;
+    font-weight: 600;
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .block {
     margin-bottom: 24px;
     padding-bottom: 16px;
@@ -279,4 +289,93 @@ code {
     background: var(--vscode-textBlockQuote-background, var(--vscode-input-background));
     padding: 1px 4px;
     border-radius: 2px;
+}
+
+.table-editor {
+    display: grid;
+    grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);
+    gap: 12px;
+    margin: 12px 0;
+    min-width: 0;
+}
+
+.table-editor.hidden {
+    display: none;
+}
+
+.table-list {
+    border: 1px solid var(--vscode-panel-border);
+    background: var(--vscode-sideBar-background, var(--vscode-input-background));
+    max-height: 360px;
+    overflow: auto;
+    min-width: 0;
+}
+
+.table-list button {
+    display: block;
+    width: 100%;
+    padding: 6px 8px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--vscode-foreground);
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.table-list button.active {
+    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+}
+
+.table-detail {
+    min-width: 0;
+    border: 1px solid var(--vscode-panel-border);
+    padding: 10px;
+    background: var(--vscode-editor-background);
+}
+
+.table-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    min-width: 0;
+}
+
+.table-detail-header > div {
+    min-width: 0;
+}
+
+.column-editor {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) minmax(110px, 0.8fr) minmax(170px, 1.1fr);
+    border: 1px solid var(--vscode-panel-border);
+    min-width: 0;
+    overflow: auto;
+    max-height: 380px;
+}
+
+.column-editor > div {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.column-editor .head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    font-weight: 600;
+    background: var(--vscode-editor-background);
+}
+
+.column-editor select {
+    min-width: 160px;
 }

@@ -1,5 +1,7 @@
 package io.umaboot.cli;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
@@ -13,6 +15,8 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class CliSchemaFileCommandsTest {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     @TempDir
     Path tempDir;
@@ -41,6 +45,63 @@ class CliSchemaFileCommandsTest {
     }
 
     @Test
+    void listTablesRawAllKeepsScriptParserTablesBeforeRelationshipAnalysis() throws Exception {
+        Path config = writeSchemaFileConfig();
+
+        CapturedCommand result = execute("list-tables", "--config", config.toString(), "--raw", "--all");
+
+        assertThat(result.exitCode()).isEqualTo(0);
+        assertThat(result.stdout()).contains("users", "roles", "user_roles");
+        assertThat(result.stderr()).isEmpty();
+    }
+
+    @Test
+    void listTablesRawAllFallsBackToCreateTableNamesForSqlServerBatches() throws Exception {
+        Path config = writeSchemaFileConfig("""
+                SET ANSI_NULLS ON
+                GO
+                CREATE TABLE [dbo].[Customers] (
+                  [id] [bigint] IDENTITY(1,1) NOT NULL,
+                  [name] [varchar](100) NOT NULL,
+                  CONSTRAINT [PK_Customers] PRIMARY KEY CLUSTERED ([id] ASC)
+                )
+                GO
+
+                CREATE TABLE [dbo].[Orders] (
+                  [id] [bigint] IDENTITY(1,1) NOT NULL,
+                  [customer_id] [bigint] NOT NULL
+                )
+                GO
+                """, "sqlserver");
+
+        CapturedCommand result = execute("list-tables", "--config", config.toString(), "--raw", "--all");
+
+        assertThat(result.exitCode()).isEqualTo(0);
+        assertThat(result.stdout()).contains("Customers", "Orders");
+    }
+
+    @Test
+    void describeSchemaReturnsColumnMetadataAndOverrideTypes() throws Exception {
+        Path config = writeSchemaFileConfig();
+
+        CapturedCommand result = execute("describe-schema", "--config", config.toString());
+
+        assertThat(result.exitCode()).isEqualTo(0);
+        assertThat(result.stderr()).isEmpty();
+
+        JsonNode root = JSON.readTree(result.stdout());
+        assertThat(root.path("dbType").asText()).isEqualTo("postgresql");
+        assertThat(root.path("javaTypes")).anyMatch(n -> "java.util.UUID".equals(n.asText()));
+
+        JsonNode tables = root.path("tables");
+        assertThat(tables).hasSize(2);
+        JsonNode users = table(tables, "users");
+        assertThat(users.path("defaultClassName").asText()).isEqualTo("User");
+        assertThat(column(users, "id").path("defaultJavaType").asText()).isEqualTo("Long");
+        assertThat(column(users, "name").path("sqlType").asText()).containsIgnoringCase("varchar");
+    }
+
+    @Test
     void testConnectionSkipsSchemaFileMode() throws Exception {
         Path config = writeSchemaFileConfig();
 
@@ -53,7 +114,7 @@ class CliSchemaFileCommandsTest {
 
     private Path writeSchemaFileConfig() throws Exception {
         Path schema = tempDir.resolve("schema.sql");
-        Files.writeString(schema, """
+        return writeSchemaFileConfig("""
                 CREATE TABLE users (
                   id BIGINT PRIMARY KEY,
                   name VARCHAR(100)
@@ -71,19 +132,37 @@ class CliSchemaFileCommandsTest {
                   FOREIGN KEY (user_id) REFERENCES users(id),
                   FOREIGN KEY (role_id) REFERENCES roles(id)
                 );
-                """);
+                """, "postgresql");
+    }
 
+    private Path writeSchemaFileConfig(String sql, String dialect) throws Exception {
+        Path schema = tempDir.resolve("schema-" + dialect + ".sql");
+        Files.writeString(schema, sql);
         Path config = tempDir.resolve("umaboot.yaml");
         Files.writeString(config, """
                 schemaFile: "%s"
-                schemaDialect: postgresql
+                schemaDialect: %s
                 generation:
                   architecture: mvc
                   persistence: jpa
                   basePackage: com.example.demo
                   projectName: demo
-                """.formatted(schema.toString().replace('\\', '/')));
+                """.formatted(schema.toString().replace('\\', '/'), dialect));
         return config;
+    }
+
+    private static JsonNode table(JsonNode tables, String name) {
+        for (JsonNode table : tables) {
+            if (name.equals(table.path("name").asText())) return table;
+        }
+        throw new AssertionError("table not found: " + name);
+    }
+
+    private static JsonNode column(JsonNode table, String name) {
+        for (JsonNode column : table.path("columns")) {
+            if (name.equals(column.path("name").asText())) return column;
+        }
+        throw new AssertionError("column not found: " + name);
     }
 
     private static CapturedCommand execute(String... args) {

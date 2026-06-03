@@ -71,6 +71,8 @@ public final class PreviewMergeAction extends AnAction {
         }
 
         Path configPath = UmabootConfigLocator.findConfigFile(Path.of(project.getBasePath()));
+        UmabootLog log = UmabootLog.get(project);
+        log.started("preview merge", "config: " + configPath);
         new Task.Backgroundable(project, UiText.text(language, "Umaboot: Previewing generated changes"), true) {
             @Override
             public void run(ProgressIndicator indicator) {
@@ -79,12 +81,28 @@ public final class PreviewMergeAction extends AnAction {
 
                 try {
                     UmabootRunner.Plan plan = new UmabootRunner().prepare(configPath);
+                    log.detail("preview merge", "outputDir: " + plan.outputDir());
+                    log.detail("preview merge", "architecture: " + plan.architecture());
+                    log.detail("preview merge", "persistence: " + plan.persistence());
+                    log.detail("preview merge", "mode: " + plan.mode() + (plan.autoOverlay() ? " (auto)" : ""));
+                    log.detail("preview merge", "generated units: " + plan.units().size());
+                    log.parserWarnings("preview merge", plan.warnings());
                     Preview preview = buildPreview(plan);
+                    log.finished("preview merge",
+                            preview.modified() + " modified, " + preview.added()
+                                    + " new, " + preview.unchanged() + " unchanged files");
+                    for (Change change : preview.changes()) {
+                        log.detail("preview merge", (change.added() ? "new: " : "modified: ")
+                                + change.relativePath());
+                    }
                     ApplicationManager.getApplication().invokeLater(() ->
-                            openPreview(project, language, plan, preview));
+                            openPreview(project, language, plan, preview, log));
                 } catch (Exception ex) {
+                    log.failed("preview merge", ex);
+                    log.showDetail();
                     notifyUser(project,
-                            UiText.format(language, "Umaboot preview failed: %s", ex.getMessage()),
+                            UiText.format(language, "Umaboot preview failed: %s. See detail log for diagnostics.",
+                                    UmabootLog.rootMessage(ex)),
                             NotificationType.ERROR);
                 }
             }
@@ -122,8 +140,9 @@ public final class PreviewMergeAction extends AnAction {
     }
 
     private static void openPreview(Project project, UiText.Language language,
-                                    UmabootRunner.Plan plan, Preview preview) {
+                                    UmabootRunner.Plan plan, Preview preview, UmabootLog log) {
         if (preview.changes().isEmpty()) {
+            log.event("preview merge", "no generated file changes found");
             notifyUser(project, UiText.text(language, "No generated file changes found."),
                     NotificationType.INFORMATION);
             return;
@@ -140,20 +159,23 @@ public final class PreviewMergeAction extends AnAction {
                 UiText.text(language, "Cancel"),
                 Messages.getQuestionIcon());
         if (choice != Messages.YES) {
+            log.event("preview merge", "merge cancelled by user");
             return;
         }
 
+        log.event("preview merge", "opening " + preview.changes().size() + " merge windows");
         notifyUser(project,
                 UiText.format(language, "Opening %d merge windows.", preview.changes().size()),
                 NotificationType.INFORMATION);
 
         for (Change change : preview.changes()) {
-            openMerge(project, language, plan, change);
+            openMerge(project, language, plan, change, log);
         }
     }
 
     private static void openMerge(Project project, UiText.Language language,
-                                  UmabootRunner.Plan plan, Change change) {
+                                  UmabootRunner.Plan plan, Change change, UmabootLog log) {
+        log.detail("preview merge", "opening merge: " + change.relativePath());
         Document output = EditorFactory.getInstance().createDocument(change.current());
         List<String> contents = List.of(change.current(), change.current(), change.generated());
         List<String> titles = change.added()
@@ -176,12 +198,14 @@ public final class PreviewMergeAction extends AnAction {
                     titles,
                     result -> {
                         if (result == MergeResult.CANCEL) {
+                            log.detail("preview merge", "merge cancelled: " + change.relativePath());
                             return;
                         }
-                        writeAcceptedFile(project, language, plan.outputDir(), change, output.getText());
+                        writeAcceptedFile(project, language, plan.outputDir(), change, output.getText(), log);
                     });
             DiffManager.getInstance().showMerge(project, request);
         } catch (InvalidDiffRequestException ex) {
+            log.failed("preview merge", ex);
             notifyUser(project,
                     UiText.format(language, "Failed to open merge for %s: %s",
                             change.relativePath(), ex.getMessage()),
@@ -190,15 +214,17 @@ public final class PreviewMergeAction extends AnAction {
     }
 
     private static void writeAcceptedFile(Project project, UiText.Language language,
-                                          Path outputDir, Change change, String content) {
+                                          Path outputDir, Change change, String content, UmabootLog log) {
         try {
             Files.createDirectories(change.target().getParent());
             Files.writeString(change.target(), content, StandardCharsets.UTF_8);
             refresh(outputDir, change.target());
+            log.event("preview merge", "merged generated file: " + change.relativePath());
             notifyUser(project,
                     UiText.format(language, "Merged generated file: %s", change.relativePath()),
                     NotificationType.INFORMATION);
         } catch (IOException ex) {
+            log.failed("preview merge", ex);
             notifyUser(project,
                     UiText.format(language, "Failed to write %s: %s",
                             change.relativePath(), ex.getMessage()),

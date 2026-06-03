@@ -23,7 +23,8 @@ import picocli.CommandLine.Command;
                 DiffCommand.class,
                 ApplyCommand.class,
                 TestConnectionCommand.class,
-                ListTablesCommand.class
+                ListTablesCommand.class,
+                DescribeSchemaCommand.class
         }
 )
 public final class UmabootCli implements Runnable {

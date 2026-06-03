@@ -17,6 +17,7 @@ import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -58,9 +59,10 @@ public final class SchemaIntrospectionService {
         }
 
         String dbType = config.generation().schemaDialect();
-        SchemaModel schema = new SqlFileIntrospector(sql, dbType).introspect(defaultSchemaName(dbType));
+        SqlFileIntrospector introspector = new SqlFileIntrospector(sql, dbType);
+        SchemaModel schema = introspector.introspect(defaultSchemaName(dbType));
         LOG.info("Parsed {} tables from {}", schema.tables().size(), sqlPath);
-        return new Result(schema, dbType, null, sql);
+        return new Result(schema, dbType, null, sql, introspector.warnings());
     }
 
     private Result introspectLiveDatabase(UmabootConfig config) throws SQLException {
@@ -83,7 +85,7 @@ public final class SchemaIntrospectionService {
             Introspector introspector = introspectorFor(connection.driver(), conn);
             SchemaModel schema = introspector.introspect(connection.introspectionTarget());
             LOG.info("Introspected {} tables from live database", schema.tables().size());
-            return new Result(schema, connection.driver(), connection, null);
+            return new Result(schema, connection.driver(), connection, null, List.of());
         }
     }
 
@@ -110,5 +112,10 @@ public final class SchemaIntrospectionService {
             SchemaModel schema,
             String dbType,
             UmabootConfig.Connection connection,
-            String schemaFileSql) {}
+            String schemaFileSql,
+            List<String> warnings) {
+        public Result {
+            warnings = warnings == null ? List.of() : List.copyOf(warnings);
+        }
+    }
 }

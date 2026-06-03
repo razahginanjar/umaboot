@@ -356,6 +356,26 @@
             <label for="tablesExclude">Exclude globs</label>
             <textarea id="tablesExclude" rows="3" placeholder="audit_*&#10;flyway_schema_history"></textarea>
         </div>
+        <div class="actions inline">
+            <button type="button" id="btn-customize-tables" class="ghost">Customize Tables</button>
+        </div>
+        <div id="table-editor" class="table-editor hidden">
+            <div class="table-list" id="table-editor-list" aria-label="Tables"></div>
+            <div class="table-detail">
+                <div class="table-detail-header">
+                    <div>
+                        <h3 id="table-editor-title">Table</h3>
+                        <div id="table-editor-default" class="hint"></div>
+                    </div>
+                    <button type="button" id="btn-clear-table-override" class="ghost">Clear Override</button>
+                </div>
+                <div class="row">
+                    <label for="tableOverrideClassName">Class name override</label>
+                    <input id="tableOverrideClassName" type="text" placeholder="AccountUser">
+                </div>
+                <div class="column-editor" id="column-editor"></div>
+            </div>
+        </div>
         <div class="row">
             <label for="tableOverrides">Table overrides (JSON)</label>
             <textarea id="tableOverrides" rows="8" placeholder="{&#10;  &quot;users&quot;: {&#10;    &quot;className&quot;: &quot;AccountUser&quot;,&#10;    &quot;columns&quot;: {&#10;      &quot;id&quot;: { &quot;javaType&quot;: &quot;java.util.UUID&quot; }&#10;    }&#10;  }&#10;}"></textarea>

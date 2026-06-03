@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,8 +40,8 @@ public final class RelationshipEngine {
         Map<String, List<RelationshipModel>> rels = new LinkedHashMap<>();
         Map<String, TableModel> tables = new LinkedHashMap<>();
         for (TableModel t : schema.tables()) {
-            tables.put(t.name(), t);
-            rels.put(t.name(), new ArrayList<>(t.relationships()));
+            tables.put(key(t.name()), t);
+            rels.put(key(t.name()), new ArrayList<>(t.relationships()));
         }
 
         // 1. Identify junction tables: PK consists of exactly the two (or more) FK columns,
@@ -58,7 +59,7 @@ public final class RelationshipEngine {
         // 2. For each junction table, replace its two ManyToOne relationships with ManyToMany
         //    on the two linked tables.
         for (String junction : junctionTables) {
-            TableModel jt = tables.get(junction);
+            TableModel jt = tables.get(key(junction));
             List<RelationshipModel> jrels = jt.relationships();
             if (jrels.size() < 2) continue;
             RelationshipModel a = jrels.get(0);
@@ -66,6 +67,8 @@ public final class RelationshipEngine {
 
             String tableA = a.toTable();
             String tableB = b.toTable();
+            List<RelationshipModel> relsA = relationshipList(rels, tableA, junction, a);
+            List<RelationshipModel> relsB = relationshipList(rels, tableB, junction, b);
 
             String fieldOnA = pluralize(tableB.toLowerCase());
             String fieldOnB = pluralize(tableA.toLowerCase());
@@ -83,8 +86,8 @@ public final class RelationshipEngine {
                     a.toColumns(),
                     fieldOnB, false, tableA.equalsIgnoreCase(tableB));
 
-            rels.get(tableA).add(onA);
-            rels.get(tableB).add(onB);
+            relsA.add(onA);
+            relsB.add(onB);
             // Junction table keeps its own ManyToOne sides — they are still useful when the
             // junction carries extra non-key columns (which we treat as a regular entity in v2).
         }
@@ -97,14 +100,14 @@ public final class RelationshipEngine {
                 if (!r.owning()) continue;
                 if (r.type() instanceof RelationshipType.ManyToOne) {
                     String fieldOnParent = pluralize(t.name().toLowerCase());
-                    rels.get(r.toTable()).add(new RelationshipModel(
+                    relationshipList(rels, r.toTable(), t.name(), r).add(new RelationshipModel(
                             r.toTable(), r.fromTable(),
                             new RelationshipType.OneToMany(),
                             r.toColumns(), r.fromColumns(),
                             fieldOnParent, false, r.selfReference()));
                 } else if (r.type() instanceof RelationshipType.OneToOne) {
                     String fieldOnParent = t.name().toLowerCase();
-                    rels.get(r.toTable()).add(new RelationshipModel(
+                    relationshipList(rels, r.toTable(), t.name(), r).add(new RelationshipModel(
                             r.toTable(), r.fromTable(),
                             new RelationshipType.OneToOne(),
                             r.toColumns(), r.fromColumns(),
@@ -117,9 +120,28 @@ public final class RelationshipEngine {
         List<TableModel> rebuilt = new ArrayList<>();
         for (TableModel t : schema.tables()) {
             boolean junction = junctionTables.contains(t.name());
-            rebuilt.add(t.withRelationships(rels.get(t.name())).withJunction(junction));
+            rebuilt.add(t.withRelationships(rels.get(key(t.name()))).withJunction(junction));
         }
         return new SchemaModel(schema.schemaName(), rebuilt);
+    }
+
+    private static List<RelationshipModel> relationshipList(
+            Map<String, List<RelationshipModel>> rels,
+            String targetTable,
+            String sourceTable,
+            RelationshipModel relationship) {
+        List<RelationshipModel> found = rels.get(key(targetTable));
+        if (found != null) return found;
+        throw new IllegalArgumentException(
+                "Relationship target table '" + targetTable + "' referenced by table '" + sourceTable
+                        + "' was not found in the parsed schema. "
+                        + "Check that the schema file contains CREATE TABLE for '" + targetTable
+                        + "' and that the SQL parser did not skip it. Relationship columns: "
+                        + relationship.fromColumns() + " -> " + relationship.toColumns());
+    }
+
+    private static String key(String tableName) {
+        return tableName == null ? "" : tableName.toLowerCase(Locale.ROOT);
     }
 
     private boolean isPureJunction(TableModel t) {

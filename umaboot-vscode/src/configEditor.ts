@@ -4,6 +4,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as yaml from 'js-yaml';
+import { format, getLanguage, isLanguage, setLanguage, text } from './i18n';
+import { UmabootLogger } from './logging';
+import { isSchemaFileConfig, tableNamesFromSchemaFileConfig } from './sqlTables';
 
 /**
  * Manages the "Edit Configuration" webview panel.
@@ -20,14 +23,20 @@ export class UmabootConfigEditor {
 
     private static current: UmabootConfigEditor | undefined;
 
-    static open(context: vscode.ExtensionContext, channel: vscode.OutputChannel): void {
+    static open(
+        context: vscode.ExtensionContext,
+        logger: UmabootLogger,
+        onLanguageChanged?: () => void,
+    ): void {
         if (UmabootConfigEditor.current) {
             UmabootConfigEditor.current.panel.reveal();
             return;
         }
         const folder = vscode.workspace.workspaceFolders?.[0];
         if (!folder) {
-            vscode.window.showErrorMessage('Umaboot: open a folder first.');
+            vscode.window.showErrorMessage(
+                text(getLanguage(context), 'Umaboot: open a folder first.'),
+            );
             return;
         }
         const panel = vscode.window.createWebviewPanel(
@@ -42,16 +51,23 @@ export class UmabootConfigEditor {
                 ],
             },
         );
-        UmabootConfigEditor.current = new UmabootConfigEditor(context, panel, channel, folder.uri.fsPath);
+        UmabootConfigEditor.current = new UmabootConfigEditor(
+            context,
+            panel,
+            logger,
+            folder.uri.fsPath,
+            onLanguageChanged,
+        );
     }
 
     private constructor(
         private readonly context: vscode.ExtensionContext,
         readonly panel: vscode.WebviewPanel,
-        private readonly channel: vscode.OutputChannel,
+        private readonly logger: UmabootLogger,
         private readonly workspaceRoot: string,
+        private readonly onLanguageChanged: (() => void) | undefined,
     ) {
-        panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icon.png');
+        panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'toolwindow.png');
         panel.webview.html = this.buildHtml();
         panel.webview.onDidReceiveMessage((msg) => this.handleMessage(msg));
         panel.onDidDispose(() => {
@@ -83,10 +99,13 @@ export class UmabootConfigEditor {
     // Messaging
     // ============================================================
 
-    private handleMessage(msg: { command?: string; config?: unknown }): void {
+    private handleMessage(msg: { command?: string; config?: unknown; language?: unknown }): void {
         switch (msg.command) {
             case 'ready':
                 this.sendCurrentConfig();
+                break;
+            case 'setLanguage':
+                this.updateLanguage(msg.language);
                 break;
             case 'save':
                 this.saveConfig(msg.config);
@@ -100,7 +119,16 @@ export class UmabootConfigEditor {
                         : (r.stderr || r.stdout).trim().split(/\r?\n/)[0] || `failed (exit ${r.code})`,
                 }));
                 break;
-            case 'refreshTables':
+            case 'refreshTables': {
+                const scriptMode = isSchemaFileConfig(msg.config);
+                if (scriptMode) {
+                    const tables = tableNamesFromSchemaFileConfig(msg.config, this.workspaceRoot);
+                    if (tables.length > 0) {
+                        this.logger.event('config editor', `parsed ${tables.length} CREATE TABLE names from schema file`);
+                        this.panel.webview.postMessage({ command: 'tablesResult', tables, scriptMode });
+                        break;
+                    }
+                }
                 this.runCli('list-tables', msg.config, (r) => {
                     if (r.code !== 0) {
                         return {
@@ -110,7 +138,39 @@ export class UmabootConfigEditor {
                         };
                     }
                     const tables = r.stdout.trim().split(/\r?\n/).filter((s) => s.length > 0);
-                    return { command: 'tablesResult', tables };
+                    const warning = (r.stderr || '').trim().split(/\r?\n/).filter((s) => s.length > 0)[0];
+                    return { command: 'tablesResult', tables, scriptMode, message: warning };
+                }, scriptMode ? ['--raw', '--all'] : []);
+                break;
+            }
+            case 'describeSchema':
+                this.runCli('describe-schema', msg.config, (r) => {
+                    if (r.code !== 0) {
+                        return {
+                            command: 'schemaMetadataResult',
+                            ok: false,
+                            message: (r.stderr || r.stdout).trim().split(/\r?\n/)[0] || `failed (exit ${r.code})`,
+                        };
+                    }
+                    try {
+                        const metadata = JSON.parse(r.stdout);
+                        const warnings = Array.isArray(metadata?.warnings) ? metadata.warnings : [];
+                        if (warnings.length > 0) {
+                            this.logger.event('config editor describe-schema',
+                                `schema parsed with ${warnings.length} warning(s)`);
+                        }
+                        return {
+                            command: 'schemaMetadataResult',
+                            ok: true,
+                            metadata,
+                        };
+                    } catch (err) {
+                        return {
+                            command: 'schemaMetadataResult',
+                            ok: false,
+                            message: `invalid schema metadata JSON: ${err}`,
+                        };
+                    }
                 });
                 break;
             case 'browseSchemaFile':
@@ -144,11 +204,19 @@ export class UmabootConfigEditor {
             }
         } catch (err) {
             vscode.window.showWarningMessage(
-                `Umaboot: failed to parse ${path.basename(filePath)} — opening with empty defaults.`,
+                format(
+                    getLanguage(this.context),
+                    'Umaboot: failed to parse {0}; opening with empty defaults.',
+                    path.basename(filePath),
+                ),
             );
-            this.channel.appendLine(`[config-editor] parse error: ${err}`);
+            this.logger.error('config editor', `parse error: ${err}`);
         }
-        this.panel.webview.postMessage({ command: 'load', config: cfg });
+        this.panel.webview.postMessage({
+            command: 'load',
+            config: cfg,
+            language: getLanguage(this.context),
+        });
     }
 
     private saveConfig(config: unknown): void {
@@ -165,18 +233,22 @@ export class UmabootConfigEditor {
             const banner = '# Generated by Umaboot configuration editor.\n'
                 + '# Comments are not preserved on round-trip; hand-edit if you want them.\n';
             fs.writeFileSync(filePath, banner + yamlStr, 'utf8');
-            this.channel.appendLine(`[config-editor] saved ${filePath}`);
-            vscode.window.showInformationMessage(`Umaboot: saved ${path.basename(filePath)}.`);
+            this.logger.event('config editor', `saved ${filePath}`);
+            vscode.window.showInformationMessage(
+                format(getLanguage(this.context), 'Umaboot: saved {0}.', path.basename(filePath)),
+            );
             this.panel.webview.postMessage({ command: 'saved' });
         } catch (err) {
-            vscode.window.showErrorMessage(`Umaboot: save failed — ${err}`);
-            this.channel.appendLine(`[config-editor] save error: ${err}`);
+            vscode.window.showErrorMessage(
+                format(getLanguage(this.context), 'Umaboot: save failed; {0}', String(err)),
+            );
+            this.logger.error('config editor', `save failed: ${err}`);
         }
     }
 
     private async browseSchemaFile(): Promise<void> {
         const picked = await vscode.window.showOpenDialog({
-            title: 'Select Schema SQL File',
+            title: text(getLanguage(this.context), 'Select Schema SQL File'),
             defaultUri: vscode.Uri.file(this.workspaceRoot),
             canSelectFiles: true,
             canSelectFolders: false,
@@ -196,6 +268,13 @@ export class UmabootConfigEditor {
         this.panel.webview.postMessage({ command: 'schemaFileSelected', path: value });
     }
 
+    private updateLanguage(language: unknown): void {
+        if (!isLanguage(language)) return;
+        void setLanguage(this.context, language).then(() => {
+            this.onLanguageChanged?.();
+        });
+    }
+
     // ============================================================
     // CLI shell-out for live introspection from the form
     // ============================================================
@@ -207,9 +286,10 @@ export class UmabootConfigEditor {
      * unsaved tweaks they want to validate before committing.
      */
     private runCli(
-        subcommand: 'test-connection' | 'list-tables',
+        subcommand: 'test-connection' | 'list-tables' | 'describe-schema',
         config: unknown,
         mapResult: (r: { stdout: string; stderr: string; code: number | null }) => Record<string, unknown>,
+        extraArgs: string[] = [],
     ): void {
         const cli = vscode.workspace.getConfiguration('umaboot').get<string>('cliPath') ?? 'umaboot';
         const tmpFile = path.join(
@@ -220,20 +300,21 @@ export class UmabootConfigEditor {
             fs.mkdirSync(path.dirname(tmpFile), { recursive: true });
             fs.writeFileSync(
                 tmpFile,
-                yaml.dump(config, { indent: 2, noRefs: true }),
+                yaml.dump(this.configForTempYaml(config), { indent: 2, noRefs: true }),
                 'utf8',
             );
         } catch (err) {
             this.panel.webview.postMessage({
                 command: 'connectionResult',
                 ok: false,
-                message: `failed to write temp config: ${err}`,
+                message: format(getLanguage(this.context), 'failed to write temp config: {0}', String(err)),
             });
             return;
         }
 
-        this.channel.appendLine(`> ${cli} ${subcommand} --config ${tmpFile}`);
-        const child = cp.spawn(cli, [subcommand, '--config', tmpFile], {
+        const args = [subcommand, '--config', tmpFile, ...extraArgs];
+        this.logger.command(`config editor ${subcommand}`, cli, args, this.workspaceRoot);
+        const child = cp.spawn(cli, args, {
             cwd: this.workspaceRoot,
             shell: true,
         });
@@ -243,8 +324,38 @@ export class UmabootConfigEditor {
         child.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
         child.on('close', (code) => {
             try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+            this.logger.result(`config editor ${subcommand}`, code, stdout, stderr, {
+                includeStdout: subcommand !== 'describe-schema',
+            });
             const reply = mapResult({ stdout, stderr, code });
             this.panel.webview.postMessage(reply);
         });
     }
+
+    private configForTempYaml(config: unknown): unknown {
+        if (!config || typeof config !== 'object') return config;
+        const copy = JSON.parse(JSON.stringify(config)) as unknown;
+        if (!isRecord(copy)) return copy;
+
+        normalizeSchemaFile(copy, this.workspaceRoot);
+        const generation = copy.generation;
+        if (isRecord(generation)) {
+            normalizeSchemaFile(generation, this.workspaceRoot);
+        }
+        return copy;
+    }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function stringValue(value: unknown): string {
+    return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeSchemaFile(config: Record<string, unknown>, workspaceRoot: string): void {
+    const schemaFile = stringValue(config.schemaFile);
+    if (!schemaFile || path.isAbsolute(schemaFile)) return;
+    config.schemaFile = path.resolve(workspaceRoot, schemaFile);
 }

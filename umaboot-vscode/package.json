@@ -22,7 +22,7 @@
         {
           "id": "umaboot",
           "title": "Umaboot",
-          "icon": "resources/icon.png"
+          "icon": "resources/toolwindow.png"
         }
       ]
     },
@@ -31,7 +31,7 @@
         {
           "id": "umaboot.dashboard",
           "name": "Dashboard",
-          "icon": "resources/icon.png",
+          "icon": "resources/toolwindow.png",
           "contextualTitle": "Umaboot"
         }
       ]
@@ -39,7 +39,7 @@
     "viewsWelcome": [
       {
         "view": "umaboot.dashboard",
-        "contents": "No `umaboot.yaml` found in this workspace.\n\n[Create umaboot.yaml](command:umaboot.createConfig)\n[Edit configuration with form](command:umaboot.editConfig)\n\nOnce created, the dashboard will show your connection, table list, and Generate / Diff / Apply actions."
+        "contents": "No `umaboot.yaml` found in this workspace.\n\n[Create umaboot.yaml](command:umaboot.createConfig)\n[Edit configuration with form](command:umaboot.editConfig)\n\nOnce created, the dashboard will show your connection, table list, and Generate / Diff / Apply Generated Files actions."
       }
     ],
     "commands": [
@@ -60,7 +60,7 @@
       },
       {
         "command": "umaboot.apply",
-        "title": "Umaboot: Apply",
+        "title": "Umaboot: Apply Generated Files",
         "icon": "$(check)"
       },
       {
@@ -77,6 +77,16 @@
         "command": "umaboot.refreshDashboard",
         "title": "Umaboot: Refresh Dashboard",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "umaboot.showSummaryLog",
+        "title": "Umaboot: Show Summary Log",
+        "icon": "$(output)"
+      },
+      {
+        "command": "umaboot.showDetailLog",
+        "title": "Umaboot: Show Detail Log",
+        "icon": "$(list-tree)"
       },
       {
         "command": "umaboot.openConfig",
@@ -107,9 +117,19 @@
           "group": "navigation@2"
         },
         {
-          "command": "umaboot.openConfig",
+          "command": "umaboot.showSummaryLog",
           "when": "view == umaboot.dashboard",
           "group": "navigation@3"
+        },
+        {
+          "command": "umaboot.showDetailLog",
+          "when": "view == umaboot.dashboard",
+          "group": "navigation@4"
+        },
+        {
+          "command": "umaboot.openConfig",
+          "when": "view == umaboot.dashboard",
+          "group": "navigation@5"
         }
       ],
       "view/item/context": [
@@ -157,6 +177,18 @@
           "type": "string",
           "default": "umaboot.yaml",
           "description": "Workspace-relative path to the Umaboot configuration file."
+        },
+        "umaboot.language": {
+          "type": "string",
+          "enum": ["en", "id", "ja"],
+          "default": "en",
+          "description": "Default language for Umaboot extension UI. The configuration form can override this per workspace."
+        },
+        "umaboot.logging.autoShow": {
+          "type": "string",
+          "enum": ["never", "summary", "detail", "detailOnError"],
+          "default": "detailOnError",
+          "description": "Controls which Umaboot log view opens automatically after extension operations."
         }
       }
     }

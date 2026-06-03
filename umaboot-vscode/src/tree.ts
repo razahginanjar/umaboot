@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as yaml from 'js-yaml';
+import { text, UiLanguage } from './i18n';
 
 /**
  * Activity Bar dashboard for the current umaboot.yaml.
@@ -14,6 +15,7 @@ export class UmabootTreeProvider implements vscode.TreeDataProvider<UmabootNode>
     constructor(
         private readonly workspaceRoot: string | undefined,
         private readonly configRelPath: () => string,
+        private readonly language: () => UiLanguage,
     ) {}
 
     refresh(): void {
@@ -54,7 +56,7 @@ export class UmabootTreeProvider implements vscode.TreeDataProvider<UmabootNode>
     }
 
     private section(label: string, contextValue: string, themeIconId: string): UmabootNode {
-        const node = new UmabootNode(label, vscode.TreeItemCollapsibleState.Expanded);
+        const node = new UmabootNode(this.t(label), vscode.TreeItemCollapsibleState.Expanded);
         node.contextValue = contextValue;
         node.iconPath = new vscode.ThemeIcon(themeIconId);
         return node;
@@ -68,13 +70,14 @@ export class UmabootTreeProvider implements vscode.TreeDataProvider<UmabootNode>
         commandArgs: unknown[] = [],
         themeIconId?: string,
     ): UmabootNode {
-        const node = new UmabootNode(label, vscode.TreeItemCollapsibleState.None);
+        const translatedLabel = this.t(label);
+        const node = new UmabootNode(translatedLabel, vscode.TreeItemCollapsibleState.None);
         node.contextValue = contextValue;
-        if (description) node.description = description;
+        if (description) node.description = this.t(description);
         if (commandId) {
             node.command = {
                 command: commandId,
-                title: label,
+                title: translatedLabel,
                 arguments: commandArgs,
             };
         }
@@ -160,8 +163,12 @@ export class UmabootTreeProvider implements vscode.TreeDataProvider<UmabootNode>
             this.leaf('Diff', 'umaboot diff', 'umaboot.action.diff', 'umaboot.diff', [], 'diff'),
             this.leaf('Preview / Merge', 'review generated files', 'umaboot.action.previewMerge',
                 'umaboot.previewMerge', [], 'diff'),
-            this.leaf('Apply', 'umaboot apply', 'umaboot.action.apply', 'umaboot.apply', [], 'check'),
+            this.leaf('Apply Generated Files', 'umaboot apply', 'umaboot.action.apply', 'umaboot.apply', [], 'check'),
         ];
+    }
+
+    private t(key: string): string {
+        return text(this.language(), key);
     }
 
     private configFilePath(): string | undefined {

@@ -19,10 +19,10 @@ import java.util.List;
 final class UmabootRunner {
 
     record Result(int fileCount, Path outputDir, String architecture, String persistence,
-                  String mode, boolean autoOverlay) {}
+                  String mode, boolean autoOverlay, List<String> warnings) {}
 
     record Plan(List<GeneratedUnit> units, Path outputDir, String architecture, String persistence,
-                String mode, boolean autoOverlay, GeneratorContext ctx) {}
+                String mode, boolean autoOverlay, GeneratorContext ctx, List<String> warnings) {}
 
     Result run(Path configFile) throws Exception {
         Plan plan = prepare(configFile);
@@ -40,7 +40,8 @@ final class UmabootRunner {
                 plan.architecture(),
                 plan.persistence(),
                 plan.mode(),
-                plan.autoOverlay());
+                plan.autoOverlay(),
+                plan.warnings());
     }
 
     Plan prepare(Path configFile) throws Exception {
@@ -68,7 +69,8 @@ final class UmabootRunner {
                 result.ctx().persistence(),
                 result.ctx().overlay() ? "overlay" : "standalone",
                 autoOverlay,
-                result.ctx());
+                result.ctx(),
+                result.warnings());
     }
 
     private static UmabootConfig withOverlay(UmabootConfig config) {
