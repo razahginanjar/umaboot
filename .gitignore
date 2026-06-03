@@ -137,3 +137,6 @@ __scratch_*
 /icon-no-bg.png
 /icon-no-bg-*.svg
 /icon-no-bg-*.png
+/CI.md
+/BRANCHING.md
+/INTEGRATION_TESTING.md

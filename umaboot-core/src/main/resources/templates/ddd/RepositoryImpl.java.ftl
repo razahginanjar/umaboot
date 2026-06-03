@@ -7,6 +7,9 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Optional;
+<#if !javaSupportsStreamToList>
+import java.util.stream.Collectors;
+</#if>
 
 /**
  * JPA-backed implementation of the domain {@link ${entityName}Repository}.
@@ -40,7 +43,7 @@ public class ${entityName}RepositoryImpl implements ${entityName}Repository {
         return jpa.findAll(PageRequest.of(page, size))
                 .stream()
                 .map(mapper::toAggregate)
-                .toList();
+                <#if javaSupportsStreamToList>.toList()<#else>.collect(Collectors.toList())</#if>;
     }
 
     @Override

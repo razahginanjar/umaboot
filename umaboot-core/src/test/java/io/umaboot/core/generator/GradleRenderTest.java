@@ -129,9 +129,67 @@ class GradleRenderTest {
     }
 
     @Test
+    void gradle_testcontainersUsesBomAndVersionlessModules() {
+        String kts = readUnit(generateMvcWithTests("gradle", "jpa", "mysql", true), "build.gradle.kts");
+        assertThat(kts)
+                .contains("val testcontainersVersion = \"1.20.4\"")
+                .contains("testImplementation(platform(\"org.testcontainers:testcontainers-bom:$testcontainersVersion\"))")
+                .contains("testImplementation(\"org.testcontainers:junit-jupiter\")")
+                .contains("testImplementation(\"org.testcontainers:mysql\")")
+                .doesNotContain("org.testcontainers:junit-jupiter:1.20.4")
+                .doesNotContain("org.testcontainers:mysql:1.20.4");
+    }
+
+    @Test
     void gradle_settingsHasRootProjectName() {
         String settings = readUnit(generateMvc("gradle", "jpa"), "settings.gradle.kts");
         assertThat(settings).contains("rootProject.name = \"app\"");
+    }
+
+    @Test
+    void gradle_githubCiUsesCompileJavaBootJarAndTest_notMaven() {
+        String ci = readUnit(generateMvcWithTooling("gradle", "jpa", false, "github"),
+                ".github/workflows/ci.yml");
+
+        assertThat(ci)
+                .contains("gradle/actions/setup-gradle@v4")
+                .contains("gradle --no-daemon compileJava")
+                .contains("gradle --no-daemon -x test bootJar")
+                .contains("gradle --no-daemon test")
+                .doesNotContain("mvn ")
+                .doesNotContain("cache: maven");
+    }
+
+    @Test
+    void gradle_gitlabCiUsesCompileJavaBootJarAndTest_notMaven() {
+        String ci = readUnit(generateMvcWithTooling("gradle", "jpa", false, "gitlab"),
+                ".gitlab-ci.yml");
+
+        assertThat(ci)
+                .contains("image: gradle:8.11-jdk17")
+                .contains("gradle --no-daemon compileJava")
+                .contains("gradle --no-daemon -x test bootJar")
+                .contains("gradle --no-daemon test")
+                .contains("build/libs/*.jar")
+                .doesNotContain("mvn ")
+                .doesNotContain("MAVEN_")
+                .doesNotContain("target/*.jar");
+    }
+
+    @Test
+    void gradle_dockerfileUsesCompileJavaBootJarAndNoWrapperOrMaven() {
+        String dockerfile = readUnit(generateMvcWithTooling("gradle", "jpa", true, "none"),
+                "Dockerfile");
+
+        assertThat(dockerfile)
+                .contains("FROM gradle:8.11-jdk17 AS build")
+                .contains("gradle --no-daemon compileJava")
+                .contains("gradle --no-daemon -x test bootJar")
+                .contains("COPY --from=build /workspace/build/libs/*.jar /app/app.jar")
+                .doesNotContain("./gradlew")
+                .doesNotContain("COPY gradle ./gradle")
+                .doesNotContain("COPY gradlew ./")
+                .doesNotContain("mvn ");
     }
 
     // --------------------------------------------------------- render parity
@@ -205,10 +263,11 @@ class GradleRenderTest {
     /** Extracts {@code groupId:artifactId} pairs from a Gradle Kotlin DSL build script. */
     private static java.util.Set<String> extractGradleDeps(String kts) {
         // Match implementation/runtimeOnly/testImplementation/compileOnly/annotationProcessor/jooqGenerator
-        // calls, both with and without an explicit version segment.
+        // calls, both with and without an explicit version segment. Gradle platforms
+        // wrap the dependency notation in platform("...").
         Pattern p = Pattern.compile(
                 "(?:implementation|runtimeOnly|testImplementation|compileOnly|annotationProcessor|jooqGenerator)" +
-                        "\\(\"([^:\"]+):([^:\"]+)(?::[^\"]*)?\"\\)");
+                        "\\((?:platform\\()?\"([^:\"]+):([^:\"]+)(?::[^\"]*)?\"\\)?\\)");
         Matcher m = p.matcher(kts);
         return m.results()
                 .map(r -> r.group(1).trim() + ":" + r.group(2).trim())
@@ -228,6 +287,13 @@ class GradleRenderTest {
     private static List<GeneratedUnit> generateMvcWithTests(String buildTool, String persistence,
                                                              String dbDriver, boolean tests) {
         GeneratorContext ctx = ctx("mvc", buildTool, persistence, dbDriver, tests);
+        return new MvcGenerator(new TemplateEngine(null), ctx).generate(schema());
+    }
+
+    private static List<GeneratedUnit> generateMvcWithTooling(String buildTool, String persistence,
+                                                               boolean docker, String ciStyle) {
+        GeneratorContext ctx = ctx("mvc", buildTool, persistence, "postgresql",
+                false, docker, ciStyle);
         return new MvcGenerator(new TemplateEngine(null), ctx).generate(schema());
     }
 
@@ -253,6 +319,12 @@ class GradleRenderTest {
 
     private static GeneratorContext ctx(String architecture, String buildTool,
                                          String persistence, String dbDriver, boolean tests) {
+        return ctx(architecture, buildTool, persistence, dbDriver, tests, false, "none");
+    }
+
+    private static GeneratorContext ctx(String architecture, String buildTool,
+                                         String persistence, String dbDriver, boolean tests,
+                                         boolean docker, String ciStyle) {
         return new GeneratorContext(
                 "com.example.shop", "app", "com.example",
                 "3.3.5", "17", true,
@@ -260,8 +332,9 @@ class GradleRenderTest {
                 "jakarta", "class", "separate", "problemdetail",
                 UmabootConfig.AuditOptions.defaults(),
                 UmabootConfig.SoftDeleteOptions.defaults(),
-                UmabootConfig.DockerOptions.defaults(),
-                UmabootConfig.CiOptions.defaults(),
+                docker ? new UmabootConfig.DockerOptions(true, "eclipse-temurin:17-jre-alpine", 8080)
+                       : UmabootConfig.DockerOptions.defaults(),
+                new UmabootConfig.CiOptions(ciStyle),
                 UmabootConfig.LoggingOptions.defaults(),
                 tests ? new UmabootConfig.TestOptions(true)
                       : UmabootConfig.TestOptions.defaults(),

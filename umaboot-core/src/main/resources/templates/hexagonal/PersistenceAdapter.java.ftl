@@ -8,6 +8,9 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Optional;
+<#if !javaSupportsStreamToList>
+import java.util.stream.Collectors;
+</#if>
 
 /**
  * Outbound persistence adapter — implements the domain
@@ -43,7 +46,7 @@ public class ${entityName}PersistenceAdapter implements ${entityName}Repository 
         return jpa.findAll(PageRequest.of(page, size))
                 .stream()
                 .map(mapper::toDomain)
-                .toList();
+                <#if javaSupportsStreamToList>.toList()<#else>.collect(Collectors.toList())</#if>;
     }
 
     @Override

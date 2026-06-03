@@ -16,6 +16,7 @@ body {
     background: var(--vscode-editor-background);
     padding: 16px 24px 32px;
     margin: 0;
+    overflow-wrap: anywhere;
 }
 
 .hdr {
@@ -25,12 +26,32 @@ body {
     border-bottom: 1px solid var(--vscode-panel-border);
     padding-bottom: 12px;
     margin-bottom: 18px;
+    gap: 12px;
+    min-width: 0;
+}
+
+.view-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.view-controls label {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.view-controls select {
+    width: auto;
+    max-width: 140px;
 }
 
 h1 {
     font-size: 1.25em;
     font-weight: 600;
     margin: 0;
+    min-width: 0;
 }
 
 h2 {
@@ -63,6 +84,17 @@ h2 {
     gap: 12px;
 }
 
+.row.two > div,
+.grid > div,
+.source-fields,
+.block {
+    min-width: 0;
+}
+
+.source-fields {
+    margin-bottom: 12px;
+}
+
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -76,6 +108,8 @@ label {
     margin-bottom: 4px;
     color: var(--vscode-input-foreground);
     opacity: 0.8;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 label.checkbox {
@@ -84,6 +118,7 @@ label.checkbox {
     gap: 8px;
     margin: 6px 0;
     opacity: 1;
+    min-width: 0;
 }
 
 label.checkbox input {
@@ -125,6 +160,26 @@ button {
     cursor: pointer;
 }
 
+button:disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+
+button.help-button {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    padding: 0;
+    margin-left: 6px;
+    border-radius: 50%;
+    border-color: var(--vscode-input-border, var(--vscode-panel-border));
+    background: var(--vscode-button-secondaryBackground, transparent);
+    color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+    font-size: 11px;
+    line-height: 16px;
+    text-align: center;
+}
+
 button.primary {
     background: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
@@ -146,8 +201,23 @@ button.ghost:hover {
 
 .actions.inline {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 8px;
+}
+
+.input-with-action {
+    display: flex;
+    gap: 8px;
+    min-width: 0;
+}
+
+.input-with-action input {
+    min-width: 0;
+}
+
+.input-with-action button {
+    flex: 0 0 auto;
 }
 
 .footer {
@@ -166,6 +236,18 @@ button.ghost:hover {
     margin-top: 8px;
     font-size: 0.85em;
     min-height: 1.2em;
+    overflow-wrap: anywhere;
+}
+
+.help-panel {
+    margin: -6px 0 18px;
+    padding: 8px 10px;
+    border-left: 2px solid var(--vscode-focusBorder);
+    color: var(--vscode-descriptionForeground);
+    background: var(--vscode-input-background);
+    font-size: 0.85em;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 
 .hint.ok {
@@ -179,6 +261,8 @@ button.ghost:hover {
 .status {
     font-size: 0.85em;
     color: var(--vscode-descriptionForeground);
+    overflow-wrap: anywhere;
+    text-align: right;
 }
 
 .status.dirty::before {

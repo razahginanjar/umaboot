@@ -34,6 +34,11 @@ export class UmabootCodeLensProvider implements vscode.CodeLensProvider {
                 command: 'umaboot.diff',
             }),
             new vscode.CodeLens(range, {
+                title: '$(diff) Preview / Merge',
+                tooltip: 'Preview generated files and accept selected changes',
+                command: 'umaboot.previewMerge',
+            }),
+            new vscode.CodeLens(range, {
                 title: '$(check) Apply',
                 tooltip: 'Apply changes preserving protected regions',
                 command: 'umaboot.apply',

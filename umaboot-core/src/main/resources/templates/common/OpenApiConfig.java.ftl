@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * springdoc-openapi configuration.
  *
- * <p>With the {@code springdoc-openapi-starter-webmvc-ui} dependency on the classpath,
+ * <p>With the springdoc OpenAPI UI dependency on the classpath,
  * Spring Boot serves:</p>
  * <ul>
  *   <li><b>{@code /v3/api-docs}</b> — the live OpenAPI 3 spec (JSON).</li>

@@ -20,6 +20,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+<#if !javaSupportsStreamToList>
+import java.util.stream.Collectors;
+</#if>
 
 @Service
 @Transactional
@@ -68,7 +71,7 @@ public class ${entityName}ServiceImpl implements ${entityName}Service {
         int size = pageable.getPageSize();
         List<${entityName}> rows = repository.findAll(page, size);
         long total = repository.count();
-        List<${entityName}ResponseDTO> content = rows.stream().map(mapper::toResponse).toList();
+        List<${entityName}ResponseDTO> content = rows.stream().map(mapper::toResponse)<#if javaSupportsStreamToList>.toList()<#else>.collect(Collectors.toList())</#if>;
         return new PageImpl<>(content, pageable, total);
     }
 

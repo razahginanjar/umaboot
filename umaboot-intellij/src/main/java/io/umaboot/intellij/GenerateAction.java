@@ -11,6 +11,7 @@ import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
+import io.umaboot.intellij.settings.UiText;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,8 +27,8 @@ import java.nio.file.Path;
 public final class GenerateAction extends AnAction {
 
     public GenerateAction() {
-        super("Umaboot: Generate",
-                "Run Umaboot against the project's umaboot.yaml",
+        super(UiText.text(UiText.Language.ENGLISH, "Umaboot: Generate"),
+                UiText.text(UiText.Language.ENGLISH, "Run Umaboot against the project's umaboot.yaml"),
                 UmabootIcons.ACTION);
     }
 
@@ -39,29 +40,32 @@ public final class GenerateAction extends AnAction {
     @Override
     public void update(AnActionEvent e) {
         Project project = e.getProject();
+        UiText.Language language = UiText.load(project);
         boolean enabled = project != null
                 && project.getBasePath() != null
                 && Files.exists(UmabootConfigLocator.findConfigFile(Path.of(project.getBasePath())));
+        e.getPresentation().setText(UiText.text(language, "Umaboot: Generate"));
         e.getPresentation().setEnabled(enabled);
         e.getPresentation().setDescription(enabled
-                ? "Run Umaboot against this project's umaboot.yaml"
-                : "Add a umaboot.yaml to the project root to enable");
+                ? UiText.text(language, "Run Umaboot against this project's umaboot.yaml")
+                : UiText.text(language, "Add a umaboot.yaml to the project root to enable"));
     }
 
     @Override
     public void actionPerformed(AnActionEvent e) {
         Project project = e.getProject();
+        UiText.Language language = UiText.load(project);
         if (project == null || project.getBasePath() == null) {
-            notifyUser(null, "Umaboot: open a project first.", NotificationType.ERROR);
+            notifyUser(null, UiText.text(language, "Umaboot: open a project first."), NotificationType.ERROR);
             return;
         }
 
         Path configPath = UmabootConfigLocator.findConfigFile(Path.of(project.getBasePath()));
-        new Task.Backgroundable(project, "Umaboot: Generating", true) {
+        new Task.Backgroundable(project, UiText.text(language, "Umaboot: Generating"), true) {
             @Override
             public void run(ProgressIndicator indicator) {
                 indicator.setIndeterminate(true);
-                indicator.setText("Introspecting database and rendering project...");
+                indicator.setText(UiText.text(language, "Introspecting database and rendering project..."));
 
                 try {
                     UmabootRunner.Result result = new UmabootRunner().run(configPath);
@@ -73,16 +77,16 @@ public final class GenerateAction extends AnAction {
                     });
 
                     notifyUser(project,
-                            String.format("Umaboot: generated %d files in %s [%s/%s, %s%s]",
+                            UiText.format(language, "Umaboot: generated %d files in %s [%s/%s, %s%s]",
                                     result.fileCount(),
                                     result.outputDir(),
                                     result.architecture(),
                                     result.persistence(),
                                     result.mode(),
-                                    result.autoOverlay() ? " (auto)" : ""),
+                                    result.autoOverlay() ? UiText.text(language, " (auto)") : ""),
                             NotificationType.INFORMATION);
                 } catch (Exception ex) {
-                    notifyUser(project, "Umaboot failed: " + ex.getMessage(), NotificationType.ERROR);
+                    notifyUser(project, UiText.format(language, "Umaboot failed: %s", ex.getMessage()), NotificationType.ERROR);
                 }
             }
         }.queue();

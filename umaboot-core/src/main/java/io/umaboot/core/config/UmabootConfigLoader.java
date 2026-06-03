@@ -157,6 +157,10 @@ public final class UmabootConfigLoader {
         Map<String, Object> testsMap = mapOrEmpty(gen, "tests");
         var tests = new UmabootConfig.TestOptions(bool(testsMap, "enabled", false));
 
+        // Migrations. Off by default.
+        Map<String, Object> migrationsMap = mapOrEmpty(gen, "migrations");
+        var migrations = new UmabootConfig.MigrationOptions(str(migrationsMap, "style", "none"));
+
         // Pagination. Offset by default.
         Map<String, Object> paginationMap = mapOrEmpty(gen, "pagination");
         var pagination = new UmabootConfig.PaginationOptions(str(paginationMap, "style", "offset"));
@@ -196,6 +200,7 @@ public final class UmabootConfigLoader {
         Map<String, Object> appConfigMap = mapOrEmpty(gen, "applicationConfig");
         var applicationConfig = new UmabootConfig.ApplicationConfigOptions(
                 str(appConfigMap, "format", "yaml"));
+        String schemaDialect = str(root, "schemaDialect", str(gen, "schemaDialect", null));
 
         var generation = new UmabootConfig.Generation(
                 str(gen, "architecture", "mvc"),
@@ -217,6 +222,7 @@ public final class UmabootConfigLoader {
                 ci,
                 logging,
                 tests,
+                migrations,
                 pagination,
                 security,
                 str(gen, "outputDir", null),
@@ -227,6 +233,7 @@ public final class UmabootConfigLoader {
                 output,
                 applicationConfig,
                 str(root, "schemaFile", null),
+                schemaDialect,
                 str(gen, "buildTool", "maven"));
 
         return new UmabootConfig(connection, generation);

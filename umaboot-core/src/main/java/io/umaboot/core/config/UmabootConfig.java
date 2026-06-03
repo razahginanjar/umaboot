@@ -235,6 +235,7 @@ public record UmabootConfig(Connection connection, Generation generation) {
             CiOptions ci,
             LoggingOptions logging,
             TestOptions tests,
+            MigrationOptions migrations,
             PaginationOptions pagination,
             SecurityOptions security,
             String outputDir,
@@ -245,6 +246,7 @@ public record UmabootConfig(Connection connection, Generation generation) {
             OutputOptions output,
             ApplicationConfigOptions applicationConfig,
             String schemaFile,
+            String schemaDialect,
             String buildTool) {
 
         public Generation {
@@ -253,7 +255,7 @@ public record UmabootConfig(Connection connection, Generation generation) {
             Objects.requireNonNull(basePackage, "basePackage");
             Objects.requireNonNull(projectName, "projectName");
             projectGroup = projectGroup == null ? "com.example" : projectGroup;
-            javaVersion = javaVersion == null ? "17" : javaVersion;
+            javaVersion = javaVersion == null ? "17" : normalizeJavaVersion(javaVersion);
             // Smart Spring Boot default keyed off the Java version:
             // Java 8/11 -> 2.7.18 (last 2.x line). Java 17+ -> 3.3.5.
             if (springBootVersion == null) {
@@ -268,6 +270,7 @@ public record UmabootConfig(Connection connection, Generation generation) {
             output = output == null ? OutputOptions.defaults() : output;
             applicationConfig = applicationConfig == null ? ApplicationConfigOptions.defaults() : applicationConfig;
             schemaFile = (schemaFile != null && schemaFile.isBlank()) ? null : schemaFile;
+            schemaDialect = schemaFile == null ? null : canonicalSchemaDialect(schemaDialect);
             // Build tool: maven (status quo) or gradle. Default to maven for backwards
             // compatibility — every existing umaboot.yaml with no buildTool key picks Maven.
             buildTool = buildTool == null ? "maven" : buildTool.toLowerCase();
@@ -286,6 +289,7 @@ public record UmabootConfig(Connection connection, Generation generation) {
             ci = ci == null ? CiOptions.defaults() : ci;
             logging = logging == null ? LoggingOptions.defaults() : logging;
             tests = tests == null ? TestOptions.defaults() : tests;
+            migrations = migrations == null ? MigrationOptions.defaults() : migrations;
             pagination = pagination == null ? PaginationOptions.defaults() : pagination;
             security = security == null ? SecurityOptions.defaults() : security;
             // Cross-field validation: JWT mode requires a non-empty secret to sign tokens.
@@ -346,6 +350,44 @@ public record UmabootConfig(Connection connection, Generation generation) {
             }
         }
 
+        public Generation(
+                String architecture,
+                String persistence,
+                String basePackage,
+                String projectName,
+                String projectGroup,
+                String springBootVersion,
+                String javaVersion,
+                boolean useLombok,
+                OpenApiOptions openapi,
+                InjectionOptions injection,
+                ValidationOptions validation,
+                DtoOptions dto,
+                ExceptionOptions exception,
+                AuditOptions audit,
+                SoftDeleteOptions softDelete,
+                DockerOptions docker,
+                CiOptions ci,
+                LoggingOptions logging,
+                TestOptions tests,
+                PaginationOptions pagination,
+                SecurityOptions security,
+                String outputDir,
+                JpaOptions jpa,
+                MyBatisOptions mybatis,
+                TableFilterOptions tables,
+                DddOptions ddd,
+                OutputOptions output,
+                ApplicationConfigOptions applicationConfig,
+                String schemaFile,
+                String buildTool) {
+            this(architecture, persistence, basePackage, projectName, projectGroup,
+                    springBootVersion, javaVersion, useLombok, openapi, injection,
+                    validation, dto, exception, audit, softDelete, docker, ci,
+                    logging, tests, null, pagination, security, outputDir, jpa, mybatis,
+                    tables, ddd, output, applicationConfig, schemaFile, null, buildTool);
+        }
+
         /** Parses a {@code springBootVersion} string into its major integer (2 or 3). */
         public int springBootMajor() {
             return parseSpringBootMajor(springBootVersion);
@@ -363,6 +405,31 @@ public record UmabootConfig(Connection connection, Generation generation) {
             } catch (NumberFormatException ex) {
                 return 3;
             }
+        }
+
+        private static String normalizeJavaVersion(String version) {
+            String trimmed = version == null ? "" : version.trim();
+            if ("1.8".equals(trimmed)) return "8";
+            return trimmed.isEmpty() ? "17" : trimmed;
+        }
+
+        private static String canonicalSchemaDialect(String schemaDialect) {
+            String dialect = (schemaDialect == null || schemaDialect.isBlank())
+                    ? "postgresql"
+                    : schemaDialect.toLowerCase();
+            if ("postgres".equals(dialect)) {
+                dialect = "postgresql";
+            }
+            if (!"postgresql".equals(dialect)
+                    && !"mysql".equals(dialect)
+                    && !"mariadb".equals(dialect)
+                    && !"sqlserver".equals(dialect)
+                    && !"sqlite".equals(dialect)) {
+                throw new IllegalArgumentException(
+                        "schemaDialect must be one of postgresql, mysql, mariadb, sqlserver, or sqlite "
+                                + "(got: " + schemaDialect + ")");
+            }
+            return dialect;
         }
 
         /** Convenience: legacy callers that only care if any OpenAPI is emitted. */
@@ -544,7 +611,8 @@ public record UmabootConfig(Connection connection, Generation generation) {
      *   <li>{@code annotation} — does NOT emit the static yaml. Instead emits an
      *       {@code OpenApiConfig} class with springdoc annotations and adds
      *       {@code @Tag}/{@code @Operation} annotations to the generated controllers.
-     *       Adds {@code springdoc-openapi-starter-webmvc-ui} to the project pom (standalone mode).
+     *       Adds the Spring Boot-compatible springdoc WebMVC UI dependency to
+     *       the project build file (standalone mode).
      *       At runtime, springdoc serves the spec at {@code /v3/api-docs} and Swagger UI at
      *       {@code /swagger-ui.html}.</li>
      *   <li>{@code none} — neither file nor annotations. Equivalent to the legacy
@@ -873,6 +941,31 @@ public record UmabootConfig(Connection connection, Generation generation) {
      */
     public record TestOptions(boolean enabled) {
         public static TestOptions defaults() { return new TestOptions(false); }
+    }
+
+    /**
+     * Database migration scaffolding for the generated project.
+     *
+     * <ul>
+     *   <li>{@code style: none} (default) — no migration dependency or files.</li>
+     *   <li>{@code style: flyway} — adds Flyway dependencies and emits
+     *       {@code src/main/resources/db/migration/V1__init_schema.sql}. In
+     *       schema-file mode the migration is the user's SQL file; in live-DB mode
+     *       Umaboot renders a best-effort initial DDL from the introspected model.</li>
+     * </ul>
+     */
+    public record MigrationOptions(String style) {
+        public MigrationOptions {
+            style = style == null ? "none" : style.toLowerCase();
+            if (!"none".equals(style) && !"flyway".equals(style)) {
+                throw new IllegalArgumentException(
+                        "migrations.style must be 'none' or 'flyway' (got: " + style + ")");
+            }
+        }
+
+        public static MigrationOptions defaults() { return new MigrationOptions("none"); }
+        public boolean isNone() { return "none".equals(style); }
+        public boolean isFlyway() { return "flyway".equals(style); }
     }
 
     /**

@@ -113,6 +113,9 @@ export class UmabootConfigEditor {
                     return { command: 'tablesResult', tables };
                 });
                 break;
+            case 'browseSchemaFile':
+                this.browseSchemaFile();
+                break;
             default:
                 break;
         }
@@ -169,6 +172,28 @@ export class UmabootConfigEditor {
             vscode.window.showErrorMessage(`Umaboot: save failed — ${err}`);
             this.channel.appendLine(`[config-editor] save error: ${err}`);
         }
+    }
+
+    private async browseSchemaFile(): Promise<void> {
+        const picked = await vscode.window.showOpenDialog({
+            title: 'Select Schema SQL File',
+            defaultUri: vscode.Uri.file(this.workspaceRoot),
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: false,
+            filters: {
+                'SQL files': ['sql'],
+                'All files': ['*'],
+            },
+        });
+        const file = picked?.[0];
+        if (!file) return;
+        let value = file.fsPath;
+        const rel = path.relative(this.workspaceRoot, file.fsPath);
+        if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
+            value = rel.split(path.sep).join('/');
+        }
+        this.panel.webview.postMessage({ command: 'schemaFileSelected', path: value });
     }
 
     // ============================================================

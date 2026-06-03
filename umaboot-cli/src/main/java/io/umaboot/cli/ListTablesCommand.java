@@ -2,20 +2,16 @@ package io.umaboot.cli;
 
 import io.umaboot.core.config.UmabootConfig;
 import io.umaboot.core.config.UmabootConfigLoader;
-import io.umaboot.core.introspection.Introspector;
-import io.umaboot.core.introspection.JdbcDrivers;
-import io.umaboot.core.introspection.mysql.MysqlIntrospector;
-import io.umaboot.core.introspection.postgres.PostgresIntrospector;
+import io.umaboot.core.introspection.SchemaIntrospectionService;
 import io.umaboot.core.model.SchemaModel;
 import io.umaboot.core.model.TableModel;
+import io.umaboot.core.relationship.RelationshipEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import java.nio.file.Path;
-import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.concurrent.Callable;
 
 /**
@@ -55,13 +51,9 @@ public final class ListTablesCommand implements Callable<Integer> {
             return 2;
         }
 
-        JdbcDrivers.registerAll();
-        UmabootConfig.Connection conn = config.connection();
-        try (Connection c = DriverManager.getConnection(conn.url(), conn.username(), conn.password())) {
-            Introspector introspector = "mysql".equalsIgnoreCase(conn.driver())
-                    ? new MysqlIntrospector(c)
-                    : new PostgresIntrospector(c);
-            SchemaModel schema = introspector.introspect(conn.introspectionTarget());
+        try {
+            SchemaModel schema = new SchemaIntrospectionService().introspect(config).schema();
+            schema = new RelationshipEngine().analyze(schema);
             for (TableModel t : schema.tables()) {
                 if (!includeJunctions && t.junction()) continue;
                 System.out.println(t.name());

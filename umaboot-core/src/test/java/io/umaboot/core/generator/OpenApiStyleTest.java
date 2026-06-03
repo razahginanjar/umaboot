@@ -68,6 +68,25 @@ class OpenApiStyleTest {
     }
 
     @Test
+    void style_annotation_selectsSpringdocLineForSpringBootVersion() {
+        assertSpringdocMaven("2.7.18", "11", "springdoc-openapi-ui", "1.8.0");
+        assertSpringdocMaven("3.3.5", "17", "springdoc-openapi-starter-webmvc-ui", "2.6.0");
+        assertSpringdocMaven("3.4.1", "17", "springdoc-openapi-starter-webmvc-ui", "2.8.17");
+        assertSpringdocMaven("3.5.0", "17", "springdoc-openapi-starter-webmvc-ui", "2.8.17");
+        assertSpringdocMaven("4.0.0", "21", "springdoc-openapi-starter-webmvc-ui", "3.0.3");
+    }
+
+    @Test
+    void style_annotation_gradleUsesSpringdocVersionForSpringBoot35() {
+        List<GeneratedUnit> units = generate("annotation", "3.5.0", "17", "gradle");
+
+        String kts = readUnit(units, "build.gradle.kts");
+        assertThat(kts)
+                .contains("implementation(\"org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17\")")
+                .doesNotContain("springdoc-openapi-starter-webmvc-ui:2.6.0");
+    }
+
+    @Test
     void style_none_emitsNeitherFileNorAnnotations() {
         List<GeneratedUnit> units = generate("none");
 
@@ -85,18 +104,31 @@ class OpenApiStyleTest {
     // ---- helpers ----
 
     private static List<GeneratedUnit> generate(String openApiStyle) {
+        return generate(openApiStyle, "3.3.5", "17", "maven");
+    }
+
+    private static List<GeneratedUnit> generate(String openApiStyle, String springBootVersion,
+                                                String javaVersion, String buildTool) {
         SchemaModel schema = singleTableSchema();
         GeneratorContext ctx = new GeneratorContext(
                 "com.example.shop", "shop-api", "com.example",
-                "3.3.5", "17", true,
+                springBootVersion, javaVersion, true,
                 "mvc", "jpa", "xml", false, openApiStyle, "constructor",
                 "jakarta", "class", "separate", "problemdetail",
                 UmabootConfig.AuditOptions.defaults(), UmabootConfig.SoftDeleteOptions.defaults(),
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(), UmabootConfig.LoggingOptions.defaults(),
                 UmabootConfig.TestOptions.defaults(), "offset", UmabootConfig.SecurityOptions.defaults(),
                 UmabootConfig.DddOptions.defaults(),
-                false, "postgres", null, null, "", null, "maven");
+                false, "postgres", null, null, "", null, buildTool);
         return new MvcGenerator(new TemplateEngine(null), ctx).generate(schema);
+    }
+
+    private static void assertSpringdocMaven(String springBootVersion, String javaVersion,
+                                             String artifactId, String version) {
+        String pom = readUnit(generate("annotation", springBootVersion, javaVersion, "maven"), "pom.xml");
+        assertThat(pom)
+                .contains("<artifactId>" + artifactId + "</artifactId>")
+                .contains("<version>" + version + "</version>");
     }
 
     private static SchemaModel singleTableSchema() {

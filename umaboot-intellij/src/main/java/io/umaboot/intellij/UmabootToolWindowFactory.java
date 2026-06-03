@@ -17,6 +17,7 @@ import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentFactory;
 import io.umaboot.intellij.settings.UmabootSettingsConfigurable;
 import io.umaboot.intellij.settings.UmabootSettingsPanel;
+import io.umaboot.intellij.settings.UiText;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -47,37 +48,63 @@ public final class UmabootToolWindowFactory implements ToolWindowFactory {
     }
 
     private JBPanel<JBPanel<?>> buildButtonBar(Project project, UmabootSettingsPanel panel) {
+        final UiText.Language[] language = {UiText.load(project)};
         JBPanel<JBPanel<?>> bar = new JBPanel<>(new FlowLayout(FlowLayout.LEFT, 6, 6));
         bar.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new java.awt.Color(0xC0C0C0)));
 
-        JButton apply = new JButton("Apply", AllIcons.Actions.MenuSaveall);
-        apply.setToolTipText("Write the form values back to umaboot.yaml");
+        JButton apply = new JButton(UiText.text(language[0], "Apply"), AllIcons.Actions.MenuSaveall);
+        apply.setToolTipText(UiText.text(language[0], "Write the form values back to umaboot.yaml"));
         apply.addActionListener(e -> {
             try {
                 panel.save();
-                notifyUser(project, "Saved umaboot.yaml", NotificationType.INFORMATION);
+                notifyUser(project, UiText.text(language[0], "Saved umaboot.yaml"), NotificationType.INFORMATION);
             } catch (Exception ex) {
-                notifyUser(project, "Failed to save: " + ex.getMessage(), NotificationType.ERROR);
+                notifyUser(project, UiText.text(language[0], "Failed to save: ") + ex.getMessage(), NotificationType.ERROR);
             }
         });
 
-        JButton generate = new JButton("Generate", UmabootIcons.ACTION);
-        generate.setToolTipText("Run Umaboot against the current configuration");
+        JButton generate = new JButton(UiText.text(language[0], "Generate"), UmabootIcons.ACTION);
+        generate.setToolTipText(UiText.text(language[0], "Run Umaboot against the current configuration"));
         generate.addActionListener(e -> runGenerateAction(project));
 
-        JButton openSettings = new JButton("Open in Settings", AllIcons.General.Settings);
-        openSettings.setToolTipText("Open this panel inside the IDE Settings dialog");
+        JButton previewMerge = new JButton(UiText.text(language[0], "Preview / Merge"), AllIcons.Actions.Diff);
+        previewMerge.setToolTipText(UiText.text(language[0], "Preview generated changes before writing files"));
+        previewMerge.addActionListener(e -> runPreviewMergeAction(project));
+
+        JButton openSettings = new JButton(UiText.text(language[0], "Open in Settings"), AllIcons.General.Settings);
+        openSettings.setToolTipText(UiText.text(language[0], "Open this panel inside the IDE Settings dialog"));
         openSettings.addActionListener(e ->
                 ShowSettingsUtil.getInstance().showSettingsDialog(project, UmabootSettingsConfigurable.class));
 
+        panel.addLanguageChangeListener(selected -> {
+            language[0] = selected;
+            apply.setText(UiText.text(selected, "Apply"));
+            apply.setToolTipText(UiText.text(selected, "Write the form values back to umaboot.yaml"));
+            generate.setText(UiText.text(selected, "Generate"));
+            generate.setToolTipText(UiText.text(selected, "Run Umaboot against the current configuration"));
+            previewMerge.setText(UiText.text(selected, "Preview / Merge"));
+            previewMerge.setToolTipText(UiText.text(selected, "Preview generated changes before writing files"));
+            openSettings.setText(UiText.text(selected, "Open in Settings"));
+            openSettings.setToolTipText(UiText.text(selected, "Open this panel inside the IDE Settings dialog"));
+        });
+
         bar.add(apply);
         bar.add(generate);
+        bar.add(previewMerge);
         bar.add(openSettings);
         return bar;
     }
 
     private static void runGenerateAction(Project project) {
         var action = ActionManager.getInstance().getAction("Umaboot.Generate");
+        if (action == null) return;
+        DataContext ctx = SimpleDataContext.getProjectContext(project);
+        AnActionEvent event = AnActionEvent.createFromDataContext("UmabootToolWindow", new Presentation(), ctx);
+        action.actionPerformed(event);
+    }
+
+    private static void runPreviewMergeAction(Project project) {
+        var action = ActionManager.getInstance().getAction("Umaboot.PreviewMerge");
         if (action == null) return;
         DataContext ctx = SimpleDataContext.getProjectContext(project);
         AnActionEvent event = AnActionEvent.createFromDataContext("UmabootToolWindow", new Presentation(), ctx);

@@ -76,6 +76,7 @@ public final class UmabootYamlIO {
         // shape described in USAGE.md and umaboot.example.yaml.
         if (config.generation().schemaFile() != null && !config.generation().schemaFile().isBlank()) {
             root.put("schemaFile", config.generation().schemaFile());
+            root.put("schemaDialect", config.generation().schemaDialect());
         }
 
         Map<String, Object> gen = new LinkedHashMap<>();
@@ -143,6 +144,10 @@ public final class UmabootYamlIO {
         Map<String, Object> tests = new LinkedHashMap<>();
         tests.put("enabled", config.generation().tests().enabled());
         gen.put("tests", tests);
+
+        Map<String, Object> migrations = new LinkedHashMap<>();
+        migrations.put("style", config.generation().migrations().style());
+        gen.put("migrations", migrations);
 
         Map<String, Object> pagination = new LinkedHashMap<>();
         pagination.put("style", config.generation().pagination().style());

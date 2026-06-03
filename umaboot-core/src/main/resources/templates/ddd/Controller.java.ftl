@@ -28,6 +28,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+<#if !javaSupportsStreamToList>
+import java.util.stream.Collectors;
+</#if>
 
 @RestController
 @RequestMapping("/api/${entityVar}s")
@@ -87,7 +90,7 @@ public class ${entityName}Controller {
                                                                        @RequestParam(defaultValue = "20") int size) {
         List<${entityName}Response> content = service.findAll(page, size).stream()
                 .map(mapper::toResponse)
-                .toList();
+                <#if javaSupportsStreamToList>.toList()<#else>.collect(Collectors.toList())</#if>;
         long total = service.count();
         return ResponseEntity.ok(PageResponse.of(content, page, size, total));
     }

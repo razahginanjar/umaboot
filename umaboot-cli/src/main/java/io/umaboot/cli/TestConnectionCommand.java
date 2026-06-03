@@ -48,6 +48,11 @@ public final class TestConnectionCommand implements Callable<Integer> {
             return 2;
         }
 
+        if (config.isSchemaFileMode()) {
+            System.out.println("SKIP schemaFile mode: no live database connection configured.");
+            return 0;
+        }
+
         JdbcDrivers.registerAll();
         UmabootConfig.Connection conn = config.connection();
         try (Connection c = DriverManager.getConnection(conn.url(), conn.username(), conn.password())) {

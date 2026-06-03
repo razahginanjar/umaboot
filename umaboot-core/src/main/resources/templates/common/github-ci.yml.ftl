@@ -17,6 +17,22 @@ jobs:
         with:
           java-version: '${javaVersion}'
           distribution: 'temurin'
+<#if isGradle>
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${gradleVersion}
+
+      - name: Compile with Gradle
+        run: gradle --no-daemon compileJava
+
+      - name: Build bootJar with Gradle
+        run: gradle --no-daemon -x test bootJar
+
+      - name: Run tests
+        run: gradle --no-daemon test
+<#else>
           cache: maven
 
       - name: Build with Maven
@@ -24,3 +40,4 @@ jobs:
 
       - name: Run tests
         run: mvn -B -ntp test
+</#if>

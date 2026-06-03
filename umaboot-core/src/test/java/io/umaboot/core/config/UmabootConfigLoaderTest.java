@@ -284,4 +284,37 @@ class UmabootConfigLoaderTest {
         // The old `driver:` key must be gone — it's now expressed as `type:`.
         assertThat(body).doesNotContain("driver:");
     }
+
+    @Test
+    void schemaFileDialect_roundTripsAtTopLevel(@TempDir Path tmp) throws Exception {
+        Path yaml = tmp.resolve("umaboot.yaml");
+        Files.writeString(yaml, """
+                schemaFile: schema.sql
+                schemaDialect: mysql
+                generation:
+                  basePackage: com.example.orders
+                  projectName: orders-api
+                  persistence: jpa
+                  migrations:
+                    style: flyway
+                """);
+
+        UmabootConfig loaded = UmabootConfigLoader.load(yaml);
+
+        assertThat(loaded.connection()).isNull();
+        assertThat(loaded.generation().schemaFile()).isEqualTo("schema.sql");
+        assertThat(loaded.generation().schemaDialect()).isEqualTo("mysql");
+        assertThat(loaded.generation().migrations().style()).isEqualTo("flyway");
+
+        Path rewritten = tmp.resolve("rewritten.yaml");
+        UmabootYamlIO.save(rewritten, loaded);
+        String body = Files.readString(rewritten);
+
+        assertThat(body).contains("schemaFile: schema.sql");
+        assertThat(body).contains("schemaDialect: mysql");
+        assertThat(body).contains("migrations:");
+        assertThat(body).contains("style: flyway");
+        assertThat(UmabootConfigLoader.load(rewritten).generation().schemaDialect()).isEqualTo("mysql");
+        assertThat(UmabootConfigLoader.load(rewritten).generation().migrations().style()).isEqualTo("flyway");
+    }
 }

@@ -24,9 +24,10 @@ import org.springframework.test.context.DynamicPropertySource;
  *
 <#if dbIsSqlite>
  * <p>SQLite runs in-process — no Docker, no Testcontainers. We point Spring at
- * {@code jdbc:sqlite::memory:} via {@code @DynamicPropertySource} and switch
- * Hibernate to {@code create-drop} so each test class gets a fresh schema
- * derived from the generated entities.</p>
+ * {@code jdbc:sqlite::memory:} via {@code @DynamicPropertySource}.<#if migrationFlyway>
+ * Flyway applies the generated migration before Hibernate validates the schema.</#if><#if !migrationFlyway>
+ * Hibernate uses {@code create-drop} so each test class gets a fresh schema
+ * derived from the generated entities.</#if></p>
 <#else>
  * <p>Spins up a single shared {@code @Container} for the whole test JVM (the
  * {@code static} field) and binds Spring's {@code spring.datasource.*} properties
@@ -51,7 +52,11 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.datasource.username", () -> "");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.datasource.driver-class-name", () -> "org.sqlite.JDBC");
+<#if migrationFlyway>
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
+<#else>
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+</#if>
         registry.add("spring.jpa.properties.hibernate.dialect",
                 () -> "org.hibernate.community.dialect.SQLiteDialect");
     }

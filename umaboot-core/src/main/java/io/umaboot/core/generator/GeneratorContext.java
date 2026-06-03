@@ -52,12 +52,14 @@ public record GeneratorContext(
         UmabootConfig.CiOptions ci,
         UmabootConfig.LoggingOptions logging,
         UmabootConfig.TestOptions tests,
+        UmabootConfig.MigrationOptions migrations,
         String paginationStyle,
         UmabootConfig.SecurityOptions security,
         UmabootConfig.DddOptions ddd,
         boolean overlay,
         String dbDriver,
         UmabootConfig.Connection connection,
+        String schemaFileSql,
         UmabootConfig.ApplicationConfigOptions applicationConfig,
         String classNameStripPrefix,
         java.util.Map<String, UmabootConfig.TableOverride> tableOverrides,
@@ -69,6 +71,7 @@ public record GeneratorContext(
         Objects.requireNonNull(projectGroup, "projectGroup");
         Objects.requireNonNull(springBootVersion, "springBootVersion");
         Objects.requireNonNull(javaVersion, "javaVersion");
+        javaVersion = normalizeJavaVersion(javaVersion);
         architecture = architecture == null ? "mvc" : architecture.toLowerCase();
         persistence = persistence == null ? "jpa" : persistence.toLowerCase();
         mybatisStyle = mybatisStyle == null ? "xml" : mybatisStyle.toLowerCase();
@@ -92,6 +95,7 @@ public record GeneratorContext(
         ci = ci == null ? UmabootConfig.CiOptions.defaults() : ci;
         logging = logging == null ? UmabootConfig.LoggingOptions.defaults() : logging;
         tests = tests == null ? UmabootConfig.TestOptions.defaults() : tests;
+        migrations = migrations == null ? UmabootConfig.MigrationOptions.defaults() : migrations;
         paginationStyle = paginationStyle == null ? "offset" : paginationStyle.toLowerCase();
         if (!"offset".equals(paginationStyle) && !"cursor".equals(paginationStyle)) {
             throw new IllegalArgumentException(
@@ -106,12 +110,54 @@ public record GeneratorContext(
         applicationConfig = applicationConfig == null
                 ? UmabootConfig.ApplicationConfigOptions.defaults()
                 : applicationConfig;
+        schemaFileSql = schemaFileSql == null ? null : schemaFileSql;
         classNameStripPrefix = classNameStripPrefix == null ? "" : classNameStripPrefix;
         tableOverrides = tableOverrides == null ? java.util.Map.of() : java.util.Map.copyOf(tableOverrides);
         // Build tool defaults to maven for backwards-compat with older test fixtures
         // and existing umaboot.yamls. Validation lives in UmabootConfig — by the time
         // we reach this ctor, buildTool is either "maven" or "gradle".
         buildTool = (buildTool == null || buildTool.isBlank()) ? "maven" : buildTool.toLowerCase();
+    }
+
+    public GeneratorContext(
+            String basePackage,
+            String projectName,
+            String projectGroup,
+            String springBootVersion,
+            String javaVersion,
+            boolean useLombok,
+            String architecture,
+            String persistence,
+            String mybatisStyle,
+            boolean useMapStruct,
+            String openApiStyle,
+            String injectionStyle,
+            String validationStyle,
+            String dtoStyle,
+            String dtoShape,
+            String exceptionStyle,
+            UmabootConfig.AuditOptions audit,
+            UmabootConfig.SoftDeleteOptions softDelete,
+            UmabootConfig.DockerOptions docker,
+            UmabootConfig.CiOptions ci,
+            UmabootConfig.LoggingOptions logging,
+            UmabootConfig.TestOptions tests,
+            String paginationStyle,
+            UmabootConfig.SecurityOptions security,
+            UmabootConfig.DddOptions ddd,
+            boolean overlay,
+            String dbDriver,
+            UmabootConfig.Connection connection,
+            UmabootConfig.ApplicationConfigOptions applicationConfig,
+            String classNameStripPrefix,
+            java.util.Map<String, UmabootConfig.TableOverride> tableOverrides,
+            String buildTool) {
+        this(basePackage, projectName, projectGroup, springBootVersion, javaVersion,
+                useLombok, architecture, persistence, mybatisStyle, useMapStruct,
+                openApiStyle, injectionStyle, validationStyle, dtoStyle, dtoShape,
+                exceptionStyle, audit, softDelete, docker, ci, logging, tests,
+                null, paginationStyle, security, ddd, overlay, dbDriver, connection,
+                null, applicationConfig, classNameStripPrefix, tableOverrides, buildTool);
     }
 
     /** Returns the per-table override for {@code tableName}, or empty if none configured. */
@@ -192,6 +238,96 @@ public record GeneratorContext(
     public boolean isMaven()  { return "maven".equalsIgnoreCase(buildTool); }
     public boolean isGradle() { return "gradle".equalsIgnoreCase(buildTool); }
 
+    public boolean isMigrationFlyway() { return migrations != null && migrations.isFlyway(); }
+    public boolean isMigrationNone() { return migrations == null || migrations.isNone(); }
+
+    /**
+     * springdoc changed artifact/version lines across Spring Boot generations.
+     * Keep this centralized so Maven and Gradle templates cannot drift.
+     */
+    public String springdocOpenApiArtifactId() {
+        if (isSpringBoot2()) return "springdoc-openapi-ui";
+        return "springdoc-openapi-starter-webmvc-ui";
+    }
+
+    public String springdocOpenApiVersion() {
+        int major = springBootMajor();
+        if (major <= 2) return "1.8.0";
+        if (major >= 4) return "3.0.3";
+
+        return switch (springBootMinor()) {
+            case 0 -> "2.1.0";
+            case 1 -> "2.2.0";
+            case 2 -> "2.5.0";
+            case 3 -> "2.6.0";
+            default -> "2.8.17";
+        };
+    }
+
+    public String flywayDatabaseModule() {
+        if (isDbPostgres()) return "flyway-database-postgresql";
+        if (isDbMysqlFamily()) return "flyway-mysql";
+        if (isDbSqlserver()) return "flyway-sqlserver";
+        return "";
+    }
+
+    public boolean renderFlywayDatabaseModule() {
+        if (flywayDatabaseModule().isEmpty()) return false;
+        if (springBootMajor() >= 3) return true;
+        return isDbMysqlFamily() || isDbSqlserver();
+    }
+
+    public String gradleVersion() {
+        return isSpringBoot2() ? "7.6.4" : "8.11";
+    }
+
+    public String jooqVersion() {
+        if (isSpringBoot2()) return "3.14.16";
+        return "3.19.15";
+    }
+
+    public String jooqGradlePluginVersion() {
+        if (isSpringBoot2()) return "5.2.2";
+        return "9.0";
+    }
+
+    public String jooqCodegenDriverGroupId() {
+        if (isDbMariadb()) return "org.mariadb.jdbc";
+        if (isDbMysql()) return "com.mysql";
+        if (isDbSqlserver()) return "com.microsoft.sqlserver";
+        if (isDbSqlite()) return "org.xerial";
+        return "org.postgresql";
+    }
+
+    public String jooqCodegenDriverArtifactId() {
+        if (isDbMariadb()) return "mariadb-java-client";
+        if (isDbMysql()) return "mysql-connector-j";
+        if (isDbSqlserver()) return "mssql-jdbc";
+        if (isDbSqlite()) return "sqlite-jdbc";
+        return "postgresql";
+    }
+
+    public String jooqCodegenDriverVersion() {
+        if (isSpringBoot2()) {
+            if (isDbMariadb()) return "3.1.4";
+            if (isDbMysql()) return "8.0.33";
+            if (isDbSqlserver()) return "10.2.3.jre8";
+            if (isDbSqlite()) return "3.36.0.3";
+            return "42.3.8";
+        }
+        if (isDbMariadb()) return "3.4.1";
+        if (isDbMysql()) return "8.4.0";
+        if (isDbSqlserver()) return "12.6.4.jre11";
+        if (isDbSqlite()) return "3.47.0.0";
+        return "42.7.4";
+    }
+
+    public String jooqCodegenDriverCoordinate() {
+        return jooqCodegenDriverGroupId()
+                + ":" + jooqCodegenDriverArtifactId()
+                + ":" + jooqCodegenDriverVersion();
+    }
+
     /**
      * Effective JDBC URL written into the generated {@code application.yml/.properties}
      * as the default value of {@code spring.datasource.url}. Comes from the
@@ -266,6 +402,27 @@ public record GeneratorContext(
     public boolean isSpringBoot2() { return springBootMajor() == 2; }
     public boolean isSpringBoot3() { return springBootMajor() == 3; }
 
+    public int javaMajor() {
+        if (javaVersion == null || javaVersion.isEmpty()) return 17;
+        String v = javaVersion.trim();
+        if ("1.8".equals(v)) return 8;
+        int dot = v.indexOf('.');
+        String head = dot < 0 ? v : v.substring(0, dot);
+        try { return Integer.parseInt(head); } catch (NumberFormatException ex) { return 17; }
+    }
+
+    public boolean javaSupportsStringIsBlank() { return javaMajor() >= 11; }
+    public boolean javaSupportsListOf() { return javaMajor() >= 9; }
+    public boolean javaSupportsListCopyOf() { return javaMajor() >= 10; }
+    public boolean javaSupportsStreamToList() { return javaMajor() >= 16; }
+
+    public int springBootMinor() {
+        if (springBootVersion == null || springBootVersion.isEmpty()) return 3;
+        String[] parts = springBootVersion.split("[.\\-]");
+        if (parts.length < 2) return 0;
+        try { return Integer.parseInt(parts[1]); } catch (NumberFormatException ex) { return 3; }
+    }
+
     public boolean isSecurityNone() { return security != null && security.isNone(); }
     public boolean isSecurityBasic() { return security != null && security.isBasic(); }
     public boolean isSecurityJwt() { return security != null && security.isJwt(); }
@@ -283,4 +440,10 @@ public record GeneratorContext(
 
     /** Legacy helper for templates that still use the boolean flag. */
     public boolean generateOpenApi() { return isOpenApiEnabled(); }
+
+    private static String normalizeJavaVersion(String version) {
+        String trimmed = version == null ? "" : version.trim();
+        if ("1.8".equals(trimmed)) return "8";
+        return trimmed.isEmpty() ? "17" : trimmed;
+    }
 }

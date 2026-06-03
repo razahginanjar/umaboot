@@ -25,9 +25,27 @@
         <mybatis.starter.version><#if springBoot2>2.3.2<#else>3.0.4</#if></mybatis.starter.version>
 </#if>
 <#if isJooq>
-        <jooq.version><#if springBoot2>3.16.23<#else>3.19.15</#if></jooq.version>
+        <jooq.version>${jooqVersion}</jooq.version>
+</#if>
+<#if testsEnabled && !dbIsSqlite>
+        <testcontainers.version>1.20.4</testcontainers.version>
 </#if>
     </properties>
+
+<#if testsEnabled && !dbIsSqlite>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${r"${testcontainers.version}"}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+</#if>
 
     <dependencies>
         <dependency>
@@ -45,6 +63,19 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+<#if migrationFlyway>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+<#if renderFlywayDatabaseModule>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>${flywayDatabaseModule}</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+</#if>
+</#if>
 <#if securityEnabled>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -73,13 +104,8 @@
 <#if openApiAnnotation>
         <dependency>
             <groupId>org.springdoc</groupId>
-<#if springBoot2>
-            <artifactId>springdoc-openapi-ui</artifactId>
-            <version>1.7.0</version>
-<#else>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.6.0</version>
-</#if>
+            <artifactId>${springdocOpenApiArtifactId}</artifactId>
+            <version>${springdocOpenApiVersion}</version>
         </dependency>
 </#if>
 <#if isJpa>
@@ -164,13 +190,11 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>1.20.4</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId><#if dbIsMariadb>mariadb<#elseif dbIsMysql>mysql<#elseif dbIsSqlserver>mssqlserver<#else>postgresql</#if></artifactId>
-            <version>1.20.4</version>
             <scope>test</scope>
         </dependency>
 </#if>
@@ -210,27 +234,9 @@
                 </executions>
                 <dependencies>
                     <dependency>
-<#if dbIsMariadb>
-                        <groupId>org.mariadb.jdbc</groupId>
-                        <artifactId>mariadb-java-client</artifactId>
-                        <version>3.4.1</version>
-<#elseif dbIsMysql>
-                        <groupId>com.mysql</groupId>
-                        <artifactId>mysql-connector-j</artifactId>
-                        <version>8.4.0</version>
-<#elseif dbIsSqlserver>
-                        <groupId>com.microsoft.sqlserver</groupId>
-                        <artifactId>mssql-jdbc</artifactId>
-                        <version>12.6.4.jre11</version>
-<#elseif dbIsSqlite>
-                        <groupId>org.xerial</groupId>
-                        <artifactId>sqlite-jdbc</artifactId>
-                        <version>3.47.0.0</version>
-<#else>
-                        <groupId>org.postgresql</groupId>
-                        <artifactId>postgresql</artifactId>
-                        <version>42.7.4</version>
-</#if>
+                        <groupId>${jooqCodegenDriverGroupId}</groupId>
+                        <artifactId>${jooqCodegenDriverArtifactId}</artifactId>
+                        <version>${jooqCodegenDriverVersion}</version>
                     </dependency>
                 </dependencies>
                 <configuration>

@@ -6,6 +6,9 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Optional;
+<#if !javaSupportsStreamToList>
+import java.util.stream.Collectors;
+</#if>
 
 /**
  * MyBatis-backed implementation of the domain {@link ${entityName}Repository}.
@@ -43,7 +46,7 @@ public class ${entityName}RepositoryImpl implements ${entityName}Repository {
     @Override
     public List<${entityName}> findAll(int page, int size) {
         int offset = page * size;
-        return sqlMapper.findAll(offset, size).stream().map(mapper::toAggregate).toList();
+        return sqlMapper.findAll(offset, size).stream().map(mapper::toAggregate)<#if javaSupportsStreamToList>.toList()<#else>.collect(Collectors.toList())</#if>;
     }
 
     @Override

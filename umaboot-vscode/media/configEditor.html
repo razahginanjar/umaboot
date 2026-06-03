@@ -2,11 +2,6 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!--
-        Content-Security-Policy: scripts only via nonce, styles only from this
-        webview. The {{cspSource}} and {{nonce}} placeholders are substituted
-        at panel-open time by configEditor.ts.
-    -->
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'none'; img-src {{cspSource}} https: data:;
                    style-src {{cspSource}} 'unsafe-inline'; font-src {{cspSource}};
@@ -19,30 +14,92 @@
 
     <header class="hdr">
         <h1>Umaboot configuration</h1>
+        <div class="view-controls">
+            <label for="uiLanguage">Language</label>
+            <select id="uiLanguage">
+                <option value="en">English</option>
+                <option value="id">Indonesia</option>
+                <option value="ja">Japanese</option>
+            </select>
+        </div>
         <div class="status" id="status" aria-live="polite"></div>
     </header>
+    <div id="help-panel" class="help-panel hidden" aria-live="polite"></div>
 
-    <!-- ============================== Connection ============================== -->
     <section class="block">
         <h2>Connection</h2>
-        <div class="row">
-            <label for="connectionUrl">JDBC URL</label>
-            <input id="connectionUrl" type="text" placeholder="jdbc:postgresql://localhost:5432/your_db">
-        </div>
         <div class="row two">
             <div>
-                <label for="connectionUsername">Username</label>
-                <input id="connectionUsername" type="text" placeholder="postgres">
+                <label for="connectionSource">Source</label>
+                <select id="connectionSource">
+                    <option value="host">host</option>
+                    <option value="url">url</option>
+                    <option value="script">script</option>
+                </select>
             </div>
             <div>
-                <label for="connectionPassword">Password</label>
-                <input id="connectionPassword" type="password" placeholder="postgres">
+                <label for="databaseType">Database type</label>
+                <select id="databaseType">
+                    <option value="postgresql">postgresql</option>
+                    <option value="mysql">mysql</option>
+                    <option value="mariadb">mariadb</option>
+                    <option value="sqlserver">sqlserver</option>
+                    <option value="sqlite">sqlite</option>
+                </select>
             </div>
         </div>
-        <div class="row">
-            <label for="connectionSchema">Schema (Postgres) / Database (MySQL)</label>
-            <input id="connectionSchema" type="text" placeholder="public">
+
+        <div id="source-host" class="source-fields">
+            <div class="row two">
+                <div>
+                    <label for="connectionHost">Host</label>
+                    <input id="connectionHost" type="text" placeholder="localhost:5432">
+                </div>
+                <div>
+                    <label for="connectionDatabase">Database</label>
+                    <input id="connectionDatabase" type="text" placeholder="your_db">
+                </div>
+            </div>
+            <div class="row">
+                <label for="connectionParams">Parameters</label>
+                <input id="connectionParams" type="text" placeholder="sslmode=disable">
+            </div>
         </div>
+
+        <div id="source-url" class="source-fields hidden">
+            <div class="row">
+                <label for="connectionUrl">JDBC URL</label>
+                <input id="connectionUrl" type="text" placeholder="jdbc:postgresql://localhost:5432/your_db">
+            </div>
+        </div>
+
+        <div id="source-script" class="source-fields hidden">
+            <div class="row">
+                <label for="schemaFile">Schema file</label>
+                <div class="input-with-action">
+                    <input id="schemaFile" type="text" placeholder="src/main/resources/schema.sql">
+                    <button type="button" id="btn-browse-schema" class="ghost">Browse...</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="live-connection-fields">
+            <div class="row two">
+                <div>
+                    <label for="connectionUsername">Username</label>
+                    <input id="connectionUsername" type="text" placeholder="postgres">
+                </div>
+                <div>
+                    <label for="connectionPassword">Password</label>
+                    <input id="connectionPassword" type="password" placeholder="postgres">
+                </div>
+            </div>
+            <div class="row">
+                <label for="connectionSchema">Schema</label>
+                <input id="connectionSchema" type="text" placeholder="public">
+            </div>
+        </div>
+
         <div class="actions inline">
             <button type="button" id="btn-test-connection" class="ghost">Test Connection</button>
             <button type="button" id="btn-refresh-tables" class="ghost">Refresh Tables</button>
@@ -50,7 +107,6 @@
         <div id="connection-result" class="hint"></div>
     </section>
 
-    <!-- ============================== Project =============================== -->
     <section class="block">
         <h2>Project</h2>
         <div class="row two">
@@ -71,6 +127,25 @@
                 </select>
             </div>
         </div>
+        <div class="row two">
+            <div>
+                <label for="buildTool">Build tool</label>
+                <select id="buildTool">
+                    <option value="maven">maven</option>
+                    <option value="gradle">gradle</option>
+                </select>
+            </div>
+            <div>
+                <label for="mybatisStyle">MyBatis style</label>
+                <select id="mybatisStyle">
+                    <option value="xml">xml</option>
+                    <option value="annotation">annotation</option>
+                </select>
+            </div>
+        </div>
+        <label class="checkbox" data-help-for="useMapStruct">
+            <input id="useMapStruct" type="checkbox"> Use MapStruct
+        </label>
         <div class="row">
             <label for="basePackage">Base package</label>
             <input id="basePackage" type="text" placeholder="com.example.app">
@@ -100,12 +175,11 @@
                 <input id="springBootVersion" type="text" placeholder="3.3.5">
             </div>
         </div>
-        <label class="checkbox">
+        <label class="checkbox" data-help-for="useLombok">
             <input id="useLombok" type="checkbox"> Use Lombok
         </label>
     </section>
 
-    <!-- ============================ Code style ============================== -->
     <section class="block">
         <h2>Code style</h2>
         <div class="grid">
@@ -164,30 +238,37 @@
         </div>
     </section>
 
-    <!-- ========================== Schema-aware ============================== -->
     <section class="block">
         <h2>Schema-aware features</h2>
-        <label class="checkbox">
-            <input id="auditEnabled" type="checkbox"> Audit fields (created_at / updated_at / created_by / updated_by detection)
+        <label class="checkbox" data-help-for="auditEnabled">
+            <input id="auditEnabled" type="checkbox"> Audit fields
         </label>
-        <label class="checkbox">
-            <input id="softDeleteEnabled" type="checkbox"> Soft delete (deleted_at / is_deleted detection)
+        <label class="checkbox" data-help-for="softDeleteEnabled">
+            <input id="softDeleteEnabled" type="checkbox"> Soft delete
         </label>
     </section>
 
-    <!-- ========================== Project tooling =========================== -->
     <section class="block">
         <h2>Project tooling</h2>
-        <label class="checkbox">
+        <label class="checkbox" data-help-for="dockerEnabled">
             <input id="dockerEnabled" type="checkbox"> Emit Dockerfile + docker-compose.yml
         </label>
-        <div class="row">
-            <label for="ciStyle">CI pipeline</label>
-            <select id="ciStyle">
-                <option value="none">none</option>
-                <option value="github">github</option>
-                <option value="gitlab">gitlab</option>
-            </select>
+        <div class="row two">
+            <div>
+                <label for="ciStyle">CI pipeline</label>
+                <select id="ciStyle">
+                    <option value="none">none</option>
+                    <option value="github">github</option>
+                    <option value="gitlab">gitlab</option>
+                </select>
+            </div>
+            <div>
+                <label for="migrationsStyle">Migrations</label>
+                <select id="migrationsStyle">
+                    <option value="none">none</option>
+                    <option value="flyway">flyway</option>
+                </select>
+            </div>
         </div>
         <div class="row two">
             <div>
@@ -197,16 +278,22 @@
                     <option value="json">json</option>
                 </select>
             </div>
-            <label class="checkbox">
-                <input id="loggingCorrelationId" type="checkbox"> Add correlation-id filter (X-Correlation-Id → MDC)
-            </label>
+            <div>
+                <label for="applicationConfigFormat">App config format</label>
+                <select id="applicationConfigFormat">
+                    <option value="yaml">yaml</option>
+                    <option value="properties">properties</option>
+                </select>
+            </div>
         </div>
-        <label class="checkbox">
-            <input id="testsEnabled" type="checkbox"> Generate integration tests (@SpringBootTest + Testcontainers)
+        <label class="checkbox" data-help-for="loggingCorrelationId">
+            <input id="loggingCorrelationId" type="checkbox"> Add correlation-id filter
+        </label>
+        <label class="checkbox" data-help-for="testsEnabled">
+            <input id="testsEnabled" type="checkbox"> Generate integration tests
         </label>
     </section>
 
-    <!-- ============================== Security ============================== -->
     <section class="block">
         <h2>Security</h2>
         <div class="row">
@@ -220,22 +307,21 @@
         <div id="security-jwt" class="hidden">
             <div class="row two">
                 <div>
-                    <label for="jwtSecret">JWT secret (≥ 32 chars)</label>
+                    <label for="jwtSecret">JWT secret</label>
                     <input id="jwtSecret" type="text" placeholder="externalize via SPRING_SECURITY_JWT_SECRET">
                 </div>
                 <div>
-                    <label for="jwtExpirationMinutes">Expiration (minutes)</label>
+                    <label for="jwtExpirationMinutes">Expiration minutes</label>
                     <input id="jwtExpirationMinutes" type="number" min="1" value="60">
                 </div>
             </div>
         </div>
         <div id="security-users" class="hidden">
-            <label for="securityUsers">Users (one per line: <code>username:password:ROLE1,ROLE2</code>)</label>
+            <label for="securityUsers">Users</label>
             <textarea id="securityUsers" rows="3" placeholder="admin:admin:ADMIN,USER&#10;user:user:USER"></textarea>
         </div>
     </section>
 
-    <!-- ============================== Output ================================ -->
     <section class="block">
         <h2>Output</h2>
         <div class="row two">
@@ -246,27 +332,36 @@
                     <option value="overlay">overlay</option>
                 </select>
             </div>
-            <div>
-                <label for="outputDir">Directory (override)</label>
-                <input id="outputDir" type="text" placeholder="leave blank to use the mode default">
-            </div>
+            <label class="checkbox" data-help-for="useProjectDirectory">
+                <input id="useProjectDirectory" type="checkbox"> Use project directory
+            </label>
+        </div>
+        <div class="row">
+            <label for="outputDir">Directory</label>
+            <input id="outputDir" type="text" placeholder="leave blank to use the mode default">
         </div>
     </section>
 
-    <!-- ============================== Tables ================================ -->
     <section class="block">
         <h2>Tables</h2>
         <div class="row">
-            <label for="tablesInclude">Include globs (one per line)</label>
+            <label for="classNameStripPrefix">Class-name strip prefix</label>
+            <input id="classNameStripPrefix" type="text" placeholder="tbl_">
+        </div>
+        <div class="row">
+            <label for="tablesInclude">Include globs</label>
             <textarea id="tablesInclude" rows="3" placeholder="customer*&#10;order*"></textarea>
         </div>
         <div class="row">
-            <label for="tablesExclude">Exclude globs (one per line)</label>
+            <label for="tablesExclude">Exclude globs</label>
             <textarea id="tablesExclude" rows="3" placeholder="audit_*&#10;flyway_schema_history"></textarea>
+        </div>
+        <div class="row">
+            <label for="tableOverrides">Table overrides (JSON)</label>
+            <textarea id="tableOverrides" rows="8" placeholder="{&#10;  &quot;users&quot;: {&#10;    &quot;className&quot;: &quot;AccountUser&quot;,&#10;    &quot;columns&quot;: {&#10;      &quot;id&quot;: { &quot;javaType&quot;: &quot;java.util.UUID&quot; }&#10;    }&#10;  }&#10;}"></textarea>
         </div>
     </section>
 
-    <!-- ============================== Footer ================================ -->
     <footer class="footer">
         <button type="button" id="btn-revert" class="ghost">Revert</button>
         <button type="submit" id="btn-save" class="primary">Save</button>

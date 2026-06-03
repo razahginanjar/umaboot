@@ -9,13 +9,17 @@ plugins {
     id("io.spring.dependency-management") version "1.1.6"
 </#if>
 <#if isJooq>
-    id("nu.studer.jooq") version "<#if springBoot2>8.2<#else>9.0</#if>"
+    id("nu.studer.jooq") version "${jooqGradlePluginVersion}"
 </#if>
 }
 
 group = "${projectGroup}"
 version = "0.0.1-SNAPSHOT"
 
+<#if isJooq>
+extra["jooq.version"] = "${jooqVersion}"
+
+</#if>
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(${javaVersion})
@@ -33,10 +37,19 @@ val mybatisStarterVersion = "<#if springBoot2>2.3.2<#else>3.0.4</#if>"
 val mapstructVersion = "1.6.3"
 val lombokMapstructBindingVersion = "0.2.0"
 </#if>
+<#if testsEnabled && !dbIsSqlite>
+val testcontainersVersion = "1.20.4"
+</#if>
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
+<#if migrationFlyway>
+    implementation("org.flywaydb:flyway-core")
+<#if renderFlywayDatabaseModule>
+    runtimeOnly("org.flywaydb:${flywayDatabaseModule}")
+</#if>
+</#if>
 <#if loggingJson>
     implementation("net.logstash.logback:logstash-logback-encoder:7.4")
 </#if>
@@ -49,11 +62,7 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
 </#if>
 <#if openApiAnnotation>
-<#if springBoot2>
-    implementation("org.springdoc:springdoc-openapi-ui:1.7.0")
-<#else>
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
-</#if>
+    implementation("org.springdoc:${springdocOpenApiArtifactId}:${springdocOpenApiVersion}")
 </#if>
 <#if isJpa>
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -98,12 +107,13 @@ dependencies {
 </#if>
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 <#if testsEnabled && !dbIsSqlite>
-    testImplementation("org.testcontainers:junit-jupiter:1.20.4")
-    testImplementation("org.testcontainers:<#if dbIsMariadb>mariadb<#elseif dbIsMysql>mysql<#elseif dbIsSqlserver>mssqlserver<#else>postgresql</#if>:1.20.4")
+    testImplementation(platform("org.testcontainers:testcontainers-bom:${r"$"}testcontainersVersion"))
+    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:<#if dbIsMariadb>mariadb<#elseif dbIsMysql>mysql<#elseif dbIsSqlserver>mssqlserver<#else>postgresql</#if>")
 </#if>
 <#if isJooq>
     // jOOQ codegen plugin needs the JDBC driver on its classpath.
-    jooqGenerator(<#if dbIsMariadb>"org.mariadb.jdbc:mariadb-java-client:3.4.1"<#elseif dbIsMysql>"com.mysql:mysql-connector-j:8.4.0"<#elseif dbIsSqlserver>"com.microsoft.sqlserver:mssql-jdbc:12.6.4.jre11"<#elseif dbIsSqlite>"org.xerial:sqlite-jdbc:3.47.0.0"<#else>"org.postgresql:postgresql:42.7.4"</#if>)
+    jooqGenerator("${jooqCodegenDriverCoordinate}")
 </#if>
 }
 
@@ -115,7 +125,7 @@ tasks.withType<Test> {
 // jOOQ codegen reads the schema from the live DB at build time and produces
 // ${basePackage}.jooq.* classes under build/generated/jooq/main.
 jooq {
-    version.set("<#if springBoot2>3.16.23<#else>3.19.15</#if>")
+    version.set("${jooqVersion}")
     edition.set(nu.studer.gradle.jooq.JooqEdition.OSS)
     configurations {
         create("main") {

@@ -54,6 +54,11 @@
         "icon": "$(diff)"
       },
       {
+        "command": "umaboot.previewMerge",
+        "title": "Umaboot: Preview / Merge",
+        "icon": "$(diff)"
+      },
+      {
         "command": "umaboot.apply",
         "title": "Umaboot: Apply",
         "icon": "$(check)"
@@ -126,6 +131,11 @@
         {
           "command": "umaboot.diff",
           "when": "view == umaboot.dashboard && viewItem == umaboot.action.diff",
+          "group": "inline"
+        },
+        {
+          "command": "umaboot.previewMerge",
+          "when": "view == umaboot.dashboard && viewItem == umaboot.action.previewMerge",
           "group": "inline"
         },
         {

@@ -43,7 +43,8 @@ public final class UmabootSettingsConfigurable implements Configurable {
         try {
             panel.save();
         } catch (Exception ex) {
-            throw new ConfigurationException("Failed to save umaboot.yaml: " + ex.getMessage());
+            throw new ConfigurationException(
+                    UiText.format(UiText.load(project), "Failed to save umaboot.yaml: %s", ex.getMessage()));
         }
     }
 

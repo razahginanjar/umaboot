@@ -1,18 +1,16 @@
 # syntax=docker/dockerfile:1.6
 # Multi-stage Dockerfile for the generated Spring Boot project.
 <#if isGradle>
-# Build stage caches Gradle dependencies via BuildKit cache mounts. Requires
-# the Gradle wrapper to have been materialized — run `gradle wrapper` once
-# in the project root before the first `docker build`.
+# Build stage caches Gradle dependencies via BuildKit cache mounts.
+# The Gradle build image supplies Gradle, so no wrapper files are required.
 
-FROM gradle:8.11-jdk${javaVersion} AS build
+FROM gradle:${gradleVersion}-jdk${javaVersion} AS build
 WORKDIR /workspace
 COPY settings.gradle.kts build.gradle.kts ./
-COPY gradle ./gradle
-COPY gradlew ./
-RUN --mount=type=cache,target=/home/gradle/.gradle ./gradlew --no-daemon dependencies > /dev/null 2>&1 || true
+RUN --mount=type=cache,target=/home/gradle/.gradle gradle --no-daemon dependencies > /dev/null 2>&1 || true
 COPY src ./src
-RUN --mount=type=cache,target=/home/gradle/.gradle ./gradlew --no-daemon -x test bootJar
+RUN --mount=type=cache,target=/home/gradle/.gradle gradle --no-daemon compileJava
+RUN --mount=type=cache,target=/home/gradle/.gradle gradle --no-daemon -x test bootJar
 <#else>
 # Build stage caches Maven dependencies via BuildKit cache mounts.
 

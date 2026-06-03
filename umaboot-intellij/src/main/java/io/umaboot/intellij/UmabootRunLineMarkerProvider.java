@@ -12,6 +12,7 @@ import com.intellij.openapi.editor.markup.GutterIconRenderer;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
+import io.umaboot.intellij.settings.UiText;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -28,15 +29,16 @@ public final class UmabootRunLineMarkerProvider implements LineMarkerProvider {
         if (file == null) return null;
         if (!UmabootConfigLocator.isConfigFileName(file.getName())) return null;
         if (element.getTextOffset() != firstNonWhitespaceOffset(file)) return null;
+        String tooltip = UiText.text(UiText.load(file.getProject()), "Run Umaboot: Generate");
 
         return new LineMarkerInfo<>(
                 element,
                 element.getTextRange(),
                 com.intellij.icons.AllIcons.RunConfigurations.TestState.Run,
-                psi -> "Run Umaboot: Generate",
+                psi -> tooltip,
                 (e, psi) -> runGenerate(psi.getProject()),
                 GutterIconRenderer.Alignment.LEFT,
-                () -> "Run Umaboot: Generate"
+                () -> tooltip
         );
     }
 

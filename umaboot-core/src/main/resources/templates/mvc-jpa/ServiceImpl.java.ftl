@@ -21,6 +21,9 @@ import org.springframework.data.domain.Slice;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+<#if !javaSupportsStreamToList>
+import java.util.stream.Collectors;
+</#if>
 <#else>
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -84,11 +87,11 @@ public class ${entityName}ServiceImpl implements ${entityName}Service {
         String nextCursor = (hasMore && !rows.isEmpty())
                 ? encodeCursor(rows.get(rows.size() - 1).get${idField?cap_first}())
                 : null;
-        return CursorPage.of(rows.stream().map(mapper::toResponse).toList(), nextCursor, limit);
+        return CursorPage.of(rows.stream().map(mapper::toResponse)<#if javaSupportsStreamToList>.toList()<#else>.collect(Collectors.toList())</#if>, nextCursor, limit);
     }
 
     private static ${idType} decodeCursor(String cursor) {
-        if (cursor == null || cursor.isBlank()) {
+        if (cursor == null || <#if javaSupportsStringIsBlank>cursor.isBlank()<#else>cursor.trim().isEmpty()</#if>) {
             // First page — start before the smallest possible id.
 <#if idType == "Long" || idType == "long">
             return 0L;

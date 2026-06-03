@@ -74,6 +74,12 @@ public final class EntityView {
         m.put("entityName", entityName);
         m.put("entityVar", lowerFirst(entityName));
         m.put("basePackage", ctx.basePackage());
+        m.put("javaVersion", ctx.javaVersion());
+        m.put("javaMajor", ctx.javaMajor());
+        m.put("javaSupportsStringIsBlank", ctx.javaSupportsStringIsBlank());
+        m.put("javaSupportsListOf", ctx.javaSupportsListOf());
+        m.put("javaSupportsListCopyOf", ctx.javaSupportsListCopyOf());
+        m.put("javaSupportsStreamToList", ctx.javaSupportsStreamToList());
         m.put("useLombok", ctx.useLombok());
         m.put("openApiAnnotation", ctx.isOpenApiAnnotation());
         m.put("eeNamespace", ctx.eeNamespace());

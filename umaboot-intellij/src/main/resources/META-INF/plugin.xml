@@ -41,5 +41,10 @@
                 icon="io.umaboot.intellij.UmabootIcons.ACTION">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
+        <action id="Umaboot.PreviewMerge"
+                class="io.umaboot.intellij.PreviewMergeAction"
+                icon="io.umaboot.intellij.UmabootIcons.ACTION">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
     </actions>
 </idea-plugin>

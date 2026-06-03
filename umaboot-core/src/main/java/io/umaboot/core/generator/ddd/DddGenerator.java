@@ -4,6 +4,7 @@ import io.umaboot.core.generator.ArchitectureGenerator;
 import io.umaboot.core.generator.GeneratedUnit;
 import io.umaboot.core.generator.GeneratorContext;
 import io.umaboot.core.generator.jpa.EntityView;
+import io.umaboot.core.generator.migration.FlywayMigrationRenderer;
 import io.umaboot.core.generator.openapi.OpenApiEmitter;
 import io.umaboot.core.model.SchemaModel;
 import io.umaboot.core.model.TableModel;
@@ -72,6 +73,10 @@ public final class DddGenerator implements ArchitectureGenerator {
                             ? "ddd/application.properties.ftl"
                             : "ddd/application.yml.ftl",
                     pm));
+            if (ctx.isMigrationFlyway()) {
+                units.add(new GeneratedUnit(FlywayMigrationRenderer.PATH,
+                        FlywayMigrationRenderer.render(schema, ctx)));
+            }
             units.add(unit(javaSrc + "/Application.java", "ddd/Application.java.ftl", pm));
             units.add(unit(javaSrc + "/interfaces/rest/GlobalExceptionHandler.java",
                     "ddd/GlobalExceptionHandler.java.ftl", pm));
@@ -274,6 +279,11 @@ public final class DddGenerator implements ArchitectureGenerator {
         m.put("projectGroup", ctx.projectGroup());
         m.put("springBootVersion", ctx.springBootVersion());
         m.put("javaVersion", ctx.javaVersion());
+        m.put("javaMajor", ctx.javaMajor());
+        m.put("javaSupportsStringIsBlank", ctx.javaSupportsStringIsBlank());
+        m.put("javaSupportsListOf", ctx.javaSupportsListOf());
+        m.put("javaSupportsListCopyOf", ctx.javaSupportsListCopyOf());
+        m.put("javaSupportsStreamToList", ctx.javaSupportsStreamToList());
         m.put("useLombok", ctx.useLombok());
         m.put("openApiAnnotation", ctx.isOpenApiAnnotation());
         m.put("injectionStyle", ctx.injectionStyle());
@@ -310,6 +320,7 @@ public final class DddGenerator implements ArchitectureGenerator {
         m.put("ciStyle", ctx.ci().style());
         m.put("ciGithub", ctx.ci().isGithub());
         m.put("ciGitlab", ctx.ci().isGitlab());
+        m.put("gradleVersion", ctx.gradleVersion());
         m.put("loggingStyle", ctx.logging().style());
         m.put("loggingJson", ctx.logging().isJson());
         m.put("loggingPlain", ctx.logging().isPlain());
@@ -330,6 +341,8 @@ public final class DddGenerator implements ArchitectureGenerator {
         m.put("springBoot2", ctx.isSpringBoot2());
         m.put("springBoot3", ctx.isSpringBoot3());
         m.put("springBootMajor", ctx.springBootMajor());
+        m.put("springdocOpenApiArtifactId", ctx.springdocOpenApiArtifactId());
+        m.put("springdocOpenApiVersion", ctx.springdocOpenApiVersion());
         m.put("securityStyle", ctx.security().style());
         m.put("securityEnabled", ctx.isSecurityEnabled());
         m.put("securityNone", ctx.isSecurityNone());
@@ -341,6 +354,16 @@ public final class DddGenerator implements ArchitectureGenerator {
         m.put("jwtHeader", ctx.security().jwt().header());
         m.put("jwtPrefix", ctx.security().jwt().prefix());
         m.put("testsEnabled", ctx.tests().enabled());
+        m.put("migrationStyle", ctx.migrations().style());
+        m.put("migrationFlyway", ctx.isMigrationFlyway());
+        m.put("flywayDatabaseModule", ctx.flywayDatabaseModule());
+        m.put("renderFlywayDatabaseModule", ctx.renderFlywayDatabaseModule());
+        m.put("jooqVersion", ctx.jooqVersion());
+        m.put("jooqGradlePluginVersion", ctx.jooqGradlePluginVersion());
+        m.put("jooqCodegenDriverGroupId", ctx.jooqCodegenDriverGroupId());
+        m.put("jooqCodegenDriverArtifactId", ctx.jooqCodegenDriverArtifactId());
+        m.put("jooqCodegenDriverVersion", ctx.jooqCodegenDriverVersion());
+        m.put("jooqCodegenDriverCoordinate", ctx.jooqCodegenDriverCoordinate());
         m.put("schemaName", schema.schemaName());
         m.put("isJpa", ctx.isJpa());
         m.put("isMyBatis", ctx.isMyBatis());

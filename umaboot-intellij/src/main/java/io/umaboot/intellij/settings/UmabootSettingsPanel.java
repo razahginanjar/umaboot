@@ -3,6 +3,7 @@ package io.umaboot.intellij.settings;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.CheckBoxList;
 import com.intellij.ui.IdeBorderFactory;
 import com.intellij.ui.components.JBCheckBox;
@@ -22,11 +23,14 @@ import io.umaboot.core.model.SchemaModel;
 import io.umaboot.intellij.UmabootConfigLocator;
 
 import javax.swing.BorderFactory;
+import javax.swing.AbstractButton;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -57,8 +61,20 @@ import java.util.Optional;
  */
 public final class UmabootSettingsPanel {
 
+    private static final String I18N_KEY = "umaboot.i18n.key";
+    private static final String I18N_ARGS_KEY = "umaboot.i18n.args";
+    private static final String I18N_TITLE_KEY = "umaboot.i18n.titleKey";
+    private static final String I18N_TOOLTIP_KEY = "umaboot.i18n.tooltipKey";
+    private static final String I18N_HELP_KEY = "umaboot.i18n.helpKey";
+    private static final String I18N_HTML_ITALIC = "umaboot.i18n.htmlItalic";
+    private static final Dimension HELP_BUTTON_SIZE = new Dimension(22, 22);
+    private static final int COMPACT_TEXT_FIELD_COLUMNS = UiText.MAX_DISPLAY_CHARS;
+
     private final Project project;
     private final JBPanel<JBPanel<?>> root;
+    private UiText.Language uiLanguage = UiText.Language.ENGLISH;
+    private final ComboBox<UiText.Language> uiLanguageCombo =
+            new ComboBox<>(UiText.Language.values());
 
     // Connection — v0.8 redesign:
     //   * databaseTypeCombo : "postgresql" | "mysql"
@@ -93,7 +109,7 @@ public final class UmabootSettingsPanel {
     // populates the table list from a SchemaModel, and SqlFileIntrospector produces the
     // same shape, so the two flows unify cleanly.
     private final JBTextField schemaFileField = new JBTextField();
-    private final JButton schemaFileBrowseButton = new JButton("Browse…");
+    private final JButton schemaFileBrowseButton = new JButton("Browse...");
 
     // Tables
     private final JButton refreshTablesButton = new JButton("Refresh Tables");
@@ -140,6 +156,7 @@ public final class UmabootSettingsPanel {
     private final ComboBox<String> loggingStyleCombo = new ComboBox<>(new String[]{"plain", "json"});
     private final JBCheckBox correlationIdCheckbox = new JBCheckBox("Add correlation-id filter (X-Correlation-Id -> MDC)");
     private final JBCheckBox testsEnabledCheckbox = new JBCheckBox("Generate integration tests (@SpringBootTest + Testcontainers)");
+    private final ComboBox<String> migrationsStyleCombo = new ComboBox<>(new String[]{"none", "flyway"});
     private final ComboBox<String> paginationStyleCombo = new ComboBox<>(new String[]{"offset", "cursor"});
     private final ComboBox<String> securityStyleCombo = new ComboBox<>(new String[]{"none", "basic", "jwt"});
     private final ComboBox<String> outputModeCombo = new ComboBox<>(new String[]{"standalone", "overlay"});
@@ -151,10 +168,14 @@ public final class UmabootSettingsPanel {
 
     private UmabootConfig loaded;
     private boolean dirty = false;
+    private final List<java.util.function.Consumer<UiText.Language>> languageListeners = new ArrayList<>();
 
     public UmabootSettingsPanel(Project project) {
         this.project = project;
+        this.uiLanguage = UiText.load(project);
+        this.uiLanguageCombo.setSelectedItem(uiLanguage);
         this.root = build();
+        localizeStaticComponents();
         wireListeners();
         load();
         populateVersionsAsync();
@@ -162,6 +183,12 @@ public final class UmabootSettingsPanel {
 
     public JComponent getRoot() {
         return new JBScrollPane(root);
+    }
+
+    public void addLanguageChangeListener(java.util.function.Consumer<UiText.Language> listener) {
+        if (listener != null) {
+            languageListeners.add(listener);
+        }
     }
 
     // ------------------------------------------------------------ layout
@@ -175,6 +202,7 @@ public final class UmabootSettingsPanel {
         c.gridy = 0;
         c.insets = JBUI.insets(4);
 
+        p.add(buildViewGroup(), c); c.gridy++;
         p.add(buildConnectionGroup(), c); c.gridy++;
         p.add(buildTablesGroup(), c); c.gridy++;
         p.add(buildGenerationGroup(), c); c.gridy++;
@@ -184,6 +212,12 @@ public final class UmabootSettingsPanel {
         c.fill = GridBagConstraints.BOTH;
         p.add(new JBPanel<>(), c);
         return p;
+    }
+
+    private JBPanel<JBPanel<?>> buildViewGroup() {
+        JBPanel<JBPanel<?>> g = formPanel("View");
+        addRow(g, 0, "Language:", uiLanguageCombo);
+        return g;
     }
 
     private JBPanel<JBPanel<?>> buildConnectionGroup() {
@@ -219,23 +253,24 @@ public final class UmabootSettingsPanel {
 
         JBPanel<JBPanel<?>> scriptCard = new JBPanel<>(new GridBagLayout());
         JBPanel<JBPanel<?>> filePicker = new JBPanel<>(new BorderLayout(6, 0));
+        configureCompactTextField(schemaFileField);
         filePicker.add(schemaFileField, BorderLayout.CENTER);
         filePicker.add(schemaFileBrowseButton, BorderLayout.EAST);
         addRow(scriptCard, 0, "Schema file:", filePicker);
         // Helpful note inside the script card so users know what Refresh Tables
         // does in this mode.
         GridBagConstraints noteC = new GridBagConstraints();
-        noteC.gridx = 0; noteC.gridy = 1; noteC.gridwidth = 2;
+        noteC.gridx = 0; noteC.gridy = 1; noteC.gridwidth = 3;
         noteC.fill = GridBagConstraints.HORIZONTAL; noteC.weightx = 1.0;
         noteC.insets = JBUI.insets(2, 4);
-        scriptCard.add(new JBLabel("<html><i>Use Refresh Tables below to parse the file.</i></html>"), noteC);
+        scriptCard.add(localizedHtmlItalicLabel("Use Refresh Tables below to parse the file."), noteC);
 
         connectionCardContainer.add(hostCard,   "host");
         connectionCardContainer.add(urlCard,    "url");
         connectionCardContainer.add(scriptCard, "script");
 
         GridBagConstraints cardC = new GridBagConstraints();
-        cardC.gridx = 0; cardC.gridy = r++; cardC.gridwidth = 2;
+        cardC.gridx = 0; cardC.gridy = r++; cardC.gridwidth = 3;
         cardC.fill = GridBagConstraints.HORIZONTAL; cardC.weightx = 1.0;
         cardC.insets = JBUI.insets(2, 4);
         g.add(connectionCardContainer, cardC);
@@ -247,7 +282,7 @@ public final class UmabootSettingsPanel {
         addRow(credentialsPanel, 1, "Username:", usernameField);
         addRow(credentialsPanel, 2, "Password:", passwordField);
         GridBagConstraints credC = new GridBagConstraints();
-        credC.gridx = 0; credC.gridy = r++; credC.gridwidth = 2;
+        credC.gridx = 0; credC.gridy = r++; credC.gridwidth = 3;
         credC.fill = GridBagConstraints.HORIZONTAL; credC.weightx = 1.0;
         g.add(credentialsPanel, credC);
 
@@ -257,7 +292,7 @@ public final class UmabootSettingsPanel {
         testConnectionPanel.add(connectionStatusLabel, BorderLayout.CENTER);
         connectionStatusLabel.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
         GridBagConstraints btnC = new GridBagConstraints();
-        btnC.gridx = 0; btnC.gridy = r; btnC.gridwidth = 2;
+        btnC.gridx = 0; btnC.gridy = r; btnC.gridwidth = 3;
         btnC.fill = GridBagConstraints.HORIZONTAL; btnC.weightx = 1.0;
         btnC.insets = JBUI.insets(2, 4);
         g.add(testConnectionPanel, btnC);
@@ -280,15 +315,16 @@ public final class UmabootSettingsPanel {
         // generated entity / DTO / repository class name, BEFORE singularize +
         // PascalCase. Tables that don't start with the prefix are left alone.
         JBPanel<JBPanel<?>> stripRow = new JBPanel<>(new BorderLayout());
-        JBLabel stripLabel = new JBLabel("Strip prefix from class names:");
+        JBLabel stripLabel = localizedLabel("Strip prefix from class names:");
         // Padding on the label, NOT the text field — JBTextField's native border
         // gives it the visible "boxed" outline; setBorder on the field replaces it.
         stripLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 8));
         stripRow.add(stripLabel, BorderLayout.WEST);
         stripRow.add(classNameStripPrefixField, BorderLayout.CENTER);
+        stripRow.add(helpButton("Strip prefix from class names:"), BorderLayout.EAST);
 
         GridBagConstraints c = new GridBagConstraints();
-        c.gridx = 0; c.gridy = 0; c.gridwidth = 2;
+        c.gridx = 0; c.gridy = 0; c.gridwidth = 3;
         c.fill = GridBagConstraints.HORIZONTAL; c.weightx = 1.0;
         c.insets = JBUI.insets(2, 4);
         g.add(top, c);
@@ -325,6 +361,7 @@ public final class UmabootSettingsPanel {
         addRow(g, r++, "Logging:", loggingStyleCombo);
         addRow(g, r++, "", correlationIdCheckbox);
         addRow(g, r++, "", testsEnabledCheckbox);
+        addRow(g, r++, "Migrations:", migrationsStyleCombo);
         addRow(g, r++, "Pagination:", paginationStyleCombo);
         addRow(g, r++, "Security:", securityStyleCombo);
         addRow(g, r++, "OpenAPI style:", openApiStyleCombo);
@@ -337,35 +374,194 @@ public final class UmabootSettingsPanel {
 
     // ------------------------------------------------------------ helpers
 
-    private static JBPanel<JBPanel<?>> formPanel(String title) {
+    private JBPanel<JBPanel<?>> formPanel(String title) {
         JBPanel<JBPanel<?>> p = new JBPanel<>(new GridBagLayout());
-        p.setBorder(IdeBorderFactory.createTitledBorder(title, true));
+        p.putClientProperty(I18N_TITLE_KEY, title);
+        p.setBorder(IdeBorderFactory.createTitledBorder(text(title), true));
         return p;
     }
 
-    private static void addRow(JBPanel<JBPanel<?>> p, int row, String label, JComponent field) {
+    private void addRow(JBPanel<JBPanel<?>> p, int row, String label, JComponent field) {
         GridBagConstraints lc = new GridBagConstraints();
         lc.gridx = 0; lc.gridy = row; lc.fill = GridBagConstraints.HORIZONTAL;
         lc.insets = new Insets(2, 4, 2, 8);
-        p.add(new JBLabel(label), lc);
+        p.add(localizedLabel(label), lc);
 
         GridBagConstraints fc = new GridBagConstraints();
         fc.gridx = 1; fc.gridy = row; fc.weightx = 1.0;
         fc.fill = GridBagConstraints.HORIZONTAL;
         fc.insets = new Insets(2, 0, 2, 4);
         p.add(field, fc);
+
+        GridBagConstraints hc = new GridBagConstraints();
+        hc.gridx = 2; hc.gridy = row;
+        hc.fill = GridBagConstraints.NONE;
+        hc.insets = new Insets(2, 0, 2, 4);
+        p.add(helpButton(helpKey(label, field)), hc);
+    }
+
+    private static void configureCompactTextField(JBTextField field) {
+        field.setColumns(COMPACT_TEXT_FIELD_COLUMNS);
+        Dimension preferred = field.getPreferredSize();
+        field.setPreferredSize(new Dimension(preferred.width, preferred.height));
+        field.setMinimumSize(new Dimension(0, preferred.height));
+    }
+
+    private String text(String key) {
+        return UiText.text(uiLanguage, key);
+    }
+
+    private String formatText(String key, Object... args) {
+        return UiText.format(uiLanguage, key, args);
+    }
+
+    private JBLabel localizedLabel(String key) {
+        JBLabel label = new JBLabel();
+        label.putClientProperty(I18N_KEY, key);
+        applyLabelText(label, text(key), false);
+        return label;
+    }
+
+    private JBLabel localizedHtmlItalicLabel(String key) {
+        JBLabel label = new JBLabel();
+        label.putClientProperty(I18N_KEY, key);
+        label.putClientProperty(I18N_HTML_ITALIC, Boolean.TRUE);
+        applyLabelText(label, text(key), true);
+        return label;
+    }
+
+    private void setLocalizedText(JBLabel label, String key, Object... args) {
+        label.putClientProperty(I18N_KEY, key);
+        label.putClientProperty(I18N_ARGS_KEY, args == null || args.length == 0 ? null : args);
+        applyLabelText(label, formatText(key, args), false);
+    }
+
+    private void applyLabelText(JBLabel label, String fullText, boolean htmlItalic) {
+        String display = UiText.display(fullText);
+        label.setText(htmlItalic ? "<html><i>" + display + "</i></html>" : display);
+        label.setToolTipText(display.equals(fullText) ? null : fullText);
+    }
+
+    private void applyButtonText(AbstractButton button, String fullText) {
+        String display = UiText.display(fullText);
+        button.setText(display);
+        if (button.getClientProperty(I18N_TOOLTIP_KEY) == null) {
+            button.setToolTipText(display.equals(fullText) ? null : fullText);
+        }
+    }
+
+    private JButton helpButton(String key) {
+        JButton button = new JButton("?");
+        button.putClientProperty(I18N_HELP_KEY, key);
+        button.setFocusable(false);
+        button.setMargin(JBUI.insets(0, 0));
+        button.setPreferredSize(HELP_BUTTON_SIZE);
+        button.setMinimumSize(HELP_BUTTON_SIZE);
+        button.setMaximumSize(HELP_BUTTON_SIZE);
+        button.setToolTipText(UiText.help(uiLanguage, key));
+        button.addActionListener(e ->
+                Messages.showInfoMessage(project, UiText.help(uiLanguage, key), text("Help")));
+        return button;
+    }
+
+    private static String helpKey(String label, JComponent field) {
+        if (label != null && !label.isBlank()) {
+            return label;
+        }
+        if (field instanceof AbstractButton button) {
+            return button.getText();
+        }
+        return "Setting";
+    }
+
+    private void localizeStaticComponents() {
+        bindText(hostModeRadio, "Host");
+        bindText(urlModeRadio, "URL");
+        bindText(scriptModeRadio, "Script");
+        bindText(testConnectionButton, "Test Connection");
+        bindText(schemaFileBrowseButton, "Browse...");
+        bindText(refreshTablesButton, "Refresh Tables");
+        bindText(useMapStructCheckbox, "Use MapStruct (JPA only)");
+        bindText(useLombokCheckbox, "Use Lombok");
+        bindText(auditEnabledCheckbox, "Detect audit fields (created_at / updated_at / created_by / updated_by)");
+        bindText(softDeleteEnabledCheckbox, "Detect soft delete (deleted_at / is_deleted)");
+        bindText(dockerEnabledCheckbox, "Emit Dockerfile + docker-compose.yml");
+        bindText(correlationIdCheckbox, "Add correlation-id filter (X-Correlation-Id -> MDC)");
+        bindText(testsEnabledCheckbox, "Generate integration tests (@SpringBootTest + Testcontainers)");
+        bindText(useProjectDirectoryCheckbox, "Use project directory (where umaboot.yaml lives)");
+        applyUiText();
+    }
+
+    private void bindText(AbstractButton button, String key) {
+        button.putClientProperty(I18N_KEY, key);
+        applyButtonText(button, text(key));
+    }
+
+    private void bindTooltip(JComponent component, String key) {
+        component.putClientProperty(I18N_TOOLTIP_KEY, key);
+        component.setToolTipText(text(key));
+    }
+
+    private void applyUiText() {
+        applyUiText(root);
+        root.revalidate();
+        root.repaint();
+    }
+
+    private void applyUiText(Component component) {
+        if (component instanceof JComponent jc) {
+            Object key = jc.getClientProperty(I18N_KEY);
+            if (key instanceof String k) {
+                Object args = jc.getClientProperty(I18N_ARGS_KEY);
+                String translated = args instanceof Object[] a ? formatText(k, a) : text(k);
+                boolean htmlItalic = Boolean.TRUE.equals(jc.getClientProperty(I18N_HTML_ITALIC));
+                if (component instanceof JBLabel label) {
+                    applyLabelText(label, translated, htmlItalic);
+                } else if (component instanceof AbstractButton button) {
+                    applyButtonText(button, translated);
+                }
+            }
+            Object titleKey = jc.getClientProperty(I18N_TITLE_KEY);
+            if (titleKey instanceof String k) {
+                jc.setBorder(IdeBorderFactory.createTitledBorder(text(k), true));
+            }
+            Object tooltipKey = jc.getClientProperty(I18N_TOOLTIP_KEY);
+            if (tooltipKey instanceof String k) {
+                jc.setToolTipText(text(k));
+            }
+            Object helpKey = jc.getClientProperty(I18N_HELP_KEY);
+            if (helpKey instanceof String k) {
+                jc.setToolTipText(UiText.help(uiLanguage, k));
+            }
+        }
+        if (component instanceof Container container) {
+            for (Component child : container.getComponents()) {
+                applyUiText(child);
+            }
+        }
     }
 
     // ------------------------------------------------------------ listeners
 
     private void wireListeners() {
+        uiLanguageCombo.addActionListener(e -> {
+            Object selected = uiLanguageCombo.getSelectedItem();
+            if (selected instanceof UiText.Language language && language != uiLanguage) {
+                uiLanguage = language;
+                UiText.save(project, language);
+                applyUiText();
+                for (java.util.function.Consumer<UiText.Language> listener : languageListeners) {
+                    listener.accept(language);
+                }
+            }
+        });
         testConnectionButton.addActionListener(e -> testConnection());
         refreshTablesButton.addActionListener(e -> refreshTables());
         schemaFileBrowseButton.addActionListener(e -> browseForSchemaFile());
         schemaFileField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            @Override public void insertUpdate(javax.swing.event.DocumentEvent e)  { dirty = true; }
-            @Override public void removeUpdate(javax.swing.event.DocumentEvent e)  { dirty = true; }
-            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { dirty = true; }
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e)  { onSchemaFileChanged(); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e)  { onSchemaFileChanged(); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { onSchemaFileChanged(); }
         });
         // Double-click on a table row opens the TableSettingsDialog so the user
         // can pick a per-table className override and per-column Java types.
@@ -412,6 +608,7 @@ public final class UmabootSettingsPanel {
         loggingStyleCombo.addActionListener(mark);
         correlationIdCheckbox.addActionListener(mark);
         testsEnabledCheckbox.addActionListener(mark);
+        migrationsStyleCombo.addActionListener(mark);
         paginationStyleCombo.addActionListener(mark);
         securityStyleCombo.addActionListener(mark);
         springBootVersionCombo.addActionListener(mark);
@@ -455,11 +652,17 @@ public final class UmabootSettingsPanel {
         passwordField.getDocument().addDocumentListener(new SimpleDocListener(() -> dirty = true));
     }
 
+    private void onSchemaFileChanged() {
+        dirty = true;
+        String path = schemaFileField.getText().trim();
+        schemaFileField.setToolTipText(path.isEmpty() ? null : path);
+    }
+
     // ------------------------------------------------------------ Test Connection
 
     private void testConnection() {
         connectionStatusLabel.setForeground(Color.GRAY);
-        connectionStatusLabel.setText("Testing...");
+        setLocalizedText(connectionStatusLabel, "Testing...");
         testConnectionButton.setEnabled(false);
 
         // Test Connection works even when database is empty (so the user can
@@ -470,7 +673,7 @@ public final class UmabootSettingsPanel {
         try {
             url = composeUrlForTest();
         } catch (RuntimeException ex) {
-            connectionStatusLabel.setText("Invalid form: " + ex.getMessage());
+            setLocalizedText(connectionStatusLabel, "Invalid form: %s", ex.getMessage());
             connectionStatusLabel.setForeground(Color.RED);
             testConnectionButton.setEnabled(true);
             return;
@@ -479,38 +682,45 @@ public final class UmabootSettingsPanel {
         final String pass = new String(passwordField.getPassword());
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            String result;
+            String resultKey;
+            Object[] resultArgs = new Object[0];
             Color color;
             JdbcDrivers.registerAll();
             try (Connection conn = DriverManager.getConnection(url, user, pass)) {
                 if (conn.isValid(3)) {
-                    result = "Connected: " + safeMeta(conn);
+                    resultKey = "Connected: %s";
+                    resultArgs = new Object[]{safeMeta(conn)};
                     color = new Color(0x2E7D32); // green
                 } else {
-                    result = "Connection invalid";
+                    resultKey = "Connection invalid";
                     color = Color.RED;
                 }
             } catch (Throwable t) {
-                result = "Failed: " + t.getMessage();
+                resultKey = "Failed: %s";
+                resultArgs = new Object[]{t.getMessage()};
                 color = Color.RED;
             }
-            final String msg = result;
+            final String msgKey = resultKey;
+            final Object[] msgArgs = resultArgs;
             final Color c = color;
             SwingUtilities.invokeLater(() -> {
-                String finalMsg = msg;
+                String finalKey = msgKey;
+                Object[] finalArgs = msgArgs;
                 Color  finalColor = c;
                 // If the probe succeeded but the form is still missing fields that
                 // Apply / Refresh Tables need, surface that as an amber warning so
                 // the user notices BEFORE clicking the next button. The probe
                 // itself stays lenient (host/credentials only).
                 if (c.equals(new Color(0x2E7D32))) {
-                    String warning = warningForMissingApplyFields();
-                    if (warning != null) {
-                        finalMsg = msg + " — " + warning;
+                    String missing = missingApplyTarget();
+                    if (missing != null) {
+                        finalKey = "Database".equals(missing)
+                                ? "Connected: %s - database is empty; fill in before Apply / Refresh Tables"
+                                : "Connected: %s - schema is empty; fill in before Apply / Refresh Tables";
                         finalColor = new Color(0xC78A00); // amber
                     }
                 }
-                connectionStatusLabel.setText(finalMsg);
+                setLocalizedText(connectionStatusLabel, finalKey, finalArgs);
                 connectionStatusLabel.setForeground(finalColor);
                 testConnectionButton.setEnabled(true);
             });
@@ -529,7 +739,7 @@ public final class UmabootSettingsPanel {
      * rather than the (now hidden) database field, matching how the Connection
      * record's canonical-form constructor resolves it.</p>
      */
-    private String warningForMissingApplyFields() {
+    private String missingApplyTarget() {
         String type = (String) databaseTypeCombo.getSelectedItem();
         if (type == null) type = "postgresql";
 
@@ -545,8 +755,7 @@ public final class UmabootSettingsPanel {
                 : schema;
 
         if (!target.isBlank()) return null;
-        String label = ("mysql".equals(type) || "mariadb".equals(type)) ? "Database" : "Schema";
-        return label + " is empty — fill in before Apply / Refresh Tables";
+        return ("mysql".equals(type) || "mariadb".equals(type)) ? "Database" : "Schema";
     }
 
     /** Compose the URL for a Test Connection probe — lenient (database optional). */
@@ -561,7 +770,7 @@ public final class UmabootSettingsPanel {
         String database = databaseField.getText().trim();
         if (params.startsWith("?")) {
             throw new IllegalArgumentException(
-                    "Parameters field must not start with '?' — the program adds it automatically");
+                    text("Parameters field must not start with '?' - the program adds it automatically"));
         }
         String base = "jdbc:" + type + "://" + host;
         if (!database.isBlank()) base += "/" + database;
@@ -617,7 +826,7 @@ public final class UmabootSettingsPanel {
     private void browseForSchemaFile() {
         var descriptor = com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
                 .createSingleFileDescriptor("sql")
-                .withTitle("Select Schema SQL File");
+                .withTitle(text("Select Schema SQL File"));
         com.intellij.openapi.vfs.VirtualFile current = null;
         String existing = schemaFileField.getText().trim();
         if (!existing.isEmpty()) {
@@ -669,7 +878,7 @@ public final class UmabootSettingsPanel {
 
     private void refreshTables() {
         tablesStatusLabel.setForeground(Color.GRAY);
-        tablesStatusLabel.setText("Reading schema...");
+        setLocalizedText(tablesStatusLabel, "Reading schema...");
         refreshTablesButton.setEnabled(false);
 
         // Capture currently-selected tables so we preserve them across refresh
@@ -696,7 +905,7 @@ public final class UmabootSettingsPanel {
     private void refreshTablesFromScript(List<String> currentlySelected) {
         String rel = schemaFileField.getText().trim();
         if (rel.isEmpty()) {
-            tablesStatusLabel.setText("Pick a .sql file first");
+            setLocalizedText(tablesStatusLabel, "Pick a .sql file first");
             tablesStatusLabel.setForeground(Color.RED);
             refreshTablesButton.setEnabled(true);
             return;
@@ -706,7 +915,7 @@ public final class UmabootSettingsPanel {
             f = new java.io.File(project.getBasePath(), rel);
         }
         if (!f.isFile() || !f.canRead()) {
-            tablesStatusLabel.setText("Cannot read: " + f.getAbsolutePath());
+            setLocalizedText(tablesStatusLabel, "Cannot read: %s", f.getAbsolutePath());
             tablesStatusLabel.setForeground(Color.RED);
             refreshTablesButton.setEnabled(true);
             return;
@@ -716,7 +925,8 @@ public final class UmabootSettingsPanel {
         final String dialect = (String) databaseTypeCombo.getSelectedItem();
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            String status;
+            String statusKey;
+            Object[] statusArgs = new Object[0];
             Color color;
             List<String> tables = List.of();
             try {
@@ -729,14 +939,17 @@ public final class UmabootSettingsPanel {
                         .map(t -> t.name())
                         .sorted()
                         .toList();
-                status = tables.size() + " tables parsed from " + fileRef.getName();
+                statusKey = "%d tables parsed from %s";
+                statusArgs = new Object[]{tables.size(), fileRef.getName()};
                 color = new Color(0x2E7D32);
             } catch (Throwable t) {
-                status = "Parse failed: " + t.getMessage();
+                statusKey = "Parse failed: %s";
+                statusArgs = new Object[]{t.getMessage()};
                 color = Color.RED;
             }
             final List<String> tablesFinal = tables;
-            final String statusFinal = status;
+            final String statusKeyFinal = statusKey;
+            final Object[] statusArgsFinal = statusArgs;
             final Color colorFinal = color;
             SwingUtilities.invokeLater(() -> {
                 tableList.clear();
@@ -747,7 +960,7 @@ public final class UmabootSettingsPanel {
                             || loaded.generation().tables().include().isEmpty();
                     tableList.addItem(name, name, defaultInclude || wasSelected);
                 }
-                tablesStatusLabel.setText(statusFinal);
+                setLocalizedText(tablesStatusLabel, statusKeyFinal, statusArgsFinal);
                 tablesStatusLabel.setForeground(colorFinal);
                 refreshTablesButton.setEnabled(true);
                 dirty = true;
@@ -764,7 +977,7 @@ public final class UmabootSettingsPanel {
         try {
             formConn = currentFormConnection();
         } catch (RuntimeException ex) {
-            tablesStatusLabel.setText("Invalid form: " + ex.getMessage());
+            setLocalizedText(tablesStatusLabel, "Invalid form: %s", ex.getMessage());
             tablesStatusLabel.setForeground(Color.RED);
             refreshTablesButton.setEnabled(true);
             return;
@@ -777,7 +990,9 @@ public final class UmabootSettingsPanel {
         if (formConn.introspectionTarget().isBlank() && !"sqlite".equals(formConn.type())) {
             String missing = ("mysql".equals(formConn.type()) || "mariadb".equals(formConn.type()))
                     ? "Database" : "Schema";
-            tablesStatusLabel.setText("Please fill in " + missing + " before refreshing tables");
+            setLocalizedText(tablesStatusLabel, "Database".equals(missing)
+                    ? "Please fill in the database before refreshing tables"
+                    : "Please fill in the schema before refreshing tables");
             tablesStatusLabel.setForeground(Color.RED);
             refreshTablesButton.setEnabled(true);
             return;
@@ -790,7 +1005,8 @@ public final class UmabootSettingsPanel {
         final String dbType = formConn.type();
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            String status;
+            String statusKey;
+            Object[] statusArgs = new Object[0];
             Color color;
             List<String> tables = List.of();
             JdbcDrivers.registerAll();
@@ -812,14 +1028,17 @@ public final class UmabootSettingsPanel {
                         .map(t -> t.name())
                         .sorted()
                         .toList();
-                status = tables.size() + " tables found";
+                statusKey = "%d tables found";
+                statusArgs = new Object[]{tables.size()};
                 color = new Color(0x2E7D32);
             } catch (Throwable t) {
-                status = "Failed: " + t.getMessage();
+                statusKey = "Failed: %s";
+                statusArgs = new Object[]{t.getMessage()};
                 color = Color.RED;
             }
             final List<String> tablesFinal = tables;
-            final String statusFinal = status;
+            final String statusKeyFinal = statusKey;
+            final Object[] statusArgsFinal = statusArgs;
             final Color colorFinal = color;
             SwingUtilities.invokeLater(() -> {
                 tableList.clear();
@@ -831,7 +1050,7 @@ public final class UmabootSettingsPanel {
                             || loaded.generation().tables().include().isEmpty();
                     tableList.addItem(name, name, defaultInclude || wasSelected);
                 }
-                tablesStatusLabel.setText(statusFinal);
+                setLocalizedText(tablesStatusLabel, statusKeyFinal, statusArgsFinal);
                 tablesStatusLabel.setForeground(colorFinal);
                 refreshTablesButton.setEnabled(true);
                 dirty = true;
@@ -847,13 +1066,13 @@ public final class UmabootSettingsPanel {
      */
     private void openTableSettingsDialog(String tableName) {
         if (lastIntrospectedSchema == null) {
-            tablesStatusLabel.setText("Run Refresh Tables first to populate column metadata");
+            setLocalizedText(tablesStatusLabel, "Run Refresh Tables first to populate column metadata");
             tablesStatusLabel.setForeground(Color.RED);
             return;
         }
         io.umaboot.core.model.TableModel table = lastIntrospectedSchema.findTable(tableName);
         if (table == null) {
-            tablesStatusLabel.setText("Table '" + tableName + "' not in last introspection");
+            setLocalizedText(tablesStatusLabel, "Table '%s' not in last introspection", tableName);
             tablesStatusLabel.setForeground(Color.RED);
             return;
         }
@@ -883,7 +1102,7 @@ public final class UmabootSettingsPanel {
                 // and surface the error in the connection-status label so the user
                 // can see what's wrong without staring at an empty form.
                 loaded = blankConfig();
-                connectionStatusLabel.setText("Failed to read " + file.getFileName() + ": " + ex.getMessage());
+                setLocalizedText(connectionStatusLabel, "Failed to read %s: %s", file.getFileName(), ex.getMessage());
                 connectionStatusLabel.setForeground(Color.RED);
             }
         } else {
@@ -923,6 +1142,9 @@ public final class UmabootSettingsPanel {
         // Schema-file source
         String schemaFile = c.generation().schemaFile();
         schemaFileField.setText(schemaFile == null ? "" : schemaFile);
+        if (schemaFile != null && !schemaFile.isBlank() && c.generation().schemaDialect() != null) {
+            databaseTypeCombo.setSelectedItem(c.generation().schemaDialect());
+        }
         // Drive the Source radio + visibility from the loaded config:
         //   * schemaFile set → Script mode (connection block was absent in YAML)
         //   * connection.mode == url → URL mode
@@ -962,6 +1184,7 @@ public final class UmabootSettingsPanel {
         loggingStyleCombo.setSelectedItem(c.generation().logging().style());
         correlationIdCheckbox.setSelected(c.generation().logging().correlationId());
         testsEnabledCheckbox.setSelected(c.generation().tests().enabled());
+        migrationsStyleCombo.setSelectedItem(c.generation().migrations().style());
         paginationStyleCombo.setSelectedItem(c.generation().pagination().style());
         securityStyleCombo.setSelectedItem(c.generation().security().style());
         outputModeCombo.setSelectedItem(c.generation().output().mode());
@@ -984,10 +1207,11 @@ public final class UmabootSettingsPanel {
             tableList.addItem(name, name, true);
         }
         if (c.generation().tables().include().isEmpty()) {
-            tablesStatusLabel.setText("Click Refresh Tables to load from the database");
+            setLocalizedText(tablesStatusLabel, "Click Refresh Tables to load from the database");
             tablesStatusLabel.setForeground(Color.GRAY);
         } else {
-            tablesStatusLabel.setText(c.generation().tables().include().size() + " tables in include list");
+            setLocalizedText(tablesStatusLabel, "%d tables in include list",
+                    c.generation().tables().include().size());
             tablesStatusLabel.setForeground(Color.GRAY);
         }
     }
@@ -1010,6 +1234,9 @@ public final class UmabootSettingsPanel {
         var connection = scriptMode ? null : currentFormConnection();
         String effectiveSchemaFile = scriptMode
                 ? (schemaFileField.getText().trim().isEmpty() ? null : schemaFileField.getText().trim())
+                : null;
+        String effectiveSchemaDialect = scriptMode
+                ? Optional.ofNullable((String) databaseTypeCombo.getSelectedItem()).orElse("postgresql")
                 : null;
         var jpa = new UmabootConfig.JpaOptions(useMapStructCheckbox.isSelected());
         var mybatis = new UmabootConfig.MyBatisOptions(
@@ -1069,6 +1296,8 @@ public final class UmabootSettingsPanel {
                 Optional.ofNullable((String) loggingStyleCombo.getSelectedItem()).orElse("plain"),
                 correlationIdCheckbox.isSelected());
         var tests = new UmabootConfig.TestOptions(testsEnabledCheckbox.isSelected());
+        var migrations = new UmabootConfig.MigrationOptions(
+                Optional.ofNullable((String) migrationsStyleCombo.getSelectedItem()).orElse("none"));
         var pagination = new UmabootConfig.PaginationOptions(
                 Optional.ofNullable((String) paginationStyleCombo.getSelectedItem()).orElse("offset"));
 
@@ -1114,6 +1343,7 @@ public final class UmabootSettingsPanel {
                 ci,
                 logging,
                 tests,
+                migrations,
                 pagination,
                 security,
                 useProjectDirectoryCheckbox.isSelected()
@@ -1123,6 +1353,7 @@ public final class UmabootSettingsPanel {
                                 : outputDirField.getText().trim()),
                 jpa, mybatis, tables, ddd, output, applicationConfig,
                 effectiveSchemaFile,
+                effectiveSchemaDialect,
                 Optional.ofNullable((String) buildToolCombo.getSelectedItem()).orElse("maven"));
 
         return new UmabootConfig(connection, generation);
@@ -1160,6 +1391,7 @@ public final class UmabootSettingsPanel {
                 UmabootConfig.CiOptions.defaults(),
                 UmabootConfig.LoggingOptions.defaults(),
                 UmabootConfig.TestOptions.defaults(),
+                UmabootConfig.MigrationOptions.defaults(),
                 UmabootConfig.PaginationOptions.defaults(),
                 UmabootConfig.SecurityOptions.defaults(),
                 null,
@@ -1169,6 +1401,7 @@ public final class UmabootSettingsPanel {
                 UmabootConfig.DddOptions.defaults(),
                 UmabootConfig.OutputOptions.defaults(),
                 UmabootConfig.ApplicationConfigOptions.defaults(),
+                null,
                 null,
                 "maven");
         return new UmabootConfig(connection, generation);

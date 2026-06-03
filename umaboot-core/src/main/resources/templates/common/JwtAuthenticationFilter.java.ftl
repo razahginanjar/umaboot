@@ -17,6 +17,9 @@ import ${eeNamespace}.servlet.ServletException;
 import ${eeNamespace}.servlet.http.HttpServletRequest;
 import ${eeNamespace}.servlet.http.HttpServletResponse;
 import java.io.IOException;
+<#if !javaSupportsListOf>
+import java.util.Collections;
+</#if>
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -59,7 +62,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String username = claims.getSubject();
                 UserDetails user = userDetailsService.loadUserByUsername(username);
                 @SuppressWarnings("unchecked")
-                List<String> roleNames = (List<String>) claims.getOrDefault("roles", List.of());
+                List<String> roleNames = (List<String>) claims.getOrDefault("roles", <#if javaSupportsListOf>List.of()<#else>Collections.emptyList()</#if>);
                 List<SimpleGrantedAuthority> authorities = roleNames.stream()
                         .map(SimpleGrantedAuthority::new)
                         .collect(Collectors.toList());

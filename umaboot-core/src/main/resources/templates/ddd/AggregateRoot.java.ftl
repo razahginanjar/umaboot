@@ -67,7 +67,7 @@ public class ${entityName} {
 
     /** Drain the recorded events for the application service to publish. */
     public List<DomainEvent> pullDomainEvents() {
-        List<DomainEvent> drained = List.copyOf(domainEvents);
+        List<DomainEvent> drained = <#if javaSupportsListCopyOf>List.copyOf(domainEvents)<#else>new ArrayList<>(domainEvents)</#if>;
         domainEvents.clear();
         return drained;
     }

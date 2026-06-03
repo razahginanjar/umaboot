@@ -2,6 +2,7 @@ package io.umaboot.intellij.settings;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBPanel;
 import com.intellij.ui.components.JBTextField;
@@ -15,10 +16,13 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.BorderFactory;
 import javax.swing.DefaultCellEditor;
+import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
+import javax.swing.JTable;
 import javax.swing.JScrollPane;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableColumn;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
@@ -39,8 +43,12 @@ import java.util.Map;
  */
 public final class TableSettingsDialog extends DialogWrapper {
 
+    private static final Dimension HELP_BUTTON_SIZE = new Dimension(22, 22);
+
+    private final Project project;
     private final String tableName;
     private final TableModel table;
+    private final UiText.Language language;
 
     private final JBTextField classNameField = new JBTextField();
     private final ColumnTypeTableModel columnsModel;
@@ -53,8 +61,10 @@ public final class TableSettingsDialog extends DialogWrapper {
                                TableModel table,
                                UmabootConfig.TableOverride existing) {
         super(project, true /* modal */);
+        this.project = project;
         this.tableName = tableName;
         this.table = table;
+        this.language = project == null ? UiText.Language.ENGLISH : UiText.load(project);
         this.classNameField.setText(existing == null ? "" : existing.className());
 
         Map<String, String> overridesByColumn = new LinkedHashMap<>();
@@ -63,10 +73,10 @@ public final class TableSettingsDialog extends DialogWrapper {
                 overridesByColumn.put(entry.getKey(), entry.getValue().javaType());
             }
         }
-        this.columnsModel = new ColumnTypeTableModel(table, overridesByColumn);
+        this.columnsModel = new ColumnTypeTableModel(table, overridesByColumn, language);
 
-        setTitle("Customize table — " + tableName);
-        setOKButtonText("Save");
+        setTitle(t("Customize table - ") + tableName);
+        setOKButtonText(t("Save"));
         init();
     }
 
@@ -85,16 +95,20 @@ public final class TableSettingsDialog extends DialogWrapper {
         hc.fill = GridBagConstraints.HORIZONTAL;
         hc.insets = new java.awt.Insets(2, 4, 2, 8);
         hc.gridx = 0; hc.gridy = 0;
-        header.add(new JBLabel("Table:"), hc);
+        header.add(label(t("Table:")), hc);
         hc.gridx = 1; hc.weightx = 1.0;
-        header.add(new JBLabel(tableName), hc);
+        header.add(valueLabel(tableName), hc);
+        hc.gridx = 2; hc.weightx = 0;
+        header.add(helpButton("Table:"), hc);
 
         hc.gridx = 0; hc.gridy = 1; hc.weightx = 0;
-        header.add(new JBLabel("Class name (override):"), hc);
+        header.add(label(t("Class name (override):")), hc);
         hc.gridx = 1; hc.weightx = 1.0;
         classNameField.setToolTipText(
-                "Leave empty to use the default (singularize + PascalCase, with classNameStripPrefix applied).");
+                t("Leave empty to use the default (singularize + PascalCase, with classNameStripPrefix applied)."));
         header.add(classNameField, hc);
+        hc.gridx = 2; hc.weightx = 0;
+        header.add(helpButton("Class name (override):"), hc);
 
         root.add(header, c);
         c.gridy = 1;
@@ -103,6 +117,7 @@ public final class TableSettingsDialog extends DialogWrapper {
         JBTable columnsTable = new JBTable(columnsModel);
         columnsTable.setRowHeight(24);
         columnsTable.setFillsViewportHeight(true);
+        columnsTable.setDefaultRenderer(Object.class, new TruncatingCellRenderer());
         columnsTable.getColumnModel().getColumn(0).setPreferredWidth(160); // name
         columnsTable.getColumnModel().getColumn(1).setPreferredWidth(140); // db type
         columnsTable.getColumnModel().getColumn(2).setPreferredWidth(220); // java type
@@ -118,8 +133,13 @@ public final class TableSettingsDialog extends DialogWrapper {
                     javax.swing.JList<?> list, Object value, int index,
                     boolean isSelected, boolean cellHasFocus) {
                 String v = value == null ? "" : value.toString();
-                String display = v.isEmpty() ? "(default)" : displayName(v);
-                return super.getListCellRendererComponent(list, display, index, isSelected, cellHasFocus);
+                String full = v.isEmpty() ? t("(default)") : displayName(v);
+                java.awt.Component component = super.getListCellRendererComponent(
+                        list, UiText.display(full), index, isSelected, cellHasFocus);
+                if (component instanceof JComponent jc) {
+                    jc.setToolTipText(UiText.display(full).equals(full) ? null : full);
+                }
+                return component;
             }
         });
 
@@ -136,12 +156,39 @@ public final class TableSettingsDialog extends DialogWrapper {
         c.gridy = 2;
         c.fill = GridBagConstraints.HORIZONTAL;
         c.weighty = 0;
-        JBLabel hint = new JBLabel(
-                "Tip — '(default)' uses the JDBC-type mapping. Pick a Java type to override per column.");
+        JBLabel hint = valueLabel(
+                t("Tip - '(default)' uses the JDBC-type mapping. Pick a Java type to override per column."));
         hint.setBorder(BorderFactory.createEmptyBorder(4, 6, 0, 6));
         root.add(hint, c);
 
         return root;
+    }
+
+    private String t(String key) {
+        return UiText.text(language, key);
+    }
+
+    private JBLabel label(String fullText) {
+        return valueLabel(fullText);
+    }
+
+    private JBLabel valueLabel(String fullText) {
+        JBLabel label = new JBLabel(UiText.display(fullText));
+        label.setToolTipText(UiText.display(fullText).equals(fullText) ? null : fullText);
+        return label;
+    }
+
+    private JButton helpButton(String key) {
+        JButton button = new JButton("?");
+        button.setFocusable(false);
+        button.setMargin(JBUI.insets(0, 0));
+        button.setPreferredSize(HELP_BUTTON_SIZE);
+        button.setMinimumSize(HELP_BUTTON_SIZE);
+        button.setMaximumSize(HELP_BUTTON_SIZE);
+        button.setToolTipText(UiText.help(language, key));
+        button.addActionListener(e ->
+                Messages.showInfoMessage(project, UiText.help(language, key), t("Help")));
+        return button;
     }
 
     /**
@@ -180,13 +227,27 @@ public final class TableSettingsDialog extends DialogWrapper {
      * Table model: column 0 = name (read-only), column 1 = DB type (read-only),
      * column 2 = Java-type override (editable, sentinel-empty = "use default").
      */
+    private static final class TruncatingCellRenderer extends DefaultTableCellRenderer {
+        @Override
+        public java.awt.Component getTableCellRendererComponent(
+                JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            String fullText = value == null ? "" : value.toString();
+            super.getTableCellRendererComponent(table, UiText.display(fullText), isSelected, hasFocus, row, column);
+            setToolTipText(UiText.display(fullText).equals(fullText) ? null : fullText);
+            return this;
+        }
+    }
+
     private static final class ColumnTypeTableModel extends AbstractTableModel {
         private final TableModel table;
         private final String[] overrides; // indexed by column position; "" = no override
+        private final UiText.Language language;
         private static final String[] HEADERS = {"Column", "DB type", "Java type"};
 
-        ColumnTypeTableModel(TableModel table, Map<String, String> overridesByColumn) {
+        ColumnTypeTableModel(TableModel table, Map<String, String> overridesByColumn,
+                             UiText.Language language) {
             this.table = table;
+            this.language = language;
             this.overrides = new String[table.columns().size()];
             for (int i = 0; i < table.columns().size(); i++) {
                 overrides[i] = overridesByColumn.getOrDefault(table.columns().get(i).name(), "");
@@ -199,7 +260,7 @@ public final class TableSettingsDialog extends DialogWrapper {
 
         @Override public int getRowCount() { return table.columns().size(); }
         @Override public int getColumnCount() { return HEADERS.length; }
-        @Override public String getColumnName(int c) { return HEADERS[c]; }
+        @Override public String getColumnName(int c) { return UiText.text(language, HEADERS[c]); }
         @Override public boolean isCellEditable(int r, int c) { return c == 2; }
 
         @Override

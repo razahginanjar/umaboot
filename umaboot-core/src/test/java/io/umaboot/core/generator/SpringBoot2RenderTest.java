@@ -61,7 +61,7 @@ class SpringBoot2RenderTest {
                 .contains("<java.version>11</java.version>")
                 // Legacy springdoc artifact for SB2
                 .contains("<artifactId>springdoc-openapi-ui</artifactId>")
-                .contains("<version>1.7.0</version>")
+                .contains("<version>1.8.0</version>")
                 // Must NOT use the SB3 artifact
                 .doesNotContain("springdoc-openapi-starter-webmvc-ui");
     }
