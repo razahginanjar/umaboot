@@ -145,7 +145,5 @@ command is not on your `PATH`.
 ## More Documentation
 
 - [USAGE.md](USAGE.md): installation, configuration, and usage guide
-- [CI.md](CI.md): generated CI behavior
-- [INTEGRATION_TESTING.md](INTEGRATION_TESTING.md): integration-test notes
 - [umaboot-intellij/README.md](umaboot-intellij/README.md): IntelliJ plugin details
 - [umaboot-vscode/README.md](umaboot-vscode/README.md): VS Code extension details
