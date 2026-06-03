@@ -11,7 +11,7 @@ To build and run Umaboot itself:
 
 - JDK 17+
 - Maven 3.9+
-- Gradle, only for building the IntelliJ plugin
+- Gradle, only for building the IntelliJ plugin (testing in gradle 9.5.1)
 - Node.js and npm, only for building the VS Code extension
 - Docker, only if you use generated Testcontainers tests or the sample database fixture
 
