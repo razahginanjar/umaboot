@@ -17,7 +17,7 @@ public class ${entityName}PersistenceMapper {
     public ${entityName}PersistenceModel toPersistence(${entityName} aggregate) {
         if (aggregate == null) return null;
         ${entityName}PersistenceModel pm = new ${entityName}PersistenceModel();
-<#list fields as f>
+<#list persistenceFields as f>
         pm.set${f.fieldName?cap_first}(aggregate.get${f.fieldName?cap_first}());
 </#list>
         return pm;

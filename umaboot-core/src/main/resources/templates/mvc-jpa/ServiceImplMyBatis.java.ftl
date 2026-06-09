@@ -2,6 +2,9 @@ package ${basePackage}.service.impl;
 
 import ${basePackage}.dto.${entityName}RequestDTO;
 import ${basePackage}.dto.${entityName}ResponseDTO;
+<#if manualAudit>
+import ${basePackage}.common.AuditProvider;
+</#if>
 import ${basePackage}.entity.${entityName};
 import ${basePackage}.exception.${entityName}NotFoundException;
 import ${basePackage}.mapper.${entityName}DtoMapper;
@@ -37,21 +40,37 @@ public class ${entityName}ServiceImpl implements ${entityName}Service {
 
     @Autowired
     private ${entityName}DtoMapper dtoMapper;
+<#if manualAudit>
+
+    @Autowired
+    private AuditProvider auditProvider;
+</#if>
 <#else>
     private final ${entityName}Mapper sqlMapper;
     private final ${entityName}DtoMapper dtoMapper;
+<#if manualAudit>
+    private final AuditProvider auditProvider;
+</#if>
 </#if>
 
 <#if injectConstructor>
-    public ${entityName}ServiceImpl(${entityName}Mapper sqlMapper, ${entityName}DtoMapper dtoMapper) {
+    public ${entityName}ServiceImpl(${entityName}Mapper sqlMapper,
+                                    ${entityName}DtoMapper dtoMapper<#if manualAudit>,
+                                    AuditProvider auditProvider</#if>) {
         this.sqlMapper = sqlMapper;
         this.dtoMapper = dtoMapper;
+<#if manualAudit>
+        this.auditProvider = auditProvider;
+</#if>
     }
 
 </#if>
     @Override
     public ${entityName}ResponseDTO create(${entityName}RequestDTO request) {
         ${entityName} entity = dtoMapper.toEntity(request);
+<#if manualAudit>
+        markCreated(entity);
+</#if>
         sqlMapper.insert(entity);
         return dtoMapper.toResponse(entity);
     }
@@ -80,6 +99,9 @@ public class ${entityName}ServiceImpl implements ${entityName}Service {
         ${entityName} existing = sqlMapper.findById(id);
         if (existing == null) throw new ${entityName}NotFoundException(id);
         dtoMapper.updateEntity(existing, request);
+<#if manualAuditOnUpdate>
+        markUpdated(existing);
+</#if>
         sqlMapper.update(existing);
         return dtoMapper.toResponse(existing);
     }
@@ -89,4 +111,20 @@ public class ${entityName}ServiceImpl implements ${entityName}Service {
         int rows = sqlMapper.deleteById(id);
         if (rows == 0) throw new ${entityName}NotFoundException(id);
     }
+<#if manualAudit>
+
+    private void markCreated(${entityName} entity) {
+<#list auditCreateFields as f>
+        entity.set${f.fieldName?cap_first}(${f.auditValueExpression});
+</#list>
+    }
+</#if>
+<#if manualAuditOnUpdate>
+
+    private void markUpdated(${entityName} entity) {
+<#list auditUpdateFields as f>
+        entity.set${f.fieldName?cap_first}(${f.auditValueExpression});
+</#list>
+    }
+</#if>
 }

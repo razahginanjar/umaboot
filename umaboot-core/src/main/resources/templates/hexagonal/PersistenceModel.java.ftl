@@ -23,14 +23,14 @@ import lombok.NoArgsConstructor;
 </#if>
 public class ${entityName}PersistenceModel {
 
-<#list fields as f>
+<#list persistenceFields as f>
     private ${f.javaType} ${f.fieldName};
 </#list>
 <#if !useLombok>
 
     public ${entityName}PersistenceModel() {}
 
-<#list fields as f>
+<#list persistenceFields as f>
     public ${f.javaType} get${f.fieldName?cap_first}() { return ${f.fieldName}; }
     public void set${f.fieldName?cap_first}(${f.javaType} ${f.fieldName}) { this.${f.fieldName} = ${f.fieldName}; }
 </#list>

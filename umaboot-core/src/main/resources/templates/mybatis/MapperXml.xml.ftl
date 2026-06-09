@@ -4,7 +4,7 @@
 <mapper namespace="${basePackage}.mapper.${entityName}Mapper">
 
     <resultMap id="${entityName}ResultMap" type="${basePackage}.entity.${entityName}">
-<#list fields as f>
+<#list entityFields as f>
         <#if f.primaryKey>
         <id property="${f.fieldName}" column="${f.columnName}"/>
         <#else>
@@ -14,22 +14,22 @@
     </resultMap>
 
     <sql id="columns">
-<#list fields as f>${f.columnName}<#sep>, </#sep></#list>
+<#list entityFields as f>${f.columnName}<#sep>, </#sep></#list>
     </sql>
 
     <insert id="insert" parameterType="${basePackage}.entity.${entityName}"
             useGeneratedKeys="true" keyProperty="${idField}">
         INSERT INTO ${table.name}
-        (<#list fields as f><#if !f.primaryKey || !f.autoIncrement>${f.columnName}<#sep>, </#sep></#if></#list>)
+        (<#list insertFields as f>${f.columnName}<#sep>, </#sep></#list>)
         VALUES
-        (<#list fields as f><#if !f.primaryKey || !f.autoIncrement>${'#'}{${f.fieldName}}<#sep>, </#sep></#if></#list>)
+        (<#list insertFields as f>${'#'}{${f.fieldName}}<#sep>, </#sep></#list>)
     </insert>
 
     <update id="update" parameterType="${basePackage}.entity.${entityName}">
         UPDATE ${table.name}
         SET
-<#list fields as f><#if !f.primaryKey>            ${f.columnName} = ${'#'}{${f.fieldName}}<#sep>,
-</#sep></#if></#list>
+<#list sqlUpdateFields as f>            ${f.columnName} = ${'#'}{${f.fieldName}}<#sep>,
+</#sep></#list>
 
         WHERE ${idColumn} = ${'#'}{${idField}}
     </update>

@@ -21,6 +21,9 @@
 
     <properties>
         <java.version>${javaVersion}</java.version>
+<#if useLombok && lombokVersion?? && lombokVersion?has_content>
+        <lombok.version>${lombokVersion}</lombok.version>
+</#if>
 <#if isMyBatis>
         <mybatis.starter.version><#if springBoot2>2.3.2<#else>3.0.4</#if></mybatis.starter.version>
 </#if>
@@ -56,7 +59,7 @@
         <dependency>
             <groupId>net.logstash.logback</groupId>
             <artifactId>logstash-logback-encoder</artifactId>
-            <version>7.4</version>
+            <version>${logstashLogbackEncoderVersion}</version>
         </dependency>
 </#if>
         <dependency>
@@ -171,6 +174,9 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
+<#if lombokVersion?? && lombokVersion?has_content>
+            <version>${r"${lombok.version}"}</version>
+</#if>
             <optional>true</optional>
         </dependency>
 </#if>

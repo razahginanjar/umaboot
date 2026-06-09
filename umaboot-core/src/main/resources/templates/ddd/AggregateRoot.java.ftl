@@ -26,7 +26,7 @@ import lombok.Getter;
 </#if>
 public class ${entityName} {
 
-<#list fields as f>
+<#list domainFields as f>
     private ${f.javaType} ${f.fieldName};
 </#list>
 
@@ -41,29 +41,45 @@ public class ${entityName} {
      * because the aggregate isn't being created — it's being rehydrated from
      * a row that already exists.
      */
-    public ${entityName}(<#list fields as f>${f.javaType} ${f.fieldName}<#sep>, </#sep></#list>) {
-<#list fields as f>
+    public ${entityName}(<#list domainFields as f>${f.javaType} ${f.fieldName}<#sep>, </#sep></#list>) {
+<#list domainFields as f>
         this.${f.fieldName} = ${f.fieldName};
 </#list>
     }
 
     /** Factory: create a brand-new aggregate. Records a {@code ${entityName}CreatedEvent}. */
-    public static ${entityName} create(<#list fields as f><#if !f.primaryKey>${f.javaType} ${f.fieldName}<#sep>, </#sep></#if></#list>) {
+    public static ${entityName} create(<#list requestFields as f>${f.javaType} ${f.fieldName}<#sep>, </#sep></#list>) {
         ${entityName} aggregate = new ${entityName}();
-<#list fields as f><#if !f.primaryKey>
+<#list requestFields as f>
         aggregate.${f.fieldName} = ${f.fieldName};
-</#if></#list>
+</#list>
         aggregate.recordEvent(new ${entityName}CreatedEvent(aggregate.${idField}));
         return aggregate;
     }
 
     /** Domain method: applies an update and records {@code ${entityName}UpdatedEvent}. */
-    public void updateFrom(<#list fields as f><#if !f.primaryKey>${f.javaType} ${f.fieldName}<#sep>, </#sep></#if></#list>) {
-<#list fields as f><#if !f.primaryKey>
+    public void updateFrom(<#list requestUpdateFields as f>${f.javaType} ${f.fieldName}<#sep>, </#sep></#list>) {
+<#list requestUpdateFields as f>
         this.${f.fieldName} = ${f.fieldName};
-</#if></#list>
+</#list>
         recordEvent(new ${entityName}UpdatedEvent(this.${idField}));
     }
+<#if manualAudit>
+
+    public void markCreated(<#list auditCreateFields as f>${f.javaType} ${f.fieldName}<#sep>, </#sep></#list>) {
+<#list auditCreateFields as f>
+        this.${f.fieldName} = ${f.fieldName};
+</#list>
+    }
+</#if>
+<#if manualAuditOnUpdate>
+
+    public void markUpdated(<#list auditUpdateFields as f>${f.javaType} ${f.fieldName}<#sep>, </#sep></#list>) {
+<#list auditUpdateFields as f>
+        this.${f.fieldName} = ${f.fieldName};
+</#list>
+    }
+</#if>
 
     /** Drain the recorded events for the application service to publish. */
     public List<DomainEvent> pullDomainEvents() {
@@ -77,7 +93,7 @@ public class ${entityName} {
     }
 
 <#if !useLombok>
-<#list fields as f>
+<#list domainFields as f>
     public ${f.javaType} get${f.fieldName?cap_first}() { return ${f.fieldName}; }
 </#list>
 </#if>

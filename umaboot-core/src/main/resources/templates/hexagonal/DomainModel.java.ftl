@@ -22,7 +22,7 @@ import lombok.NoArgsConstructor;
 </#if>
 public class ${entityName} {
 
-<#list fields as f>
+<#list domainFields as f>
     private ${f.javaType} ${f.fieldName};
 </#list>
 <#list relationships as r>
@@ -42,7 +42,7 @@ public class ${entityName} {
 
     public ${entityName}() {}
 
-<#list fields as f>
+<#list domainFields as f>
     public ${f.javaType} get${f.fieldName?cap_first}() { return ${f.fieldName}; }
     public void set${f.fieldName?cap_first}(${f.javaType} ${f.fieldName}) { this.${f.fieldName} = ${f.fieldName}; }
 </#list>

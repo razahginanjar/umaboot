@@ -5,6 +5,7 @@ import ${basePackage}.dto.${entityName}ResponseDTO;
 import ${basePackage}.entity.${entityName};
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 
@@ -16,10 +17,16 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
 @Mapper(componentModel = "spring")
 public interface ${entityName}DtoMapper {
 
+<#list auditFields as f>
+    @Mapping(target = "${f.fieldName}", ignore = true)
+</#list>
     ${entityName} toEntity(${entityName}RequestDTO dto);
 
     ${entityName}ResponseDTO toResponse(${entityName} entity);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+<#list auditFields as f>
+    @Mapping(target = "${f.fieldName}", ignore = true)
+</#list>
     void updateEntity(@MappingTarget ${entityName} entity, ${entityName}RequestDTO dto);
 }

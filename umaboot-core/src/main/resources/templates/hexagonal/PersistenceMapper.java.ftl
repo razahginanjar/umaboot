@@ -10,7 +10,7 @@ public class ${entityName}PersistenceMapper {
     public ${entityName}JpaEntity toJpa(${entityName} domain) {
         if (domain == null) return null;
         ${entityName}JpaEntity jpa = new ${entityName}JpaEntity();
-<#list fields as f>
+<#list domainFields as f>
         jpa.set${f.fieldName?cap_first}(domain.get${f.fieldName?cap_first}());
 </#list>
         return jpa;
@@ -19,7 +19,7 @@ public class ${entityName}PersistenceMapper {
     public ${entityName} toDomain(${entityName}JpaEntity jpa) {
         if (jpa == null) return null;
         ${entityName} domain = new ${entityName}();
-<#list fields as f>
+<#list domainFields as f>
         domain.set${f.fieldName?cap_first}(jpa.get${f.fieldName?cap_first}());
 </#list>
         return domain;

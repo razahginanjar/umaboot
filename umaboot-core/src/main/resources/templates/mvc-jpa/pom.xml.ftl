@@ -21,6 +21,9 @@
 
     <properties>
         <java.version>${javaVersion}</java.version>
+<#if useLombok && lombokVersion?? && lombokVersion?has_content>
+        <lombok.version>${lombokVersion}</lombok.version>
+</#if>
 <#if useMapStruct>
         <mapstruct.version>1.6.3</mapstruct.version>
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
@@ -60,7 +63,7 @@
         <dependency>
             <groupId>net.logstash.logback</groupId>
             <artifactId>logstash-logback-encoder</artifactId>
-            <version>7.4</version>
+            <version>${logstashLogbackEncoderVersion}</version>
         </dependency>
 </#if>
         <dependency>
@@ -172,6 +175,9 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
+<#if lombokVersion?? && lombokVersion?has_content>
+            <version>${r"${lombok.version}"}</version>
+</#if>
             <optional>true</optional>
         </dependency>
 </#if>
@@ -232,6 +238,9 @@
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
+        <#if lombokVersion?? && lombokVersion?has_content>
+                            <version>${r"${lombok.version}"}</version>
+        </#if>
                         </path>
                         <path>
                             <groupId>org.projectlombok</groupId>

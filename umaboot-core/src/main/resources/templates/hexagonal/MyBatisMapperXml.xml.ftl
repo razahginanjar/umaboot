@@ -5,7 +5,7 @@
 
     <resultMap id="${entityName}ResultMap"
                type="${basePackage}.adapter.out.persistence.${entityName}PersistenceModel">
-<#list fields as f>
+<#list persistenceFields as f>
         <#if f.primaryKey>
         <id property="${f.fieldName}" column="${f.columnName}"/>
         <#else>
@@ -15,22 +15,22 @@
     </resultMap>
 
     <sql id="columns">
-<#list fields as f>${f.columnName}<#sep>, </#sep></#list>
+<#list persistenceFields as f>${f.columnName}<#sep>, </#sep></#list>
     </sql>
 
     <insert id="insert" parameterType="${basePackage}.adapter.out.persistence.${entityName}PersistenceModel"
             useGeneratedKeys="true" keyProperty="${idField}">
         INSERT INTO ${table.name}
-        (<#list fields as f><#if !f.primaryKey || !f.autoIncrement>${f.columnName}<#sep>, </#sep></#if></#list>)
+        (<#list insertFields as f>${f.columnName}<#sep>, </#sep></#list>)
         VALUES
-        (<#list fields as f><#if !f.primaryKey || !f.autoIncrement>${'#'}{${f.fieldName}}<#sep>, </#sep></#if></#list>)
+        (<#list insertFields as f>${'#'}{${f.fieldName}}<#sep>, </#sep></#list>)
     </insert>
 
     <update id="update" parameterType="${basePackage}.adapter.out.persistence.${entityName}PersistenceModel">
         UPDATE ${table.name}
         SET
-<#list fields as f><#if !f.primaryKey>            ${f.columnName} = ${'#'}{${f.fieldName}}<#sep>,
-</#sep></#if></#list>
+<#list sqlUpdateFields as f>            ${f.columnName} = ${'#'}{${f.fieldName}}<#sep>,
+</#sep></#list>
 
         WHERE ${idColumn} = ${'#'}{${idField}}
     </update>

@@ -14,25 +14,25 @@ public class ${entityName}WebMapper {
     public Create${entityName}Command toCreateCommand(Create${entityName}Request request) {
         if (request == null) return null;
         return new Create${entityName}Command(
-<#list fields as f><#if !f.primaryKey || !f.autoIncrement>
+<#list requestFields as f>
                 request.get${f.fieldName?cap_first}()<#sep>,</#sep>
-</#if></#list>
+</#list>
         );
     }
 
     public Update${entityName}Command toUpdateCommand(Update${entityName}Request request) {
         if (request == null) return null;
         return new Update${entityName}Command(
-<#list fields as f><#if !f.primaryKey>
+<#list requestUpdateFields as f>
                 request.get${f.fieldName?cap_first}()<#sep>,</#sep>
-</#if></#list>
+</#list>
         );
     }
 
     public ${entityName}Response toResponse(${entityName} aggregate) {
         if (aggregate == null) return null;
         ${entityName}Response response = new ${entityName}Response();
-<#list fields as f>
+<#list responseFields as f>
         response.set${f.fieldName?cap_first}(aggregate.get${f.fieldName?cap_first}());
 </#list>
         return response;

@@ -2,12 +2,12 @@ package ${basePackage};
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-<#if anyAuditable>
+<#if isJpa && anyAuditable>
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 </#if>
 
 @SpringBootApplication
-<#if anyAuditable>
+<#if isJpa && anyAuditable>
 @EnableJpaAuditing<#if anyHasAuditUser>(auditorAwareRef = "auditorAware")</#if>
 </#if>
 public class Application {

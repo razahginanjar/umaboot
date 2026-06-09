@@ -12,8 +12,7 @@ import lombok.Data;
 
 <#if dtoRecord>
 public record ${entityName}RequestDTO(
-<#list fields as f>
-    <#if !f.primaryKey || !f.autoIncrement>
+<#list requestFields as f>
         <#if validationJakarta && !f.nullable>
             <#if f.javaType == "String">
         @NotBlank
@@ -25,7 +24,6 @@ public record ${entityName}RequestDTO(
             </#if>
         </#if>
         ${f.javaType} ${f.fieldName}<#if f?has_next>,</#if>
-    </#if>
 </#list>
 ) {
 }
@@ -35,8 +33,7 @@ public record ${entityName}RequestDTO(
 </#if>
 public class ${entityName}RequestDTO {
 
-<#list fields as f>
-    <#if !f.primaryKey || !f.autoIncrement>
+<#list requestFields as f>
         <#if validationJakarta && !f.nullable>
             <#if f.javaType == "String">
     @NotBlank
@@ -49,14 +46,11 @@ public class ${entityName}RequestDTO {
         </#if>
     private ${f.javaType} ${f.fieldName};
 
-    </#if>
 </#list>
 <#if !useLombok>
-<#list fields as f>
-    <#if !f.primaryKey || !f.autoIncrement>
+<#list requestFields as f>
     public ${f.javaType} get${f.fieldName?cap_first}() { return ${f.fieldName}; }
     public void set${f.fieldName?cap_first}(${f.javaType} ${f.fieldName}) { this.${f.fieldName} = ${f.fieldName}; }
-    </#if>
 </#list>
 </#if>
 }

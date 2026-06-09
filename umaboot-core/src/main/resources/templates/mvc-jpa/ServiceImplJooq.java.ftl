@@ -2,6 +2,9 @@ package ${basePackage}.service.impl;
 
 import ${basePackage}.dto.${entityName}RequestDTO;
 import ${basePackage}.dto.${entityName}ResponseDTO;
+<#if manualAudit>
+import ${basePackage}.common.AuditProvider;
+</#if>
 import ${basePackage}.entity.${entityName};
 import ${basePackage}.exception.${entityName}NotFoundException;
 import ${basePackage}.mapper.${entityName}DtoMapper;
@@ -37,21 +40,37 @@ public class ${entityName}ServiceImpl implements ${entityName}Service {
 
     @Autowired
     private ${entityName}DtoMapper mapper;
+<#if manualAudit>
+
+    @Autowired
+    private AuditProvider auditProvider;
+</#if>
 <#else>
     private final ${entityName}Repository repository;
     private final ${entityName}DtoMapper mapper;
+<#if manualAudit>
+    private final AuditProvider auditProvider;
+</#if>
 </#if>
 
 <#if injectConstructor>
-    public ${entityName}ServiceImpl(${entityName}Repository repository, ${entityName}DtoMapper mapper) {
+    public ${entityName}ServiceImpl(${entityName}Repository repository,
+                                    ${entityName}DtoMapper mapper<#if manualAudit>,
+                                    AuditProvider auditProvider</#if>) {
         this.repository = repository;
         this.mapper = mapper;
+<#if manualAudit>
+        this.auditProvider = auditProvider;
+</#if>
     }
 
 </#if>
     @Override
     public ${entityName}ResponseDTO create(${entityName}RequestDTO request) {
         ${entityName} entity = mapper.toEntity(request);
+<#if manualAudit>
+        markCreated(entity);
+</#if>
         ${entityName} saved = repository.save(entity);
         return mapper.toResponse(saved);
     }
@@ -80,6 +99,9 @@ public class ${entityName}ServiceImpl implements ${entityName}Service {
         ${entityName} existing = repository.findById(id)
                 .orElseThrow(() -> new ${entityName}NotFoundException(id));
         mapper.updateEntity(existing, request);
+<#if manualAuditOnUpdate>
+        markUpdated(existing);
+</#if>
         ${entityName} saved = repository.save(existing);
         return mapper.toResponse(saved);
     }
@@ -91,4 +113,20 @@ public class ${entityName}ServiceImpl implements ${entityName}Service {
         }
         repository.deleteById(id);
     }
+<#if manualAudit>
+
+    private void markCreated(${entityName} entity) {
+<#list auditCreateFields as f>
+        entity.set${f.fieldName?cap_first}(${f.auditValueExpression});
+</#list>
+    }
+</#if>
+<#if manualAuditOnUpdate>
+
+    private void markUpdated(${entityName} entity) {
+<#list auditUpdateFields as f>
+        entity.set${f.fieldName?cap_first}(${f.auditValueExpression});
+</#list>
+    }
+</#if>
 }

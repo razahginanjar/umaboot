@@ -17,7 +17,7 @@ public class ${entityName}JpaMapper {
     public ${entityName}JpaEntity toJpa(${entityName} aggregate) {
         if (aggregate == null) return null;
         ${entityName}JpaEntity jpa = new ${entityName}JpaEntity();
-<#list fields as f>
+<#list domainFields as f>
         jpa.set${f.fieldName?cap_first}(aggregate.get${f.fieldName?cap_first}());
 </#list>
         return jpa;
@@ -42,7 +42,7 @@ public class ${entityName}JpaMapper {
             for (java.lang.reflect.Field f : ${entityName}.class.getDeclaredFields()) {
                 if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
                 if (f.getName().equals("domainEvents")) continue;
-                java.lang.reflect.Field jpaField = ${entityName}JpaEntity.class.getDeclaredField(f.getName());
+                java.lang.reflect.Field jpaField = findField(${entityName}JpaEntity.class, f.getName());
                 jpaField.setAccessible(true);
                 f.setAccessible(true);
                 f.set(aggregate, jpaField.get(jpa));
@@ -50,5 +50,18 @@ public class ${entityName}JpaMapper {
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("Failed to rehydrate ${entityName} from JpaEntity", e);
         }
+    }
+
+    private static java.lang.reflect.Field findField(Class<?> type, String name)
+            throws NoSuchFieldException {
+        Class<?> current = type;
+        while (current != null) {
+            try {
+                return current.getDeclaredField(name);
+            } catch (NoSuchFieldException ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        throw new NoSuchFieldException(name);
     }
 }

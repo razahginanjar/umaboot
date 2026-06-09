@@ -1,6 +1,9 @@
 package ${basePackage}.application.service;
 
 import ${basePackage}.application.usecase.${entityName}UseCase;
+<#if manualAudit>
+import ${basePackage}.common.AuditProvider;
+</#if>
 import ${basePackage}.domain.exception.${entityName}NotFoundException;
 import ${basePackage}.domain.model.${entityName};
 import ${basePackage}.domain.port.${entityName}Repository;
@@ -26,18 +29,33 @@ public class ${entityName}ApplicationService implements ${entityName}UseCase {
 <#if injectAutowired>
     @Autowired
     private ${entityName}Repository repository;
+<#if manualAudit>
+
+    @Autowired
+    private AuditProvider auditProvider;
+</#if>
 <#else>
     private final ${entityName}Repository repository;
+<#if manualAudit>
+    private final AuditProvider auditProvider;
+</#if>
 </#if>
 
 <#if injectConstructor>
-    public ${entityName}ApplicationService(${entityName}Repository repository) {
+    public ${entityName}ApplicationService(${entityName}Repository repository<#if manualAudit>,
+                                           AuditProvider auditProvider</#if>) {
         this.repository = repository;
+<#if manualAudit>
+        this.auditProvider = auditProvider;
+</#if>
     }
 
 </#if>
     @Override
     public ${entityName} create(${entityName} command) {
+<#if manualAudit>
+        markCreated(command);
+</#if>
         return repository.save(command);
     }
 
@@ -48,11 +66,12 @@ public class ${entityName}ApplicationService implements ${entityName}UseCase {
         // Domain-level merge: copy mutable fields from command onto existing.
         // Replace this with proper domain methods (e.g. existing.rename(command.getName()))
         // as the model grows.
-<#list fields as f>
-    <#if !f.primaryKey>
+<#list requestUpdateFields as f>
         existing.set${f.fieldName?cap_first}(command.get${f.fieldName?cap_first}());
-    </#if>
 </#list>
+<#if manualAuditOnUpdate>
+        markUpdated(existing);
+</#if>
         return repository.save(existing);
     }
 
@@ -79,4 +98,20 @@ public class ${entityName}ApplicationService implements ${entityName}UseCase {
         if (!repository.existsById(id)) throw new ${entityName}NotFoundException(id);
         repository.deleteById(id);
     }
+<#if manualAudit>
+
+    private void markCreated(${entityName} entity) {
+<#list auditCreateFields as f>
+        entity.set${f.fieldName?cap_first}(${f.auditValueExpression});
+</#list>
+    }
+</#if>
+<#if manualAuditOnUpdate>
+
+    private void markUpdated(${entityName} entity) {
+<#list auditUpdateFields as f>
+        entity.set${f.fieldName?cap_first}(${f.auditValueExpression});
+</#list>
+    }
+</#if>
 }

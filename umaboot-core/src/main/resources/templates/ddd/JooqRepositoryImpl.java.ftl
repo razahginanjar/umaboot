@@ -100,7 +100,7 @@ public class ${entityName}RepositoryImpl implements ${entityName}Repository {
      */
     private ${entityName} toAggregate(Record record) {
         return new ${entityName}(
-<#list fields as f>
+<#list domainFields as f>
                 record.get(${table.name?upper_case}.${f.columnName?upper_case})<#if f_has_next>,</#if>
 </#list>
         );

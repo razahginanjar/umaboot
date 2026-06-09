@@ -10,25 +10,25 @@ import ${imp};
  */
 <#if springBoot3>
 public record Create${entityName}Command(
-<#list fields as f><#if !f.primaryKey || !f.autoIncrement>
+<#list requestFields as f>
         ${f.javaType} ${f.fieldName}<#sep>,</#sep>
-</#if></#list>
+</#list>
 ) {}
 <#else>
 public final class Create${entityName}Command {
 
-<#list fields as f><#if !f.primaryKey || !f.autoIncrement>
+<#list requestFields as f>
     private final ${f.javaType} ${f.fieldName};
-</#if></#list>
+</#list>
 
-    public Create${entityName}Command(<#list fields as f><#if !f.primaryKey || !f.autoIncrement>${f.javaType} ${f.fieldName}<#sep>, </#sep></#if></#list>) {
-<#list fields as f><#if !f.primaryKey || !f.autoIncrement>
+    public Create${entityName}Command(<#list requestFields as f>${f.javaType} ${f.fieldName}<#sep>, </#sep></#list>) {
+<#list requestFields as f>
         this.${f.fieldName} = ${f.fieldName};
-</#if></#list>
+</#list>
     }
 
-<#list fields as f><#if !f.primaryKey || !f.autoIncrement>
+<#list requestFields as f>
     public ${f.javaType} get${f.fieldName?cap_first}() { return ${f.fieldName}; }
-</#if></#list>
+</#list>
 }
 </#if>

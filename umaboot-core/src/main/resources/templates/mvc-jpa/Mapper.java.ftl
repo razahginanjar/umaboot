@@ -18,10 +18,8 @@ public class ${entityName}DtoMapper {
     public ${entityName} toEntity(${entityName}RequestDTO dto) {
         if (dto == null) return null;
         ${entityName} entity = new ${entityName}();
-<#list fields as f>
-    <#if !f.primaryKey || !f.autoIncrement>
+<#list requestFields as f>
         entity.set${f.fieldName?cap_first}(dto.get${f.fieldName?cap_first}());
-    </#if>
 </#list>
         return entity;
     }
@@ -29,7 +27,7 @@ public class ${entityName}DtoMapper {
     public ${entityName}ResponseDTO toResponse(${entityName} entity) {
         if (entity == null) return null;
         ${entityName}ResponseDTO dto = new ${entityName}ResponseDTO();
-<#list fields as f>
+<#list responseFields as f>
         dto.set${f.fieldName?cap_first}(entity.get${f.fieldName?cap_first}());
 </#list>
         return dto;
@@ -37,10 +35,8 @@ public class ${entityName}DtoMapper {
 
     public void updateEntity(${entityName} entity, ${entityName}RequestDTO dto) {
         if (entity == null || dto == null) return;
-<#list fields as f>
-    <#if !f.primaryKey>
+<#list requestUpdateFields as f>
         entity.set${f.fieldName?cap_first}(dto.get${f.fieldName?cap_first}());
-    </#if>
 </#list>
     }
 }

@@ -2,6 +2,9 @@ package ${basePackage}.application.${aggregatePackage};
 
 import ${basePackage}.application.${aggregatePackage}.command.Create${entityName}Command;
 import ${basePackage}.application.${aggregatePackage}.command.Update${entityName}Command;
+<#if manualAudit>
+import ${basePackage}.common.AuditProvider;
+</#if>
 import ${basePackage}.domain.${aggregatePackage}.${entityName};
 import ${basePackage}.domain.${aggregatePackage}.${entityName}NotFoundException;
 import ${basePackage}.domain.${aggregatePackage}.${entityName}Repository;
@@ -32,21 +35,36 @@ public class ${entityName}ApplicationService {
 
     @Autowired
     private ApplicationEventPublisher events;
+<#if manualAudit>
+
+    @Autowired
+    private AuditProvider auditProvider;
+</#if>
 <#else>
     private final ${entityName}Repository repository;
     private final ApplicationEventPublisher events;
+<#if manualAudit>
+    private final AuditProvider auditProvider;
+</#if>
 </#if>
 
 <#if injectConstructor>
     public ${entityName}ApplicationService(${entityName}Repository repository,
-                                           ApplicationEventPublisher events) {
+                                           ApplicationEventPublisher events<#if manualAudit>,
+                                           AuditProvider auditProvider</#if>) {
         this.repository = repository;
         this.events = events;
+<#if manualAudit>
+        this.auditProvider = auditProvider;
+</#if>
     }
 
 </#if>
     public ${entityName} create(Create${entityName}Command command) {
-        ${entityName} aggregate = ${entityName}.create(<#list fields as f><#if !f.primaryKey><#if springBoot3>command.${f.fieldName}()<#else>command.get${f.fieldName?cap_first}()</#if><#sep>, </#sep></#if></#list>);
+        ${entityName} aggregate = ${entityName}.create(<#list requestFields as f><#if springBoot3>command.${f.fieldName}()<#else>command.get${f.fieldName?cap_first}()</#if><#sep>, </#sep></#list>);
+<#if manualAudit>
+        aggregate.markCreated(<#list auditCreateFields as f>${f.auditValueExpression}<#sep>, </#sep></#list>);
+</#if>
         ${entityName} saved = repository.save(aggregate);
         publish(saved.pullDomainEvents());
         return saved;
@@ -55,7 +73,10 @@ public class ${entityName}ApplicationService {
     public ${entityName} update(${idType} id, Update${entityName}Command command) {
         ${entityName} aggregate = repository.findById(id)
                 .orElseThrow(() -> new ${entityName}NotFoundException(id));
-        aggregate.updateFrom(<#list fields as f><#if !f.primaryKey><#if springBoot3>command.${f.fieldName}()<#else>command.get${f.fieldName?cap_first}()</#if><#sep>, </#sep></#if></#list>);
+        aggregate.updateFrom(<#list requestUpdateFields as f><#if springBoot3>command.${f.fieldName}()<#else>command.get${f.fieldName?cap_first}()</#if><#sep>, </#sep></#list>);
+<#if manualAuditOnUpdate>
+        aggregate.markUpdated(<#list auditUpdateFields as f>${f.auditValueExpression}<#sep>, </#sep></#list>);
+</#if>
         ${entityName} saved = repository.save(aggregate);
         publish(saved.pullDomainEvents());
         return saved;

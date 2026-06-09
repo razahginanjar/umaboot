@@ -10,7 +10,7 @@ public class ${entityName}PersistenceMapper {
     public ${entityName}PersistenceModel toPersistence(${entityName} domain) {
         if (domain == null) return null;
         ${entityName}PersistenceModel pm = new ${entityName}PersistenceModel();
-<#list fields as f>
+<#list persistenceFields as f>
         pm.set${f.fieldName?cap_first}(domain.get${f.fieldName?cap_first}());
 </#list>
         return pm;
@@ -19,7 +19,7 @@ public class ${entityName}PersistenceMapper {
     public ${entityName} toDomain(${entityName}PersistenceModel pm) {
         if (pm == null) return null;
         ${entityName} domain = new ${entityName}();
-<#list fields as f>
+<#list persistenceFields as f>
         domain.set${f.fieldName?cap_first}(pm.get${f.fieldName?cap_first}());
 </#list>
         return domain;

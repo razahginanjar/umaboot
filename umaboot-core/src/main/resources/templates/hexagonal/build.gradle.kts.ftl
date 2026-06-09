@@ -47,7 +47,7 @@ dependencies {
 </#if>
 </#if>
 <#if loggingJson>
-    implementation("net.logstash.logback:logstash-logback-encoder:7.4")
+    implementation("net.logstash.logback:logstash-logback-encoder:${logstashLogbackEncoderVersion}")
 </#if>
 <#if securityEnabled>
     implementation("org.springframework.boot:spring-boot-starter-security")
@@ -87,8 +87,8 @@ dependencies {
     implementation("org.hibernate.orm:hibernate-community-dialects")
 </#if>
 <#if useLombok>
-    compileOnly("org.projectlombok:lombok")
-    annotationProcessor("org.projectlombok:lombok")
+    compileOnly("org.projectlombok:lombok<#if lombokVersion?? && lombokVersion?has_content>:${lombokVersion}</#if>")
+    annotationProcessor("org.projectlombok:lombok<#if lombokVersion?? && lombokVersion?has_content>:${lombokVersion}</#if>")
 </#if>
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 <#if testsEnabled && !dbIsSqlite>

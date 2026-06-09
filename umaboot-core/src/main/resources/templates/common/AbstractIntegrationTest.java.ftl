@@ -26,12 +26,12 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p>SQLite runs in-process — no Docker, no Testcontainers. We point Spring at
  * {@code jdbc:sqlite::memory:} via {@code @DynamicPropertySource}.<#if migrationFlyway>
  * Flyway applies the generated migration before Hibernate validates the schema.</#if><#if !migrationFlyway>
- * Hibernate uses {@code create-drop} so each test class gets a fresh schema
- * derived from the generated entities.</#if></p>
+ * Spring SQL init applies the generated test schema before JPA validates it.</#if></p>
 <#else>
  * <p>Spins up a single shared {@code @Container} for the whole test JVM (the
  * {@code static} field) and binds Spring's {@code spring.datasource.*} properties
- * to it via {@code @DynamicPropertySource}. Subclass this and add {@code @Test}
+ * to it via {@code @DynamicPropertySource}.<#if !migrationFlyway> The container
+ * loads {@code schema.sql} before Spring starts.</#if> Subclass this and add {@code @Test}
  * methods — the container starts once and is reused across tests.</p>
  *
  * <p>Requires Docker to be running locally.</p>
@@ -43,20 +43,14 @@ import org.springframework.test.context.DynamicPropertySource;
 public abstract class AbstractIntegrationTest {
 
 <#if dbIsSqlite>
-    // SQLite is embedded — each Spring application context gets its own
-    // in-memory DB. Hibernate's create-drop builds the schema from the
-    // generated entity metamodel on context startup.
+    // SQLite is embedded; no Testcontainer is needed.
     @DynamicPropertySource
     static void registerDatasource(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url",      () -> "jdbc:sqlite::memory:");
         registry.add("spring.datasource.username", () -> "");
         registry.add("spring.datasource.password", () -> "");
         registry.add("spring.datasource.driver-class-name", () -> "org.sqlite.JDBC");
-<#if migrationFlyway>
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
-<#else>
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
-</#if>
+        registerSchemaMode(registry);
         registry.add("spring.jpa.properties.hibernate.dialect",
                 () -> "org.hibernate.community.dialect.SQLiteDialect");
     }
@@ -66,13 +60,15 @@ public abstract class AbstractIntegrationTest {
     static final MariaDBContainer<?> DB = new MariaDBContainer<>("mariadb:11")
             .withDatabaseName("test")
             .withUsername("test")
-            .withPassword("test");
+            .withPassword("test")<#if !migrationFlyway>
+            .withInitScript("schema.sql")</#if>;
 
     @DynamicPropertySource
     static void registerDatasource(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", DB::getJdbcUrl);
         registry.add("spring.datasource.username", DB::getUsername);
         registry.add("spring.datasource.password", DB::getPassword);
+        registerSchemaMode(registry);
     }
 <#elseif dbIsMysql>
     @Container
@@ -80,13 +76,15 @@ public abstract class AbstractIntegrationTest {
     static final MySQLContainer<?> DB = new MySQLContainer<>("mysql:8.0")
             .withDatabaseName("test")
             .withUsername("test")
-            .withPassword("test");
+            .withPassword("test")<#if !migrationFlyway>
+            .withInitScript("schema.sql")</#if>;
 
     @DynamicPropertySource
     static void registerDatasource(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", DB::getJdbcUrl);
         registry.add("spring.datasource.username", DB::getUsername);
         registry.add("spring.datasource.password", DB::getPassword);
+        registerSchemaMode(registry);
     }
 <#elseif dbIsSqlserver>
     // SQL Server's Testcontainers image requires explicit license acceptance.
@@ -96,13 +94,15 @@ public abstract class AbstractIntegrationTest {
     @Container
     @SuppressWarnings("resource")
     static final MSSQLServerContainer<?> DB = new MSSQLServerContainer<>("mcr.microsoft.com/mssql/server:2022-latest")
-            .acceptLicense();
+            .acceptLicense()<#if !migrationFlyway>
+            .withInitScript("schema.sql")</#if>;
 
     @DynamicPropertySource
     static void registerDatasource(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", DB::getJdbcUrl);
         registry.add("spring.datasource.username", DB::getUsername);
         registry.add("spring.datasource.password", DB::getPassword);
+        registerSchemaMode(registry);
     }
 <#else>
     @Container
@@ -110,13 +110,25 @@ public abstract class AbstractIntegrationTest {
     static final PostgreSQLContainer<?> DB = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("test")
             .withUsername("test")
-            .withPassword("test");
+            .withPassword("test")<#if !migrationFlyway>
+            .withInitScript("schema.sql")</#if>;
 
     @DynamicPropertySource
     static void registerDatasource(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", DB::getJdbcUrl);
         registry.add("spring.datasource.username", DB::getUsername);
         registry.add("spring.datasource.password", DB::getPassword);
+        registerSchemaMode(registry);
     }
 </#if>
+
+    private static void registerSchemaMode(DynamicPropertyRegistry registry) {
+<#if isJpa>
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
+</#if>
+<#if dbIsSqlite && !migrationFlyway>
+        registry.add("spring.sql.init.mode", () -> "always");
+        registry.add("spring.sql.init.schema-locations", () -> "classpath:schema.sql");
+</#if>
+    }
 }

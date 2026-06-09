@@ -9,7 +9,7 @@ import lombok.Data;
 
 <#if dtoRecord>
 public record ${entityName}Response(
-<#list fields as f>
+<#list responseFields as f>
     ${f.javaType} ${f.fieldName}<#if f?has_next>,</#if>
 </#list>
 ) {
@@ -20,12 +20,12 @@ public record ${entityName}Response(
 </#if>
 public class ${entityName}Response {
 
-<#list fields as f>
+<#list responseFields as f>
     private ${f.javaType} ${f.fieldName};
 </#list>
 <#if !useLombok>
 
-<#list fields as f>
+<#list responseFields as f>
     public ${f.javaType} get${f.fieldName?cap_first}() { return ${f.fieldName}; }
     public void set${f.fieldName?cap_first}(${f.javaType} ${f.fieldName}) { this.${f.fieldName} = ${f.fieldName}; }
 </#list>
