@@ -10,18 +10,18 @@ public interface ${entityName}Mapper {
 
     @Insert({
         "INSERT INTO ${table.name} (",
-<#list fields as f><#if !f.primaryKey || !f.autoIncrement>        "${f.columnName}<#sep>,</#sep>",
-</#if></#list>        ") VALUES (",
-<#list fields as f><#if !f.primaryKey || !f.autoIncrement>        "${'#'}{${f.fieldName}}<#sep>,</#sep>",
-</#if></#list>        ")"
+<#list insertFields as f>        "${f.columnName}<#sep>,</#sep>",
+</#list>        ") VALUES (",
+<#list insertFields as f>        "${'#'}{${f.fieldName}}<#sep>,</#sep>",
+</#list>        ")"
     })
     @Options(useGeneratedKeys = true, keyProperty = "${idField}")
     int insert(${entityName} record);
 
     @Update({
         "UPDATE ${table.name} SET",
-<#list fields as f><#if !f.primaryKey>        "${f.columnName} = ${'#'}{${f.fieldName}}<#sep>,</#sep>",
-</#if></#list>        "WHERE ${idColumn} = ${'#'}{${idField}}"
+<#list sqlUpdateFields as f>        "${f.columnName} = ${'#'}{${f.fieldName}}<#sep>,</#sep>",
+</#list>        "WHERE ${idColumn} = ${'#'}{${idField}}"
     })
     int update(${entityName} record);
 
@@ -30,7 +30,7 @@ public interface ${entityName}Mapper {
 
     @Select("SELECT * FROM ${table.name} WHERE ${idColumn} = #{id}")
     @Results(id = "${entityName}Result", value = {
-<#list fields as f>
+<#list entityFields as f>
         @Result(property = "${f.fieldName}", column = "${f.columnName}"<#if f.primaryKey>, id = true</#if>)<#sep>,</#sep>
 </#list>
     })
