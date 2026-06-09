@@ -223,11 +223,13 @@ generation:
   #
   #   standalone  - emits a complete project (pom.xml, Application.java, application.yml).
   #                 Default outputDir = ./generated. Use this for greenfield projects.
+  #                 If output already looks like a different project, Generate warns by default.
   #
-  #   overlay     - emits ONLY the per-table source files. Skips pom.xml,
-  #                 Application.java, application.yml, GlobalExceptionHandler.
-  #                 Default outputDir = .   Use this to drop generated code into
-  #                 an existing Spring Boot project without overwriting your build files.
+  #   overlay     - emits generated source/support files for an existing project.
+  #                 Skips project-owned files such as pom.xml, Application.java,
+  #                 application.yml, and GlobalExceptionHandler. Default outputDir = .
+  #                 Generate writes new files and skips modified existing files;
+  #                 use Preview / Merge to accept changed existing files.
   # Format of the generated application config file.
   #
   #   yaml       - emit src/main/resources/application.yml (default).
@@ -243,6 +245,13 @@ generation:
   # project root and you haven't set this explicitly.
   output:
     mode: standalone
+    # Existing-output policy for standalone mode:
+    #   warn      - default; warn/confirm before writing into a project-looking output dir.
+    #   overwrite - overwrite generated file paths but do not delete stale files.
+    #   clean     - delete output contents before generation; refused for protected roots
+    #               containing .git or umaboot.yaml.
+    #   fail      - fail if output already looks like a project.
+    existingPolicy: warn
   # outputDir: ./generated   # leave unset to use the mode's default
   #                          # set to "." to land files in the same directory as
   #                          # umaboot.yaml (i.e. the project root). The IntelliJ

@@ -4,13 +4,17 @@ plugins {
 }
 
 group = "io.umaboot"
-version = "0.7.0-SNAPSHOT"
+version = "0.7.1-SNAPSHOT"
 
 java {
     toolchain {
         // IntelliJ Platform 2024.2+ requires Java 21
         languageVersion.set(JavaLanguageVersion.of(21))
     }
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.encoding = "UTF-8"
 }
 
 repositories {

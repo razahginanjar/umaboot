@@ -30,8 +30,11 @@ import java.util.Objects;
  */
 public final class FixtureLoader {
 
-    /** Original kitchen-sink Postgres schema used by GenerateIntegrationTest. */
+    /** Kitchen-sink schemas for broad script-mode parser/generation coverage. */
     public static final String POSTGRES_SAMPLE = "/fixtures/postgres/sample-schema.sql";
+    public static final String MYSQL_SAMPLE = "/fixtures/mysql/sample-schema.sql";
+    public static final String MARIADB_SAMPLE = "/fixtures/mariadb/sample-schema.sql";
+    public static final String SQLITE_SAMPLE = "/fixtures/sqlite/sample-schema.sql";
 
     // ----- Postgres per-condition fixtures -----
     public static final String POSTGRES_BASIC_CRUD         = "/fixtures/postgres/01-basic-crud.sql";
@@ -59,6 +62,7 @@ public final class FixtureLoader {
 
     /** All Postgres per-condition scripts in numeric order. */
     public static final List<String> POSTGRES_SCENARIOS = List.of(
+            POSTGRES_SAMPLE,
             POSTGRES_BASIC_CRUD,
             POSTGRES_RELATIONSHIPS,
             POSTGRES_AUDIT_COLUMNS,
@@ -73,6 +77,7 @@ public final class FixtureLoader {
 
     /** All MySQL per-condition scripts in numeric order. */
     public static final List<String> MYSQL_SCENARIOS = List.of(
+            MYSQL_SAMPLE,
             MYSQL_BASIC_CRUD,
             MYSQL_RELATIONSHIPS,
             MYSQL_AUDIT_COLUMNS,
@@ -83,6 +88,16 @@ public final class FixtureLoader {
             MYSQL_CONSTRAINTS,
             MYSQL_COMMENTS,
             MYSQL_NAMING_EDGE_CASES
+    );
+
+    /** All MariaDB scripts in numeric order. */
+    public static final List<String> MARIADB_SCENARIOS = List.of(
+            MARIADB_SAMPLE
+    );
+
+    /** All SQLite scripts in numeric order. */
+    public static final List<String> SQLITE_SCENARIOS = List.of(
+            SQLITE_SAMPLE
     );
 
     private FixtureLoader() {}

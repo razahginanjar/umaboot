@@ -8,10 +8,19 @@ import io.umaboot.core.config.UmabootConfig;
 import io.umaboot.core.config.UmabootConfigLoader;
 import io.umaboot.core.generator.GeneratedUnit;
 import io.umaboot.core.generator.GeneratorContext;
+import io.umaboot.core.overlay.OverlayPlan;
+import io.umaboot.core.overlay.OverlayPlanner;
+import io.umaboot.core.standalone.StandaloneOutputSafety;
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Runs the generation pipeline against the workspace's umaboot.yaml.
@@ -19,20 +28,58 @@ import java.util.List;
 final class UmabootRunner {
 
     record Result(int fileCount, Path outputDir, String architecture, String persistence,
-                  String mode, boolean autoOverlay, List<String> warnings) {}
+                  String mode, boolean autoOverlay, List<String> warnings,
+                  int overlayModifiedCount, int overlayUnchangedCount,
+                  List<String> overlayModifiedFiles, List<String> overlayRequirements) {}
 
     record Plan(List<GeneratedUnit> units, Path outputDir, String architecture, String persistence,
-                String mode, boolean autoOverlay, GeneratorContext ctx, List<String> warnings) {}
+                String mode, String existingPolicy, boolean autoOverlay,
+                GeneratorContext ctx, List<String> warnings) {}
 
     Result run(Path configFile) throws Exception {
+        return run(configFile, null);
+    }
+
+    Result run(Path configFile, String existingPolicyOverride) throws Exception {
         Plan plan = prepare(configFile);
 
         ArchitectureRenderer renderer = ArchitectureRenderers.forContext(plan.ctx());
-        renderer.render(plan.units(), plan.outputDir());
 
         if (plan.ctx().overlay()) {
+            OverlayPlan overlayPlan = new OverlayPlanner().plan(plan.units(), plan.outputDir(), plan.ctx());
+            if (overlayPlan.hasNewFiles()) {
+                renderer.render(overlayPlan.newUnits(), plan.outputDir());
+            }
             ApplicationConfigMerger.merge(plan.outputDir(), plan.ctx());
+
+            return new Result(
+                    overlayPlan.newCount(),
+                    plan.outputDir(),
+                    plan.architecture(),
+                    plan.persistence(),
+                    plan.mode(),
+                    plan.autoOverlay(),
+                    plan.warnings(),
+                    overlayPlan.modifiedCount(),
+                    overlayPlan.unchangedCount(),
+                    overlayPlan.diff().modified(),
+                    overlayPlan.requirements());
         }
+
+        String existingPolicy = existingPolicyOverride == null
+                ? plan.existingPolicy()
+                : new UmabootConfig.OutputOptions("standalone", existingPolicyOverride).existingPolicy();
+        StandaloneOutputSafety.Plan standalonePlan =
+                StandaloneOutputSafety.inspect(plan.outputDir(), existingPolicy);
+        if (standalonePlan.shouldBlock()) {
+            throw new IllegalStateException("Standalone output already looks like an existing project at "
+                    + standalonePlan.outputDir() + " (markers: " + standalonePlan.markerSummary() + ")");
+        }
+        if (standalonePlan.shouldClean()) {
+            StandaloneOutputSafety.clean(standalonePlan);
+        }
+        renderer.render(plan.units(), plan.outputDir());
+        StandaloneOutputSafety.writeMarker(plan.outputDir());
 
         return new Result(
                 plan.units().size(),
@@ -41,7 +88,26 @@ final class UmabootRunner {
                 plan.persistence(),
                 plan.mode(),
                 plan.autoOverlay(),
-                plan.warnings());
+                plan.warnings(),
+                0,
+                0,
+                List.of(),
+                List.of());
+    }
+
+    StandaloneOutputSafety.Plan inspectStandaloneOutput(Path configFile) throws Exception {
+        if (!Files.exists(configFile)) {
+            throw new IllegalArgumentException("Config not found: " + configFile);
+        }
+        UmabootConfig config = UmabootConfigLoader.load(configFile);
+        if (shouldAutoOverlay(config, configFile)) {
+            config = withOverlay(config);
+        }
+        if (!config.generation().output().isStandalone()) {
+            return null;
+        }
+        Path output = resolveOutputDir(config, configFile);
+        return StandaloneOutputSafety.inspect(output, config.generation().output().existingPolicy());
     }
 
     Plan prepare(Path configFile) throws Exception {
@@ -50,11 +116,8 @@ final class UmabootRunner {
         }
         UmabootConfig config = UmabootConfigLoader.load(configFile);
 
-        Path projectRoot = configFile.getParent();
         boolean autoOverlay = false;
-        if (config.generation().output().isStandalone()
-                && projectRoot != null
-                && Files.exists(projectRoot.resolve("pom.xml"))) {
+        if (shouldAutoOverlay(config, configFile)) {
             config = withOverlay(config);
             autoOverlay = true;
         }
@@ -68,9 +131,18 @@ final class UmabootRunner {
                 result.ctx().architecture(),
                 result.ctx().persistence(),
                 result.ctx().overlay() ? "overlay" : "standalone",
+                config.generation().output().existingPolicy(),
                 autoOverlay,
                 result.ctx(),
                 result.warnings());
+    }
+
+    private static boolean shouldAutoOverlay(UmabootConfig config, Path configFile) {
+        Path projectRoot = configFile.getParent();
+        return config.generation().output().isStandalone()
+                && !hasExplicitOutputMode(configFile)
+                && projectRoot != null
+                && Files.exists(projectRoot.resolve("pom.xml"));
     }
 
     private static UmabootConfig withOverlay(UmabootConfig config) {
@@ -85,6 +157,7 @@ final class UmabootRunner {
                 gen.springBootVersion(),
                 gen.javaVersion(),
                 gen.useLombok(),
+                gen.lombokVersion(),
                 gen.openapi(),
                 gen.injection(),
                 gen.validation(),
@@ -110,6 +183,28 @@ final class UmabootRunner {
                 gen.schemaDialect(),
                 gen.buildTool());
         return new UmabootConfig(config.connection(), newGen);
+    }
+
+    private static boolean hasExplicitOutputMode(Path configFile) {
+        Yaml yaml = new Yaml(new SafeConstructor(new LoaderOptions()));
+        try (var reader = Files.newBufferedReader(configFile, StandardCharsets.UTF_8)) {
+            Object loaded = yaml.load(reader);
+            if (!(loaded instanceof Map<?, ?> root)) {
+                return false;
+            }
+            Object generationValue = root.get("generation");
+            if (!(generationValue instanceof Map<?, ?> generation)) {
+                return false;
+            }
+            Object outputValue = generation.get("output");
+            if (!(outputValue instanceof Map<?, ?> output)) {
+                return false;
+            }
+            Object mode = output.get("mode");
+            return mode != null && !mode.toString().isBlank();
+        } catch (java.io.IOException e) {
+            throw new UncheckedIOException("Failed to read " + configFile, e);
+        }
     }
 
     private static Path resolveOutputDir(UmabootConfig config, Path configFile) {

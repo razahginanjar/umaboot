@@ -62,7 +62,7 @@ public final class ApplyCommand implements Callable<Integer> {
         try {
             UmabootConfig config = UmabootConfigLoader.load(configFile);
             GenerationPipeline.Result r = GenerationPipeline.run(config, templatesDir);
-            CliWarningPrinter.printParserWarnings(r.warnings());
+            CliWarningPrinter.printSchemaWarnings(r.warnings());
             Path output = outputOverride != null
                     ? outputOverride.toAbsolutePath().normalize()
                     : OutputDirResolver.resolve(config, configFile);

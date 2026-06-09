@@ -157,6 +157,7 @@ public final class OpenApiEmitter {
         // required fields
         StringBuilder required = new StringBuilder();
         for (ColumnModel c : cols) {
+            if (isAuditColumn(c)) continue;
             if (!c.nullable() && !(c.primaryKey() && c.autoIncrement())) {
                 if (required.length() > 0) required.append(", ");
                 required.append(Naming.toCamelCase(c.name()));
@@ -167,6 +168,7 @@ public final class OpenApiEmitter {
         }
         sb.append("      properties:\n");
         for (ColumnModel c : cols) {
+            if (isAuditColumn(c)) continue;
             if (c.primaryKey() && c.autoIncrement()) continue;
             emitProperty(sb, c);
         }
@@ -175,6 +177,14 @@ public final class OpenApiEmitter {
         sb.append("      type: object\n");
         sb.append("      properties:\n");
         for (ColumnModel c : cols) emitProperty(sb, c);
+    }
+
+    private boolean isAuditColumn(ColumnModel c) {
+        if (!ctx.audit().enabled()) return false;
+        return c.name().equalsIgnoreCase(ctx.audit().createdAt())
+                || c.name().equalsIgnoreCase(ctx.audit().updatedAt())
+                || c.name().equalsIgnoreCase(ctx.audit().createdBy())
+                || c.name().equalsIgnoreCase(ctx.audit().updatedBy());
     }
 
     private void emitProperty(StringBuilder sb, ColumnModel c) {

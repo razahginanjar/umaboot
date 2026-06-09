@@ -27,6 +27,9 @@ class UmabootConfigLoaderTest {
                   projectName: shop-api
                   useLombok: true
                   outputDir: ./out
+                  output:
+                    mode: standalone
+                    existingPolicy: overwrite
                 """);
 
         UmabootConfig config = UmabootConfigLoader.load(yaml);
@@ -36,6 +39,70 @@ class UmabootConfigLoaderTest {
         assertThat(config.generation().basePackage()).isEqualTo("com.example.shop");
         assertThat(config.generation().projectName()).isEqualTo("shop-api");
         assertThat(config.generation().useLombok()).isTrue();
+        assertThat(config.generation().output().existingPolicy()).isEqualTo("overwrite");
+    }
+
+    @Test
+    void lombokVersion_isOnlyKeptWhenSpringBootIsBelow35AndLombokEnabled(@TempDir Path tmp) throws Exception {
+        Path boot27 = tmp.resolve("boot27.yaml");
+        Files.writeString(boot27, """
+                schemaFile: schema.sql
+                generation:
+                  basePackage: com.example.app
+                  projectName: app
+                  springBootVersion: 2.7.18
+                  javaVersion: 8
+                  useLombok: true
+                  exception:
+                    style: envelope
+                """);
+        UmabootConfig legacy = UmabootConfigLoader.load(boot27);
+        assertThat(legacy.generation().lombokVersion()).isEqualTo("1.18.30");
+
+        Path rewritten = tmp.resolve("rewritten.yaml");
+        UmabootYamlIO.save(rewritten, legacy);
+        assertThat(Files.readString(rewritten)).contains("lombokVersion: 1.18.30");
+
+        Path explicit = tmp.resolve("explicit.yaml");
+        Files.writeString(explicit, """
+                schemaFile: schema.sql
+                generation:
+                  basePackage: com.example.app
+                  projectName: app
+                  springBootVersion: 3.4.7
+                  javaVersion: 17
+                  useLombok: true
+                  lombokVersion: 1.18.46
+                """);
+        assertThat(UmabootConfigLoader.load(explicit).generation().lombokVersion()).isEqualTo("1.18.46");
+
+        Path boot35 = tmp.resolve("boot35.yaml");
+        Files.writeString(boot35, """
+                schemaFile: schema.sql
+                generation:
+                  basePackage: com.example.app
+                  projectName: app
+                  springBootVersion: 3.5.0
+                  javaVersion: 17
+                  useLombok: true
+                  lombokVersion: 1.18.46
+                """);
+        assertThat(UmabootConfigLoader.load(boot35).generation().lombokVersion()).isNull();
+
+        Path noLombok = tmp.resolve("no-lombok.yaml");
+        Files.writeString(noLombok, """
+                schemaFile: schema.sql
+                generation:
+                  basePackage: com.example.app
+                  projectName: app
+                  springBootVersion: 2.7.18
+                  javaVersion: 8
+                  useLombok: false
+                  lombokVersion: 1.18.46
+                  exception:
+                    style: envelope
+                """);
+        assertThat(UmabootConfigLoader.load(noLombok).generation().lombokVersion()).isNull();
     }
 
     @Test

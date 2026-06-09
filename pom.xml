@@ -57,6 +57,11 @@
         <jacoco.version>0.8.12</jacoco.version>
         <shade.version>3.6.0</shade.version>
         <compiler.version>3.13.0</compiler.version>
+
+
+        <!--  internal version      -->
+        <umaboot.core.version>0.1.0-SNAPSHOT</umaboot.core.version>
+        <umaboot.test.fixtures.version>0.1.0-SNAPSHOT</umaboot.test.fixtures.version>
     </properties>
 
     <dependencyManagement>
@@ -65,12 +70,12 @@
             <dependency>
                 <groupId>io.umaboot</groupId>
                 <artifactId>umaboot-core</artifactId>
-                <version>${project.version}</version>
+                <version>${umaboot.core.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.umaboot</groupId>
                 <artifactId>umaboot-test-fixtures</artifactId>
-                <version>${project.version}</version>
+                <version>${umaboot.test.fixtures.version}</version>
                 <scope>test</scope>
             </dependency>
 

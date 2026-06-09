@@ -383,8 +383,18 @@ Standalone mode creates a full project:
 generation:
   output:
     mode: standalone
+    existingPolicy: warn
   outputDir: ./generated
 ```
+
+Standalone `existingPolicy` controls what happens when the output directory
+already looks like a project:
+
+- `warn`: default; CLI stops, IDEs ask before continuing.
+- `overwrite`: overwrite generated file paths without deleting stale files.
+- `clean`: delete output contents before generation; refused for protected roots
+  containing `.git` or `umaboot.yaml`.
+- `fail`: stop if the output already looks like a project.
 
 Overlay mode writes generated source files into an existing project:
 
@@ -396,7 +406,10 @@ generation:
 ```
 
 Overlay mode is intended for projects that already have their own build file,
-application class, and application config.
+application class, and application config. In overlay mode, `generate` writes
+new generated files, skips unchanged files, and does not overwrite modified
+existing files. Use Preview / Merge in the IDE plugins, or `diff --unified`, to
+review modified files before accepting them.
 
 ## Re-running Safely
 

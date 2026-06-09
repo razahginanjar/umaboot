@@ -28,8 +28,9 @@ import java.util.TreeSet;
  * <ul>
  *   <li><b>Audit fields</b> — when {@code audit.enabled} and the table has any of the
  *       configured audit columns ({@code created_at, updated_at, created_by, updated_by}),
- *       those columns are filtered out of {@code fields} (they live on the {@code Auditable}
- *       superclass) and the model exposes:
+ *       those columns are filtered out of request fields, exposed in response fields, and
+ *       either live on the JPA {@code Auditable} superclass or are handled by generated
+ *       non-JPA audit code. The model exposes:
  *       <ul>
  *         <li>{@code auditable=true}</li>
  *         <li>{@code hasCreatedAt, hasUpdatedAt, hasCreatedBy, hasUpdatedBy} booleans</li>
@@ -104,27 +105,33 @@ public final class EntityView {
         m.put("exceptionStyle", ctx.exceptionStyle());
         m.put("exceptionEnvelope", ctx.isExceptionEnvelope());
         m.put("exceptionProblemDetail", ctx.isExceptionProblemDetail());
+        m.put("persistence", ctx.persistence());
+        m.put("isJpa", ctx.isJpa());
+        m.put("isMyBatis", ctx.isMyBatis());
+        m.put("isJooq", ctx.isJooq());
 
         // ---------- Audit + soft-delete detection ----------
         UmabootConfig.AuditOptions auditOpts = ctx.audit();
         UmabootConfig.SoftDeleteOptions softDeleteOpts = ctx.softDelete();
 
         Set<String> auditColumnNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        Map<String, String> auditRolesByColumn = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         boolean hasCreatedAt = false, hasUpdatedAt = false, hasCreatedBy = false, hasUpdatedBy = false;
         if (auditOpts.enabled()) {
             for (ColumnModel c : table.columns()) {
                 if (c.name().equalsIgnoreCase(auditOpts.createdAt())) {
-                    auditColumnNames.add(c.name()); hasCreatedAt = true;
+                    auditColumnNames.add(c.name()); auditRolesByColumn.put(c.name(), "createdAt"); hasCreatedAt = true;
                 } else if (c.name().equalsIgnoreCase(auditOpts.updatedAt())) {
-                    auditColumnNames.add(c.name()); hasUpdatedAt = true;
+                    auditColumnNames.add(c.name()); auditRolesByColumn.put(c.name(), "updatedAt"); hasUpdatedAt = true;
                 } else if (c.name().equalsIgnoreCase(auditOpts.createdBy())) {
-                    auditColumnNames.add(c.name()); hasCreatedBy = true;
+                    auditColumnNames.add(c.name()); auditRolesByColumn.put(c.name(), "createdBy"); hasCreatedBy = true;
                 } else if (c.name().equalsIgnoreCase(auditOpts.updatedBy())) {
-                    auditColumnNames.add(c.name()); hasUpdatedBy = true;
+                    auditColumnNames.add(c.name()); auditRolesByColumn.put(c.name(), "updatedBy"); hasUpdatedBy = true;
                 }
             }
         }
         boolean auditable = !auditColumnNames.isEmpty();
+        boolean manualAudit = auditable && !ctx.isJpa();
 
         ColumnModel softDeleteColumn = null;
         if (softDeleteOpts.enabled()) {
@@ -148,6 +155,7 @@ public final class EntityView {
         // Fields (only non-FK, non-audit columns; FK columns are represented by relationships)
         TreeSet<String> imports = new TreeSet<>();
         List<Map<String, Object>> fields = new ArrayList<>();
+        List<Map<String, Object>> auditFields = new ArrayList<>();
         List<String> fkColumnNames = new ArrayList<>();
         for (RelationshipModel r : table.relationships()) {
             if (r.owning() && (r.type() instanceof RelationshipType.ManyToOne
@@ -164,39 +172,54 @@ public final class EntityView {
             if (fkColumnNames.stream().anyMatch(f -> f.equalsIgnoreCase(c.name()))) {
                 continue;
             }
-            if (auditColumnNames.contains(c.name())) {
-                continue; // hoisted into Auditable @MappedSuperclass
-            }
-            String columnOverrideType = java.util.Optional.ofNullable(tableOverride.columns().get(c.name()))
-                    .map(UmabootConfig.ColumnOverride::javaType)
-                    .filter(s -> !s.isBlank())
-                    .orElse(null);
-            String javaType = JavaTypeMapper.javaType(c, columnOverrideType);
-            String simple = JavaTypeMapper.simpleName(javaType);
-            String imp = JavaTypeMapper.importFor(javaType);
-            if (!imp.isEmpty()) imports.add(imp);
-
-            String fieldName = Naming.toCamelCase(c.name());
-
-            Map<String, Object> field = new LinkedHashMap<>();
-            field.put("columnName", c.name());
-            field.put("fieldName", fieldName);
-            field.put("javaType", simple);
-            field.put("nullable", c.nullable());
-            field.put("size", c.size());
-            field.put("primaryKey", c.primaryKey());
-            field.put("autoIncrement", c.autoIncrement());
-            field.put("comment", c.comment());
-            fields.add(field);
-
             if (c.primaryKey() && table.hasSimplePrimaryKey()) {
-                idType = simple;
-                idField = fieldName;
+                String columnOverrideType = java.util.Optional.ofNullable(tableOverride.columns().get(c.name()))
+                        .map(UmabootConfig.ColumnOverride::javaType)
+                        .filter(s -> !s.isBlank())
+                        .orElse(null);
+                String javaType = JavaTypeMapper.javaType(c, columnOverrideType);
+                idType = JavaTypeMapper.simpleName(javaType);
+                idField = Naming.toCamelCase(c.name());
                 idColumn = c.name();
             }
+
+            if (auditColumnNames.contains(c.name())) {
+                Map<String, Object> auditField = fieldForColumn(
+                        c, tableOverride, auditRolesByColumn.get(c.name()), ctx);
+                addImport(imports, (String) auditField.get("javaTypeCanonical"));
+                auditFields.add(auditField);
+                continue; // hoisted into JPA Auditable or written by generated non-JPA audit code
+            }
+
+            Map<String, Object> field = fieldForColumn(c, tableOverride, null, ctx);
+            addImport(imports, (String) field.get("javaTypeCanonical"));
+            fields.add(field);
         }
 
         m.put("fields", fields);
+        List<Map<String, Object>> fieldsWithAudit = concat(fields, auditFields);
+        m.put("requestFields", fields.stream()
+                .filter(f -> !((boolean) f.get("primaryKey") && (boolean) f.get("autoIncrement")))
+                .toList());
+        m.put("requestUpdateFields", fields.stream()
+                .filter(f -> !(boolean) f.get("primaryKey"))
+                .toList());
+        m.put("auditFields", auditFields);
+        m.put("auditCreateFields", auditFields);
+        m.put("auditUpdateFields", auditFields.stream()
+                .filter(f -> (boolean) f.get("auditUpdatedAt") || (boolean) f.get("auditUpdatedBy"))
+                .toList());
+        m.put("responseFields", fieldsWithAudit);
+        m.put("domainFields", ctx.isMvc() && ctx.isJpa() ? fields : fieldsWithAudit);
+        m.put("entityFields", ctx.isJpa() ? fields : fieldsWithAudit);
+        m.put("persistenceFields", ctx.isJpa() ? fields : fieldsWithAudit);
+        m.put("insertFields", fieldsWithAudit.stream()
+                .filter(f -> !((boolean) f.get("primaryKey") && (boolean) f.get("autoIncrement")))
+                .toList());
+        m.put("sqlUpdateFields", fieldsWithAudit.stream()
+                .filter(f -> !(boolean) f.get("primaryKey"))
+                .filter(f -> !((boolean) f.get("auditCreatedAt") || (boolean) f.get("auditCreatedBy")))
+                .toList());
         m.put("idType", idType);
         m.put("idField", idField);
         m.put("idColumn", idColumn);
@@ -213,6 +236,8 @@ public final class EntityView {
 
         // Audit flags (always present, false when no audit columns or audit disabled)
         m.put("auditable", auditable);
+        m.put("manualAudit", manualAudit);
+        m.put("manualAuditOnUpdate", manualAudit && (hasUpdatedAt || hasUpdatedBy));
         m.put("hasCreatedAt", hasCreatedAt);
         m.put("hasUpdatedAt", hasUpdatedAt);
         m.put("hasCreatedBy", hasCreatedBy);
@@ -266,6 +291,81 @@ public final class EntityView {
         m.put("imports", imports);
 
         return m;
+    }
+
+    private static Map<String, Object> fieldForColumn(
+            ColumnModel column,
+            UmabootConfig.TableOverride tableOverride,
+            String auditRole,
+            GeneratorContext ctx) {
+        String columnOverrideType = java.util.Optional.ofNullable(tableOverride.columns().get(column.name()))
+                .map(UmabootConfig.ColumnOverride::javaType)
+                .filter(s -> !s.isBlank())
+                .orElse(null);
+        String javaType = javaTypeForField(column, columnOverrideType, auditRole, ctx);
+        String simple = JavaTypeMapper.simpleName(javaType);
+        String fieldName = Naming.toCamelCase(column.name());
+
+        Map<String, Object> field = new LinkedHashMap<>();
+        field.put("columnName", column.name());
+        field.put("fieldName", fieldName);
+        field.put("javaType", simple);
+        field.put("javaTypeCanonical", javaType);
+        field.put("nullable", column.nullable());
+        field.put("size", column.size());
+        field.put("primaryKey", column.primaryKey());
+        field.put("autoIncrement", column.autoIncrement());
+        field.put("comment", column.comment());
+        field.put("auditColumn", auditRole != null);
+        field.put("auditRole", auditRole == null ? "" : auditRole);
+        field.put("auditCreatedAt", "createdAt".equals(auditRole));
+        field.put("auditUpdatedAt", "updatedAt".equals(auditRole));
+        field.put("auditCreatedBy", "createdBy".equals(auditRole));
+        field.put("auditUpdatedBy", "updatedBy".equals(auditRole));
+        field.put("auditValueExpression", auditValueExpression(simple, auditRole));
+        return field;
+    }
+
+    private static String javaTypeForField(
+            ColumnModel column,
+            String columnOverrideType,
+            String auditRole,
+            GeneratorContext ctx) {
+        if (ctx.isJpa() && ("createdAt".equals(auditRole) || "updatedAt".equals(auditRole))) {
+            return "java.time.Instant";
+        }
+        if (ctx.isJpa() && ("createdBy".equals(auditRole) || "updatedBy".equals(auditRole))) {
+            return "String";
+        }
+        return JavaTypeMapper.javaType(column, columnOverrideType);
+    }
+
+    private static String auditValueExpression(String simpleJavaType, String auditRole) {
+        if ("createdBy".equals(auditRole) || "updatedBy".equals(auditRole)) {
+            return "auditProvider.currentUser()";
+        }
+        return switch (simpleJavaType) {
+            case "Instant" -> "auditProvider.nowInstant()";
+            case "OffsetDateTime" -> "auditProvider.nowOffsetDateTime()";
+            case "OffsetTime" -> "auditProvider.nowOffsetTime()";
+            case "LocalDate" -> "auditProvider.today()";
+            case "LocalTime" -> "auditProvider.nowLocalTime()";
+            default -> "auditProvider.nowLocalDateTime()";
+        };
+    }
+
+    private static void addImport(Set<String> imports, String javaType) {
+        String imp = JavaTypeMapper.importFor(javaType);
+        if (!imp.isEmpty()) imports.add(imp);
+    }
+
+    private static List<Map<String, Object>> concat(
+            List<Map<String, Object>> first,
+            List<Map<String, Object>> second) {
+        List<Map<String, Object>> combined = new ArrayList<>(first.size() + second.size());
+        combined.addAll(first);
+        combined.addAll(second);
+        return combined;
     }
 
     private static String lowerFirst(String s) {

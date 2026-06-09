@@ -82,7 +82,9 @@ public final class UmabootConfigLoader {
                 belongsTo,
                 str(dddMap, "sharedKernelPackage", "shared"));
 
-        var output = new UmabootConfig.OutputOptions(str(outputMap, "mode", "standalone"));
+        var output = new UmabootConfig.OutputOptions(
+                str(outputMap, "mode", "standalone"),
+                str(outputMap, "existingPolicy", "warn"));
 
         // OpenAPI: prefer new openapi.style; fall back to legacy generateOpenApi boolean.
         Map<String, Object> openapiMap = mapOrEmpty(gen, "openapi");
@@ -211,6 +213,7 @@ public final class UmabootConfigLoader {
                 str(gen, "springBootVersion", "3.3.5"),
                 str(gen, "javaVersion", "17"),
                 bool(gen, "useLombok", true),
+                str(gen, "lombokVersion", null),
                 openapi,
                 injection,
                 validation,

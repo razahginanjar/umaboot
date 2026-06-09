@@ -67,6 +67,7 @@ public final class GenerationPipeline {
                 config.generation().springBootVersion(),
                 config.generation().javaVersion(),
                 config.generation().useLombok(),
+                config.generation().lombokVersion(),
                 config.generation().architecture(),
                 config.generation().persistence(),
                 config.generation().mybatis().style(),

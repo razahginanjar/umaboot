@@ -76,6 +76,9 @@ public final class DddGenerator implements ArchitectureGenerator {
             if (ctx.isMigrationFlyway()) {
                 units.add(new GeneratedUnit(FlywayMigrationRenderer.PATH,
                         FlywayMigrationRenderer.render(schema, ctx)));
+            } else if (ctx.tests().enabled()) {
+                units.add(new GeneratedUnit("src/test/resources/schema.sql",
+                        FlywayMigrationRenderer.renderTestSchema(schema, ctx)));
             }
             units.add(unit(javaSrc + "/Application.java", "ddd/Application.java.ftl", pm));
             units.add(unit(javaSrc + "/interfaces/rest/GlobalExceptionHandler.java",
@@ -107,6 +110,9 @@ public final class DddGenerator implements ArchitectureGenerator {
                 units.add(unit(javaSrc + "/common/AuditorAwareConfig.java",
                         "common/AuditorAwareConfig.java.ftl", pm));
             }
+        } else if (!ctx.isJpa() && (boolean) pm.get("anyAuditable")) {
+            units.add(unit(javaSrc + "/common/AuditProvider.java",
+                    "common/AuditProvider.java.ftl", pm));
         }
 
         // Phase H — generated-project tooling. Skipped in overlay.
@@ -285,6 +291,8 @@ public final class DddGenerator implements ArchitectureGenerator {
         m.put("javaSupportsListCopyOf", ctx.javaSupportsListCopyOf());
         m.put("javaSupportsStreamToList", ctx.javaSupportsStreamToList());
         m.put("useLombok", ctx.useLombok());
+        m.put("lombokVersion", ctx.lombokVersion());
+        m.put("logstashLogbackEncoderVersion", ctx.logstashLogbackEncoderVersion());
         m.put("openApiAnnotation", ctx.isOpenApiAnnotation());
         m.put("injectionStyle", ctx.injectionStyle());
         m.put("injectConstructor", ctx.isInjectionConstructor());
@@ -304,6 +312,7 @@ public final class DddGenerator implements ArchitectureGenerator {
         m.put("exceptionEnvelope", ctx.isExceptionEnvelope());
         m.put("exceptionProblemDetail", ctx.isExceptionProblemDetail());
         m.put("anyAuditable", EntityView.anyTableHasAudit(schema, ctx));
+        m.put("manualAudit", !ctx.isJpa() && EntityView.anyTableHasAudit(schema, ctx));
         m.put("anyHasAuditUser", EntityView.anyTableHasAuditUser(schema, ctx));
         m.put("anyHasCreatedAt", EntityView.anyTableHasCreatedAt(schema, ctx));
         m.put("anyHasUpdatedAt", EntityView.anyTableHasUpdatedAt(schema, ctx));

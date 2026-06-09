@@ -13,6 +13,7 @@ import java.util.Objects;
  * @param springBootVersion   Spring Boot version to declare in the generated POM
  * @param javaVersion         Target Java version for the generated project (e.g. "17")
  * @param useLombok           if true, generate Lombok-annotated entities/DTOs
+ * @param lombokVersion       optional explicit Lombok dependency version for older Spring Boot lines
  * @param architecture        {@code mvc | hexagonal | ddd}
  * @param persistence         {@code jpa | mybatis | jooq}
  * @param mybatisStyle        when persistence=mybatis: {@code xml | annotation}
@@ -36,6 +37,7 @@ public record GeneratorContext(
         String springBootVersion,
         String javaVersion,
         boolean useLombok,
+        String lombokVersion,
         String architecture,
         String persistence,
         String mybatisStyle,
@@ -72,6 +74,12 @@ public record GeneratorContext(
         Objects.requireNonNull(springBootVersion, "springBootVersion");
         Objects.requireNonNull(javaVersion, "javaVersion");
         javaVersion = normalizeJavaVersion(javaVersion);
+        lombokVersion = normalizeOptional(lombokVersion);
+        if (!useLombok || !requiresExplicitLombokVersion(springBootVersion)) {
+            lombokVersion = null;
+        } else if (lombokVersion == null) {
+            lombokVersion = defaultLombokVersion();
+        }
         architecture = architecture == null ? "mvc" : architecture.toLowerCase();
         persistence = persistence == null ? "jpa" : persistence.toLowerCase();
         mybatisStyle = mybatisStyle == null ? "xml" : mybatisStyle.toLowerCase();
@@ -142,6 +150,50 @@ public record GeneratorContext(
             UmabootConfig.CiOptions ci,
             UmabootConfig.LoggingOptions logging,
             UmabootConfig.TestOptions tests,
+            UmabootConfig.MigrationOptions migrations,
+            String paginationStyle,
+            UmabootConfig.SecurityOptions security,
+            UmabootConfig.DddOptions ddd,
+            boolean overlay,
+            String dbDriver,
+            UmabootConfig.Connection connection,
+            String schemaFileSql,
+            UmabootConfig.ApplicationConfigOptions applicationConfig,
+            String classNameStripPrefix,
+            java.util.Map<String, UmabootConfig.TableOverride> tableOverrides,
+            String buildTool) {
+        this(basePackage, projectName, projectGroup, springBootVersion, javaVersion,
+                useLombok, null, architecture, persistence, mybatisStyle, useMapStruct,
+                openApiStyle, injectionStyle, validationStyle, dtoStyle, dtoShape,
+                exceptionStyle, audit, softDelete, docker, ci, logging, tests,
+                migrations, paginationStyle, security, ddd, overlay, dbDriver,
+                connection, schemaFileSql, applicationConfig, classNameStripPrefix,
+                tableOverrides, buildTool);
+    }
+
+    public GeneratorContext(
+            String basePackage,
+            String projectName,
+            String projectGroup,
+            String springBootVersion,
+            String javaVersion,
+            boolean useLombok,
+            String architecture,
+            String persistence,
+            String mybatisStyle,
+            boolean useMapStruct,
+            String openApiStyle,
+            String injectionStyle,
+            String validationStyle,
+            String dtoStyle,
+            String dtoShape,
+            String exceptionStyle,
+            UmabootConfig.AuditOptions audit,
+            UmabootConfig.SoftDeleteOptions softDelete,
+            UmabootConfig.DockerOptions docker,
+            UmabootConfig.CiOptions ci,
+            UmabootConfig.LoggingOptions logging,
+            UmabootConfig.TestOptions tests,
             String paginationStyle,
             UmabootConfig.SecurityOptions security,
             UmabootConfig.DddOptions ddd,
@@ -153,7 +205,7 @@ public record GeneratorContext(
             java.util.Map<String, UmabootConfig.TableOverride> tableOverrides,
             String buildTool) {
         this(basePackage, projectName, projectGroup, springBootVersion, javaVersion,
-                useLombok, architecture, persistence, mybatisStyle, useMapStruct,
+                useLombok, null, architecture, persistence, mybatisStyle, useMapStruct,
                 openApiStyle, injectionStyle, validationStyle, dtoStyle, dtoShape,
                 exceptionStyle, audit, softDelete, docker, ci, logging, tests,
                 null, paginationStyle, security, ddd, overlay, dbDriver, connection,
@@ -402,6 +454,14 @@ public record GeneratorContext(
     public boolean isSpringBoot2() { return springBootMajor() == 2; }
     public boolean isSpringBoot3() { return springBootMajor() == 3; }
 
+    public boolean requiresLombokVersion() {
+        return useLombok && requiresExplicitLombokVersion(springBootVersion);
+    }
+
+    public String logstashLogbackEncoderVersion() {
+        return isSpringBoot2() ? "7.3" : "7.4";
+    }
+
     public int javaMajor() {
         if (javaVersion == null || javaVersion.isEmpty()) return 17;
         String v = javaVersion.trim();
@@ -441,9 +501,38 @@ public record GeneratorContext(
     /** Legacy helper for templates that still use the boolean flag. */
     public boolean generateOpenApi() { return isOpenApiEnabled(); }
 
+    private static boolean requiresExplicitLombokVersion(String springBootVersion) {
+        int major = parseSpringBootMajor(springBootVersion);
+        int minor = parseSpringBootMinor(springBootVersion);
+        return major < 3 || (major == 3 && minor < 5);
+    }
+
+    private static int parseSpringBootMajor(String springBootVersion) {
+        if (springBootVersion == null || springBootVersion.isEmpty()) return 3;
+        int dot = springBootVersion.indexOf('.');
+        String head = dot < 0 ? springBootVersion : springBootVersion.substring(0, dot);
+        try { return Integer.parseInt(head); } catch (NumberFormatException ex) { return 3; }
+    }
+
+    private static int parseSpringBootMinor(String springBootVersion) {
+        if (springBootVersion == null || springBootVersion.isEmpty()) return 0;
+        String[] parts = springBootVersion.split("[.\\-]");
+        if (parts.length < 2) return 0;
+        try { return Integer.parseInt(parts[1]); } catch (NumberFormatException ex) { return 0; }
+    }
+
+    private static String defaultLombokVersion() {
+        return "1.18.30";
+    }
+
     private static String normalizeJavaVersion(String version) {
         String trimmed = version == null ? "" : version.trim();
         if ("1.8".equals(trimmed)) return "8";
         return trimmed.isEmpty() ? "17" : trimmed;
+    }
+
+    private static String normalizeOptional(String value) {
+        if (value == null || value.isBlank()) return null;
+        return value.trim();
     }
 }

@@ -41,11 +41,21 @@ Use one of:
 - Tool window `Generate`
 - Gutter run icon on `umaboot.yaml`
 
-Generate runs the full pipeline and writes generated files immediately.
+Generate runs the full pipeline. In standalone mode it writes the generated
+project files directly. In overlay mode it writes new files, skips unchanged
+files, and leaves modified existing files for Preview / Merge instead of
+overwriting them.
+
+When standalone output already looks like a different project, Generate asks
+whether to overwrite generated file paths, clean the output directory first, or
+cancel. The same behavior can be made persistent with
+`generation.output.existingPolicy`.
 
 If the project root has a `pom.xml` and the config did not explicitly choose an
 output mode, the runner uses overlay mode automatically so generated source goes
 into the existing project instead of a separate `generated/` directory.
+If `generation.output.mode` is explicitly set to `standalone`, the runner keeps
+standalone mode and rewrites the generated standalone project files.
 
 ## Preview / Merge
 

@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>docker-compose has only the app service (no db service) since the engine is
  *       embedded; mounts {@code db-data:/data} so the .db file survives restarts</li>
  *   <li>AbstractIntegrationTest uses {@code @DynamicPropertySource} pointing at
- *       {@code jdbc:sqlite::memory:} with {@code create-drop} ddl-auto, no
+ *       {@code jdbc:sqlite::memory:} with generated {@code schema.sql}, no
  *       {@code @Testcontainers}</li>
  *   <li>{@link SqlFileIntrospector} treats {@code INTEGER PRIMARY KEY} as auto-increment
  *       (SQLite rowid alias) when dialectHint=sqlite, but NOT for other dialects</li>
@@ -100,12 +100,17 @@ class SqliteTargetRenderTest {
 
     @Test
     void sqlite_abstractIntegrationTestUsesInMemoryNoTestcontainers() {
-        String it = readUnit(generate("sqlite", "jpa", false, true),
+        List<GeneratedUnit> units = generate("sqlite", "jpa", false, true);
+        String it = readUnit(units,
                 "src/test/java/com/example/app/AbstractIntegrationTest.java");
 
+        assertThat(units).extracting(GeneratedUnit::relativePath)
+                .contains("src/test/resources/schema.sql");
         assertThat(it).contains("jdbc:sqlite::memory:");
         assertThat(it).contains("org.hibernate.community.dialect.SQLiteDialect");
-        assertThat(it).contains("create-drop");
+        assertThat(it).contains("spring.jpa.hibernate.ddl-auto\", () -> \"validate\"");
+        assertThat(it).contains("spring.sql.init.mode\", () -> \"always\"");
+        assertThat(it).doesNotContain("create-drop");
         assertThat(it).doesNotContain("@Testcontainers");
         assertThat(it).doesNotContain("@Container");
         assertThat(it).doesNotContain("PostgreSQLContainer");

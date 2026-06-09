@@ -68,6 +68,12 @@ public final class VersionMetadataService {
                     + "?q=g:org.springframework.boot+AND+a:spring-boot+AND+v:2.7.*"
                     + "&core=gav&rows=30&sort=timestamp+desc&wt=json";
 
+    /** Maven Central search for recent Project Lombok releases. */
+    static final String MAVEN_CENTRAL_LOMBOK_URL =
+            "https://search.maven.org/solrsearch/select"
+                    + "?q=g:org.projectlombok+AND+a:lombok"
+                    + "&core=gav&rows=40&sort=timestamp+desc&wt=json";
+
     /**
      * Foojay DiscoAPI for actively-maintained LTS major versions. Returns a
      * compact list keyed by {@code major_version} (e.g. 8, 11, 17, 21).
@@ -83,6 +89,7 @@ public final class VersionMetadataService {
     static final String SECTION_SPRING_BOOT_3 = "springBoot3";
     static final String SECTION_SPRING_BOOT_2 = "springBoot2";
     static final String SECTION_JAVA = "java";
+    static final String SECTION_LOMBOK = "lombok";
 
     /**
      * Curated Spring Boot 3.x fallback for offline / fetch-failure cases.
@@ -110,6 +117,19 @@ public final class VersionMetadataService {
 
     /** Curated Java LTS fallback. */
     static final List<String> JAVA_FALLBACK = List.of("8", "11", "17", "21");
+
+    /** Curated Lombok fallback, newest first. */
+    static final List<String> LOMBOK_FALLBACK = List.of(
+            "1.18.46",
+            "1.18.44",
+            "1.18.42",
+            "1.18.40",
+            "1.18.38",
+            "1.18.36",
+            "1.18.34",
+            "1.18.32",
+            "1.18.30"
+    );
 
     private final Path cacheFile;
     private final HttpClient httpClient;
@@ -168,16 +188,31 @@ public final class VersionMetadataService {
     }
 
     /**
+     * Returns recent Lombok versions. Live-fetched from Maven Central; falls
+     * back to {@link #LOMBOK_FALLBACK}.
+     */
+    public List<String> getLombokVersions() {
+        return resolve(SECTION_LOMBOK, this::fetchLombokFromMavenCentral, LOMBOK_FALLBACK);
+    }
+
+    /**
      * Returns the Spring Boot versions appropriate for a given target Java version.
      *
      * <ul>
-     *   <li>{@code "8"} or {@code "11"} → 2.7.x line via {@link #getSpringBoot2Versions()}.</li>
-     *   <li>everything else → 3.x line via {@link #getSpringBootVersions()}.</li>
+     *   <li>{@code "8"} or {@code "11"} -> 2.7.x line via {@link #getSpringBoot2Versions()}.</li>
+     *   <li>{@code "17"} -> 3.x first, then 2.7.x; both are valid choices.</li>
+     *   <li>everything else -> 3.x line via {@link #getSpringBootVersions()}.</li>
      * </ul>
      */
     public List<String> getSpringBootVersionsFor(String javaVersion) {
         if ("8".equals(javaVersion) || "11".equals(javaVersion)) {
             return getSpringBoot2Versions();
+        }
+        if ("17".equals(javaVersion)) {
+            List<String> versions = new ArrayList<>();
+            versions.addAll(getSpringBootVersions());
+            versions.addAll(getSpringBoot2Versions());
+            return List.copyOf(versions);
         }
         return getSpringBootVersions();
     }
@@ -245,6 +280,17 @@ public final class VersionMetadataService {
     private List<String> fetchSpringBoot2FromMavenCentral() throws IOException, InterruptedException {
         HttpResponse<String> resp = httpGet(MAVEN_CENTRAL_SB2_URL, "application/json");
         return parseMavenCentralVersions(resp.body());
+    }
+
+    private List<String> fetchLombokFromMavenCentral() throws IOException, InterruptedException {
+        HttpResponse<String> resp = httpGet(MAVEN_CENTRAL_LOMBOK_URL, "application/json");
+        List<String> versions = new ArrayList<>();
+        for (String version : parseMavenCentralVersions(resp.body())) {
+            if (isSupportedLombokVersion(version)) {
+                versions.add(version);
+            }
+        }
+        return List.copyOf(versions);
     }
 
     private List<String> fetchJavaMajorsFromFoojay() throws IOException, InterruptedException {
@@ -347,6 +393,10 @@ public final class VersionMetadataService {
         if (version.endsWith(".x") || version.endsWith(".X")) return true;
         String upper = version.toUpperCase();
         return upper.contains("SNAPSHOT") || upper.contains("-M") || upper.contains("-RC");
+    }
+
+    private static boolean isSupportedLombokVersion(String version) {
+        return comparable(version).compareTo(comparable("1.18.30")) >= 0;
     }
 
     /** Comparable key from a version string like 3.3.5 — pads each part to 4 digits. */

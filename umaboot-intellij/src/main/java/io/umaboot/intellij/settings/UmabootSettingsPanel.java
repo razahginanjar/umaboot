@@ -144,6 +144,7 @@ public final class UmabootSettingsPanel {
     private final ComboBox<String> springBootVersionCombo = makeEditableCombo();
     private final ComboBox<String> javaVersionCombo = makeEditableCombo();
     private final JBCheckBox useLombokCheckbox = new JBCheckBox("Use Lombok");
+    private final ComboBox<String> lombokVersionCombo = makeEditableCombo();
     private final ComboBox<String> openApiStyleCombo = new ComboBox<>(new String[]{"yaml", "annotation", "none"});
     private final ComboBox<String> injectionStyleCombo = new ComboBox<>(new String[]{"constructor", "lombok", "autowired"});
     private final ComboBox<String> validationStyleCombo = new ComboBox<>(new String[]{"jakarta", "none", "service"});
@@ -161,6 +162,8 @@ public final class UmabootSettingsPanel {
     private final ComboBox<String> paginationStyleCombo = new ComboBox<>(new String[]{"offset", "cursor"});
     private final ComboBox<String> securityStyleCombo = new ComboBox<>(new String[]{"none", "basic", "jwt"});
     private final ComboBox<String> outputModeCombo = new ComboBox<>(new String[]{"standalone", "overlay"});
+    private final ComboBox<String> outputExistingPolicyCombo =
+            new ComboBox<>(new String[]{"warn", "overwrite", "clean", "fail"});
     private final ComboBox<String> applicationConfigFormatCombo =
             new ComboBox<>(new String[]{"yaml", "properties"});
     private final JBCheckBox useProjectDirectoryCheckbox =
@@ -170,6 +173,8 @@ public final class UmabootSettingsPanel {
     private UmabootConfig loaded;
     private boolean dirty = false;
     private final List<java.util.function.Consumer<UiText.Language>> languageListeners = new ArrayList<>();
+    private JBLabel lombokVersionLabel;
+    private JButton lombokVersionHelpButton;
 
     public UmabootSettingsPanel(Project project) {
         this.project = project;
@@ -350,6 +355,9 @@ public final class UmabootSettingsPanel {
         addRow(g, r++, "Spring Boot version:", springBootVersionCombo);
         addRow(g, r++, "Java version:", javaVersionCombo);
         addRow(g, r++, "", useLombokCheckbox);
+        lombokVersionLabel = localizedLabel("Lombok version:");
+        lombokVersionHelpButton = helpButton("Lombok version:");
+        addRowComponents(g, r++, lombokVersionLabel, lombokVersionCombo, lombokVersionHelpButton);
         addRow(g, r++, "Injection style:", injectionStyleCombo);
         addRow(g, r++, "Validation style:", validationStyleCombo);
         addRow(g, r++, "DTO style:", dtoStyleCombo);
@@ -368,6 +376,7 @@ public final class UmabootSettingsPanel {
         addRow(g, r++, "OpenAPI style:", openApiStyleCombo);
         addRow(g, r++, "App config format:", applicationConfigFormatCombo);
         addRow(g, r++, "Output mode:", outputModeCombo);
+        addRow(g, r++, "Existing output:", outputExistingPolicyCombo);
         addRow(g, r++, "", useProjectDirectoryCheckbox);
         addRow(g, r++, "Output dir:", outputDirField);
         return g;
@@ -383,10 +392,14 @@ public final class UmabootSettingsPanel {
     }
 
     private void addRow(JBPanel<JBPanel<?>> p, int row, String label, JComponent field) {
+        addRowComponents(p, row, localizedLabel(label), field, helpButton(helpKey(label, field)));
+    }
+
+    private void addRowComponents(JBPanel<JBPanel<?>> p, int row, JComponent label, JComponent field, JComponent help) {
         GridBagConstraints lc = new GridBagConstraints();
         lc.gridx = 0; lc.gridy = row; lc.fill = GridBagConstraints.HORIZONTAL;
         lc.insets = new Insets(2, 4, 2, 8);
-        p.add(localizedLabel(label), lc);
+        p.add(label, lc);
 
         GridBagConstraints fc = new GridBagConstraints();
         fc.gridx = 1; fc.gridy = row; fc.weightx = 1.0;
@@ -398,7 +411,7 @@ public final class UmabootSettingsPanel {
         hc.gridx = 2; hc.gridy = row;
         hc.fill = GridBagConstraints.NONE;
         hc.insets = new Insets(2, 0, 2, 4);
-        p.add(helpButton(helpKey(label, field)), hc);
+        p.add(help, hc);
     }
 
     private static void configureCompactTextField(JBTextField field) {
@@ -585,6 +598,7 @@ public final class UmabootSettingsPanel {
         buildToolCombo.addActionListener(mark);
         mybatisStyleCombo.addActionListener(mark);
         outputModeCombo.addActionListener(mark);
+        outputExistingPolicyCombo.addActionListener(mark);
         applicationConfigFormatCombo.addActionListener(mark);
         // "Use project directory" checkbox — when checked, outputDir is forced
         // to "." in YAML (which OutputDirResolver maps to the directory of
@@ -596,6 +610,7 @@ public final class UmabootSettingsPanel {
         });
         useMapStructCheckbox.addActionListener(mark);
         useLombokCheckbox.addActionListener(mark);
+        lombokVersionCombo.addActionListener(mark);
         openApiStyleCombo.addActionListener(mark);
         injectionStyleCombo.addActionListener(mark);
         validationStyleCombo.addActionListener(mark);
@@ -643,6 +658,7 @@ public final class UmabootSettingsPanel {
             if (!useLombokCheckbox.isSelected() && "lombok".equals(injectionStyleCombo.getSelectedItem())) {
                 injectionStyleCombo.setSelectedItem("constructor");
             }
+            updateLombokVersionVisibility();
         });
         for (JBTextField f : List.of(urlField, usernameField, schemaField,
                 hostField, paramsField, databaseField,
@@ -1190,6 +1206,8 @@ public final class UmabootSettingsPanel {
         springBootVersionCombo.setSelectedItem(c.generation().springBootVersion());
         javaVersionCombo.setSelectedItem(c.generation().javaVersion());
         useLombokCheckbox.setSelected(c.generation().useLombok());
+        lombokVersionCombo.setSelectedItem(c.generation().lombokVersion() == null ? "" : c.generation().lombokVersion());
+        updateLombokVersionVisibility();
         openApiStyleCombo.setSelectedItem(c.generation().openapi().style());
         injectionStyleCombo.setSelectedItem(c.generation().injection().style());
         validationStyleCombo.setSelectedItem(c.generation().validation().style());
@@ -1207,6 +1225,7 @@ public final class UmabootSettingsPanel {
         paginationStyleCombo.setSelectedItem(c.generation().pagination().style());
         securityStyleCombo.setSelectedItem(c.generation().security().style());
         outputModeCombo.setSelectedItem(c.generation().output().mode());
+        outputExistingPolicyCombo.setSelectedItem(c.generation().output().existingPolicy());
         applicationConfigFormatCombo.setSelectedItem(c.generation().applicationConfig().format());
         // "Use project directory" shortcut: outputDir == "." means "the directory
         // of umaboot.yaml" (per OutputDirResolver). Reflect that in the checkbox.
@@ -1268,7 +1287,8 @@ public final class UmabootSettingsPanel {
         // Preserve DDD options from the loaded config (no UI for them yet)
         var ddd = loaded != null ? loaded.generation().ddd() : UmabootConfig.DddOptions.defaults();
         var output = new UmabootConfig.OutputOptions(
-                Optional.ofNullable((String) outputModeCombo.getSelectedItem()).orElse("standalone"));
+                Optional.ofNullable((String) outputModeCombo.getSelectedItem()).orElse("standalone"),
+                Optional.ofNullable((String) outputExistingPolicyCombo.getSelectedItem()).orElse("warn"));
 
         var applicationConfig = new UmabootConfig.ApplicationConfigOptions(
                 Optional.ofNullable((String) applicationConfigFormatCombo.getSelectedItem()).orElse("yaml"));
@@ -1351,6 +1371,7 @@ public final class UmabootSettingsPanel {
                 comboText(springBootVersionCombo),
                 comboText(javaVersionCombo),
                 useLombokCheckbox.isSelected(),
+                comboText(lombokVersionCombo),
                 openapi,
                 injection,
                 validation,
@@ -1478,10 +1499,13 @@ public final class UmabootSettingsPanel {
             this.versionService = svc;
             // Pre-warm the live fetch on the pooled thread so the first refilter is fast.
             svc.getSpringBootVersions();
+            java.util.List<String> lombokVersions = svc.getLombokVersions();
             SwingUtilities.invokeLater(() -> {
+                replaceComboModel(lombokVersionCombo, lombokVersions, comboText(lombokVersionCombo));
                 refilterSpringBootForJava();
                 refilterJavaForSpringBoot();
                 installFilterListeners();
+                updateLombokVersionVisibility();
                 // Reset dirty since async population isn't a user edit.
                 dirty = false;
             });
@@ -1543,18 +1567,21 @@ public final class UmabootSettingsPanel {
             if (e.getStateChange() == java.awt.event.ItemEvent.SELECTED) {
                 refilterSpringBootForJava();
                 refilterSb2DependentCombos();
+                updateLombokVersionVisibility();
             }
         };
         springBootListener = e -> {
             if (e.getStateChange() == java.awt.event.ItemEvent.SELECTED) {
                 refilterJavaForSpringBoot();
                 refilterSb2DependentCombos();
+                updateLombokVersionVisibility();
             }
         };
         javaVersionCombo.addItemListener(javaListener);
         springBootVersionCombo.addItemListener(springBootListener);
         // Initial pass — current Java/SB selections might already be SB2.
         refilterSb2DependentCombos();
+        updateLombokVersionVisibility();
     }
 
     /**
@@ -1581,6 +1608,39 @@ public final class UmabootSettingsPanel {
     private boolean isSpringBoot2Selected() {
         String v = comboText(springBootVersionCombo);
         return v.startsWith("2.");
+    }
+
+    private void updateLombokVersionVisibility() {
+        boolean visible = useLombokCheckbox.isSelected() && isSpringBootBelow35(comboText(springBootVersionCombo));
+        if (lombokVersionLabel != null) {
+            lombokVersionLabel.setVisible(visible);
+        }
+        lombokVersionCombo.setVisible(visible);
+        if (lombokVersionHelpButton != null) {
+            lombokVersionHelpButton.setVisible(visible);
+        }
+        if (visible && comboText(lombokVersionCombo).isEmpty() && lombokVersionCombo.getItemCount() > 0) {
+            lombokVersionCombo.setSelectedIndex(0);
+        }
+        root.revalidate();
+        root.repaint();
+    }
+
+    private static boolean isSpringBootBelow35(String version) {
+        int major = parseSpringBootPart(version, 0, 3);
+        int minor = parseSpringBootPart(version, 1, 0);
+        return major < 3 || (major == 3 && minor < 5);
+    }
+
+    private static int parseSpringBootPart(String version, int index, int fallback) {
+        if (version == null || version.isBlank()) return fallback;
+        String[] parts = version.trim().split("[.\\-]");
+        if (parts.length <= index) return fallback;
+        try {
+            return Integer.parseInt(parts[index]);
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
     }
 
     /** Tiny adapter so we can wire any text-field document change to a Runnable. */

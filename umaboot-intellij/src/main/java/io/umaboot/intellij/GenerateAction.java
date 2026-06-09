@@ -7,11 +7,13 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
+import io.umaboot.core.standalone.StandaloneOutputSafety;
 import io.umaboot.intellij.settings.UiText;
 
 import java.nio.file.Files;
@@ -64,6 +66,36 @@ public final class GenerateAction extends AnAction {
         }
 
         Path configPath = UmabootConfigLocator.findConfigFile(Path.of(project.getBasePath()));
+        String existingPolicyOverride = null;
+        try {
+            StandaloneOutputSafety.Plan safety = new UmabootRunner().inspectStandaloneOutput(configPath);
+            if (safety != null && safety.shouldBlock() && "warn".equals(safety.existingPolicy())) {
+                int choice = Messages.showDialog(
+                        project,
+                        "Standalone output already looks like an existing project:\n"
+                                + safety.outputDir()
+                                + "\n\nMarkers: " + safety.markerSummary()
+                                + "\n\nOverwrite replaces generated file paths. Clean Output deletes the output contents before generation.",
+                        "Umaboot: Standalone Output Exists",
+                        new String[]{"Overwrite", "Clean Output", "Cancel"},
+                        0,
+                        Messages.getWarningIcon());
+                if (choice == 0) {
+                    existingPolicyOverride = "overwrite";
+                } else if (choice == 1) {
+                    existingPolicyOverride = "clean";
+                } else {
+                    return;
+                }
+            }
+        } catch (Exception ex) {
+            notifyUser(project,
+                    UiText.format(language, "Umaboot failed: %s. See detail log for diagnostics.",
+                            UmabootLog.rootMessage(ex)),
+                    NotificationType.ERROR);
+            return;
+        }
+        String finalExistingPolicyOverride = existingPolicyOverride;
         UmabootLog log = UmabootLog.get(project);
         log.started("generate", "config: " + configPath);
         new Task.Backgroundable(project, UiText.text(language, "Umaboot: Generating"), true) {
@@ -73,11 +105,23 @@ public final class GenerateAction extends AnAction {
                 indicator.setText(UiText.text(language, "Introspecting database and rendering project..."));
 
                 try {
-                    UmabootRunner.Result result = new UmabootRunner().run(configPath);
+                    UmabootRunner.Result result =
+                            new UmabootRunner().run(configPath, finalExistingPolicyOverride);
                     log.detail("generate", "outputDir: " + result.outputDir());
                     log.detail("generate", "architecture: " + result.architecture());
                     log.detail("generate", "persistence: " + result.persistence());
                     log.detail("generate", "mode: " + result.mode() + (result.autoOverlay() ? " (auto)" : ""));
+                    if ("overlay".equals(result.mode())) {
+                        log.detail("generate", "overlay new files: " + result.fileCount());
+                        log.detail("generate", "overlay modified files: " + result.overlayModifiedCount());
+                        log.detail("generate", "overlay unchanged files: " + result.overlayUnchangedCount());
+                        for (String file : result.overlayModifiedFiles()) {
+                            log.detail("generate", "overlay merge required: " + file);
+                        }
+                        for (String requirement : result.overlayRequirements()) {
+                            log.detail("generate", "overlay requirement: " + requirement);
+                        }
+                    }
                     log.finished("generate", "generated " + result.fileCount() + " files");
 
                     ApplicationManager.getApplication().invokeLater(() -> {
@@ -86,15 +130,22 @@ public final class GenerateAction extends AnAction {
                         if (vf != null) vf.refresh(true, true);
                     });
 
-                    notifyUser(project,
-                            UiText.format(language, "Umaboot: generated %d files in %s [%s/%s, %s%s]",
+                    NotificationType generationType = result.overlayModifiedCount() > 0
+                            ? NotificationType.WARNING
+                            : NotificationType.INFORMATION;
+                    String generationMessage = result.overlayModifiedCount() > 0
+                            ? UiText.format(language,
+                                    "Umaboot: overlay wrote %d new files; %d modified files need Preview / Merge. See detail log.",
+                                    result.fileCount(),
+                                    result.overlayModifiedCount())
+                            : UiText.format(language, "Umaboot: generated %d files in %s [%s/%s, %s%s]",
                                     result.fileCount(),
                                     result.outputDir(),
                                     result.architecture(),
                                     result.persistence(),
                                     result.mode(),
-                                    result.autoOverlay() ? UiText.text(language, " (auto)") : ""),
-                            NotificationType.INFORMATION);
+                                    result.autoOverlay() ? UiText.text(language, " (auto)") : "");
+                    notifyUser(project, generationMessage, generationType);
                     if (!result.warnings().isEmpty()) {
                         log.parserWarnings("generate", result.warnings());
                         LOG.warn("Umaboot generated with parser warnings: " + result.warnings());

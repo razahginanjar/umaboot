@@ -1,15 +1,22 @@
 package io.umaboot.core.introspection.sqlfile;
 
 import io.umaboot.core.model.ColumnModel;
+import io.umaboot.core.model.RelationshipType;
 import io.umaboot.core.model.SchemaModel;
 import io.umaboot.core.model.TableModel;
+import io.umaboot.core.relationship.RelationshipEngine;
 import io.umaboot.fixtures.FixtureLoader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.List;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,6 +32,60 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Execution(ExecutionMode.CONCURRENT)
 class SqlFileIntrospectorTest {
+
+    private static final List<String> SAMPLE_TABLES = List.of(
+            "customers", "addresses", "products", "orders",
+            "order_items", "order_item_audits", "tags", "product_tags");
+
+    @ParameterizedTest(name = "{0} sample schema parses the expected logical model")
+    @MethodSource("sampleSchemaFixtures")
+    void sampleSchemas_parseExpectedLogicalModel(String dialect, String schemaName, String fixturePath)
+            throws SQLException {
+        SchemaModel schema = parse(fixturePath, dialect, schemaName);
+
+        assertThat(schema.tables()).extracting(TableModel::name)
+                .containsExactlyElementsOf(SAMPLE_TABLES);
+        assertThat(schema.findTable("customers").relationships())
+                .anyMatch(r -> r.toTable().equalsIgnoreCase("customers")
+                        && r.fromColumns().contains("parent_id"));
+        assertThat(schema.findTable("orders").relationships())
+                .anyMatch(r -> r.toTable().equalsIgnoreCase("customers")
+                        && r.fromColumns().contains("customer_id"));
+        assertThat(schema.findTable("orders").relationships())
+                .anyMatch(r -> r.toTable().equalsIgnoreCase("addresses")
+                        && r.fromColumns().contains("billing_address_id"));
+        assertThat(schema.findTable("products").uniqueConstraints())
+                .anyMatch(cols -> cols.contains("sku") && cols.contains("name"));
+        assertThat(schema.findTable("order_item_audits").relationships())
+                .anyMatch(r -> r.toTable().equalsIgnoreCase("order_items")
+                        && r.fromColumns().equals(List.of("order_id", "product_id"))
+                        && r.toColumns().equals(List.of("order_id", "product_id")));
+        assertThat(schema.findTable("product_tags").relationships())
+                .anyMatch(r -> r.toTable().equalsIgnoreCase("tags")
+                        && r.fromColumns().contains("tag_id"));
+        assertThat(schema.findTable("customers").findColumn("id").autoIncrement()).isTrue();
+
+        SchemaModel analyzed = new RelationshipEngine().analyze(schema);
+        assertThat(analyzed.findTable("product_tags").junction()).isTrue();
+        assertThat(analyzed.findTable("order_items").junction()).isFalse();
+        assertThat(analyzed.findTable("order_item_audits").junction()).isFalse();
+        assertThat(analyzed.findTable("products").relationships())
+                .anyMatch(r -> r.type() instanceof RelationshipType.ManyToMany
+                        && r.toTable().equalsIgnoreCase("tags"));
+    }
+
+    @ParameterizedTest(name = "{0} fixture parses without throwing: {2}")
+    @MethodSource("allDialectScenarioFixtures")
+    void allDialectScenarioFixtures_parseWithoutThrowing(
+            String dialect, String schemaName, String fixturePath) throws SQLException {
+        SchemaModel schema = parse(fixturePath, dialect, schemaName);
+
+        assertThat(schema.schemaName()).isEqualTo(schemaName);
+        assertThat(schema.tables())
+                .allSatisfy(table -> assertThat(table.columns())
+                        .as("columns for %s in %s", table.name(), fixturePath)
+                        .isNotEmpty());
+    }
 
     // ============================================================ Postgres
 
@@ -158,7 +219,7 @@ class SqlFileIntrospectorTest {
 
         assertThat(schema.tables()).extracting(TableModel::name)
                 .containsExactly("customers", "addresses", "products", "orders",
-                        "order_items", "tags", "product_tags");
+                        "order_items", "order_item_audits", "tags", "product_tags");
         assertThat(schema.findTable("product_tags").relationships())
                 .anyMatch(r -> r.toTable().equals("tags")
                         && r.fromColumns().contains("tag_id"));
@@ -245,7 +306,7 @@ class SqlFileIntrospectorTest {
                     id BIGINT PRIMARY KEY,
                     name VARCHAR(50) NOT NULL
                 );
-                
+
                 CREATE TRIGGER never_supported
                 BEFORE INSERT ON plain
                 FOR EACH ROW
@@ -269,7 +330,35 @@ class SqlFileIntrospectorTest {
     // ============================================================ helpers
 
     private static SchemaModel parse(String fixturePath, String dialect) throws SQLException {
+        return parse(fixturePath, dialect, "sqlite".equals(dialect) ? "main" : "public");
+    }
+
+    private static SchemaModel parse(String fixturePath, String dialect, String schemaName) throws SQLException {
         String sql = FixtureLoader.load(fixturePath);
-        return new SqlFileIntrospector(sql, dialect).introspect("public");
+        return new SqlFileIntrospector(sql, dialect).introspect(schemaName);
+    }
+
+    private static Stream<Arguments> sampleSchemaFixtures() {
+        return Stream.of(
+                Arguments.of("postgresql", "public", FixtureLoader.POSTGRES_SAMPLE),
+                Arguments.of("mysql", "public", FixtureLoader.MYSQL_SAMPLE),
+                Arguments.of("mariadb", "public", FixtureLoader.MARIADB_SAMPLE),
+                Arguments.of("sqlite", "main", FixtureLoader.SQLITE_SAMPLE)
+        );
+    }
+
+    private static Stream<Arguments> allDialectScenarioFixtures() {
+        return Stream.concat(
+                Stream.concat(
+                        FixtureLoader.POSTGRES_SCENARIOS.stream()
+                                .map(path -> Arguments.of("postgresql", "public", path)),
+                        FixtureLoader.MYSQL_SCENARIOS.stream()
+                                .map(path -> Arguments.of("mysql", "public", path))),
+                Stream.concat(
+                        FixtureLoader.MARIADB_SCENARIOS.stream()
+                                .map(path -> Arguments.of("mariadb", "public", path)),
+                        FixtureLoader.SQLITE_SCENARIOS.stream()
+                                .map(path -> Arguments.of("sqlite", "main", path)))
+        );
     }
 }

@@ -5,10 +5,14 @@ import io.umaboot.core.config.UmabootConfig;
 import io.umaboot.fixtures.FixtureLoader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -72,58 +76,14 @@ class SchemaFileDialectGenerationTest {
 
     @Test
     void postgresSampleSchemaFileGeneratesAllLogicalEntities(@TempDir Path tmp) throws Exception {
-        Path schema = tmp.resolve("sample-schema.sql");
-        Files.writeString(schema, FixtureLoader.load(FixtureLoader.POSTGRES_SAMPLE));
+        assertSampleSchemaGeneratesLogicalEntities(tmp, "postgresql", FixtureLoader.POSTGRES_SAMPLE);
+    }
 
-        var generation = new UmabootConfig.Generation(
-                "mvc",
-                "jpa",
-                "com.example.shop",
-                "shop-api",
-                "com.example",
-                "3.3.5",
-                "17",
-                true,
-                UmabootConfig.OpenApiOptions.defaults(),
-                UmabootConfig.InjectionOptions.defaults(),
-                UmabootConfig.ValidationOptions.defaults(),
-                UmabootConfig.DtoOptions.defaults(),
-                UmabootConfig.ExceptionOptions.defaults(),
-                UmabootConfig.AuditOptions.defaults(),
-                UmabootConfig.SoftDeleteOptions.defaults(),
-                UmabootConfig.DockerOptions.defaults(),
-                UmabootConfig.CiOptions.defaults(),
-                UmabootConfig.LoggingOptions.defaults(),
-                UmabootConfig.TestOptions.defaults(),
-                UmabootConfig.MigrationOptions.defaults(),
-                UmabootConfig.PaginationOptions.defaults(),
-                UmabootConfig.SecurityOptions.defaults(),
-                "./generated",
-                new UmabootConfig.JpaOptions(false),
-                new UmabootConfig.MyBatisOptions("xml"),
-                UmabootConfig.TableFilterOptions.allowAll(),
-                UmabootConfig.DddOptions.defaults(),
-                UmabootConfig.OutputOptions.defaults(),
-                UmabootConfig.ApplicationConfigOptions.defaults(),
-                schema.toString(),
-                "postgresql",
-                "maven");
-
-        GenerationPipeline.Result result = GenerationPipeline.run(new UmabootConfig(null, generation), null);
-        List<GeneratedUnit> units = result.units();
-
-        assertThat(units).extracting(GeneratedUnit::relativePath)
-                .contains(
-                        "src/main/java/com/example/shop/entity/Customer.java",
-                        "src/main/java/com/example/shop/entity/Address.java",
-                        "src/main/java/com/example/shop/entity/Product.java",
-                        "src/main/java/com/example/shop/entity/Order.java",
-                        "src/main/java/com/example/shop/entity/OrderItem.java",
-                        "src/main/java/com/example/shop/entity/Tag.java")
-                .doesNotContain("src/main/java/com/example/shop/entity/ProductTag.java");
-        assertThat(readUnit(units, "src/main/java/com/example/shop/entity/Product.java"))
-                .contains("@ManyToMany")
-                .contains("@JoinTable(name = \"product_tags\"");
+    @ParameterizedTest(name = "{0} sample schema file generates all logical entities")
+    @MethodSource("sampleSchemaFixtures")
+    void allSupportedSampleSchemaFilesGenerateLogicalEntities(
+            String dialect, String fixturePath, @TempDir Path tmp) throws Exception {
+        assertSampleSchemaGeneratesLogicalEntities(tmp, dialect, fixturePath);
     }
 
     private static GenerationPipeline.Result runFromMysqlSchema(Path tmp, String buildTool) throws Exception {
@@ -169,6 +129,75 @@ class SchemaFileDialectGenerationTest {
                 "mysql",
                 buildTool);
         return GenerationPipeline.run(new UmabootConfig(null, generation), null);
+    }
+
+    private static void assertSampleSchemaGeneratesLogicalEntities(
+            Path tmp, String dialect, String fixturePath) throws Exception {
+        Path schema = tmp.resolve(dialect + "-sample-schema.sql");
+        Files.writeString(schema, FixtureLoader.load(fixturePath));
+
+        var generation = sampleGeneration(schema, dialect);
+        GenerationPipeline.Result result = GenerationPipeline.run(new UmabootConfig(null, generation), null);
+        List<GeneratedUnit> units = result.units();
+
+        assertThat(result.ctx().dbDriver()).isEqualTo(dialect);
+        assertThat(units).extracting(GeneratedUnit::relativePath)
+                .contains(
+                        "src/main/java/com/example/shop/entity/Customer.java",
+                        "src/main/java/com/example/shop/entity/Address.java",
+                        "src/main/java/com/example/shop/entity/Product.java",
+                        "src/main/java/com/example/shop/entity/Order.java",
+                        "src/main/java/com/example/shop/entity/OrderItem.java",
+                        "src/main/java/com/example/shop/entity/OrderItemAudit.java",
+                        "src/main/java/com/example/shop/entity/Tag.java")
+                .doesNotContain("src/main/java/com/example/shop/entity/ProductTag.java");
+        assertThat(readUnit(units, "src/main/java/com/example/shop/entity/Product.java"))
+                .contains("@ManyToMany")
+                .contains("@JoinTable(name = \"product_tags\"");
+    }
+
+    private static UmabootConfig.Generation sampleGeneration(Path schema, String dialect) {
+        return new UmabootConfig.Generation(
+                "mvc",
+                "jpa",
+                "com.example.shop",
+                "shop-api",
+                "com.example",
+                "3.3.5",
+                "17",
+                true,
+                UmabootConfig.OpenApiOptions.defaults(),
+                UmabootConfig.InjectionOptions.defaults(),
+                UmabootConfig.ValidationOptions.defaults(),
+                UmabootConfig.DtoOptions.defaults(),
+                UmabootConfig.ExceptionOptions.defaults(),
+                UmabootConfig.AuditOptions.defaults(),
+                UmabootConfig.SoftDeleteOptions.defaults(),
+                UmabootConfig.DockerOptions.defaults(),
+                UmabootConfig.CiOptions.defaults(),
+                UmabootConfig.LoggingOptions.defaults(),
+                UmabootConfig.TestOptions.defaults(),
+                UmabootConfig.MigrationOptions.defaults(),
+                UmabootConfig.PaginationOptions.defaults(),
+                UmabootConfig.SecurityOptions.defaults(),
+                "./generated",
+                new UmabootConfig.JpaOptions(false),
+                new UmabootConfig.MyBatisOptions("xml"),
+                UmabootConfig.TableFilterOptions.allowAll(),
+                UmabootConfig.DddOptions.defaults(),
+                UmabootConfig.OutputOptions.defaults(),
+                UmabootConfig.ApplicationConfigOptions.defaults(),
+                schema.toString(),
+                dialect,
+                "maven");
+    }
+
+    private static Stream<Arguments> sampleSchemaFixtures() {
+        return Stream.of(
+                Arguments.of("mysql", FixtureLoader.MYSQL_SAMPLE),
+                Arguments.of("mariadb", FixtureLoader.MARIADB_SAMPLE),
+                Arguments.of("sqlite", FixtureLoader.SQLITE_SAMPLE)
+        );
     }
 
     private static String readUnit(List<GeneratedUnit> units, String path) {

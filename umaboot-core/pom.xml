@@ -14,6 +14,7 @@
 
     <artifactId>umaboot-core</artifactId>
     <packaging>jar</packaging>
+    <version>0.1.0-SNAPSHOT</version>
     <name>Umaboot Core</name>
     <description>
         Pure Java core library: introspection, schema model, relationship engine,

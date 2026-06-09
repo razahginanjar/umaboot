@@ -147,6 +147,18 @@ class VersionMetadataServiceTest {
     }
 
     @Test
+    void lombok_fetchesFromMavenCentral(@TempDir Path tmp) {
+        Path cache = tmp.resolve("versions.json");
+        StubHttpClient http = new StubHttpClient();
+        http.respond(VersionMetadataService.MAVEN_CENTRAL_LOMBOK_URL,
+                mavenCentral("1.18.46", "1.18.30", "1.18.28"));
+        VersionMetadataService svc = new VersionMetadataService(cache, http);
+
+        assertThat(svc.getLombokVersions()).containsExactly("1.18.46", "1.18.30");
+        assertThat(http.callCount).isEqualTo(1);
+    }
+
+    @Test
     void multipleSectionsCoexistInCache(@TempDir Path tmp) {
         Path cache = tmp.resolve("versions.json");
         StubHttpClient http = new StubHttpClient();
@@ -192,6 +204,30 @@ class VersionMetadataServiceTest {
         assertThat(svc.getSpringBootVersions()).isEqualTo(VersionMetadataService.SPRING_BOOT_3_FALLBACK);
         assertThat(svc.getSpringBoot2Versions()).isEqualTo(VersionMetadataService.SPRING_BOOT_2_FALLBACK);
         assertThat(svc.getJavaVersions()).isEqualTo(VersionMetadataService.JAVA_FALLBACK);
+        assertThat(svc.getLombokVersions()).isEqualTo(VersionMetadataService.LOMBOK_FALLBACK);
+    }
+
+    @Test
+    void springBootVersionsForJava17_includeBoot3ThenBoot2(@TempDir Path tmp) {
+        Path cache = tmp.resolve("versions.json");
+        StubHttpClient http = new StubHttpClient();
+        http.respond(VersionMetadataService.SPRING_INITIALIZR_URL, initializr("3.4.1", "3.3.6"));
+        http.respond(VersionMetadataService.MAVEN_CENTRAL_SB2_URL, mavenCentral("2.7.18", "2.7.17"));
+        VersionMetadataService svc = new VersionMetadataService(cache, http);
+
+        assertThat(svc.getSpringBootVersionsFor("17"))
+                .containsExactly("3.4.1", "3.3.6", "2.7.18", "2.7.17");
+    }
+
+    @Test
+    void springBootVersionsForJava8And11_stayOnBoot2(@TempDir Path tmp) {
+        Path cache = tmp.resolve("versions.json");
+        StubHttpClient http = new StubHttpClient();
+        http.respond(VersionMetadataService.MAVEN_CENTRAL_SB2_URL, mavenCentral("2.7.18"));
+        VersionMetadataService svc = new VersionMetadataService(cache, http);
+
+        assertThat(svc.getSpringBootVersionsFor("8")).containsExactly("2.7.18");
+        assertThat(svc.getSpringBootVersionsFor("11")).containsExactly("2.7.18");
     }
 
     @Test

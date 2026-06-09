@@ -89,6 +89,9 @@ public final class UmabootYamlIO {
         gen.put("springBootVersion", config.generation().springBootVersion());
         gen.put("javaVersion", config.generation().javaVersion());
         gen.put("useLombok", config.generation().useLombok());
+        if (config.generation().lombokVersion() != null) {
+            gen.put("lombokVersion", config.generation().lombokVersion());
+        }
 
         Map<String, Object> openapi = new LinkedHashMap<>();
         openapi.put("style", config.generation().openapi().style());
@@ -178,6 +181,7 @@ public final class UmabootYamlIO {
 
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("mode", config.generation().output().mode());
+        output.put("existingPolicy", config.generation().output().existingPolicy());
         gen.put("output", output);
 
         Map<String, Object> jpa = new LinkedHashMap<>();

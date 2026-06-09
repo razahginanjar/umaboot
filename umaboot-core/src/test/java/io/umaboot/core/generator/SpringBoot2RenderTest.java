@@ -67,6 +67,38 @@ class SpringBoot2RenderTest {
     }
 
     @Test
+    void mvcJpa_sb2_mapstructPinsLombokProcessorVersion() {
+        GeneratorContext ctx = sb2Ctx("mvc", "jpa", false, true, "none", true);
+        List<GeneratedUnit> units = new MvcGenerator(new TemplateEngine(null), ctx).generate(schema());
+
+        String pom = readUnit(units, "pom.xml");
+        String processorPaths = pom.substring(pom.indexOf("<annotationProcessorPaths>"));
+        assertThat(pom)
+                .contains("<lombok.version>1.18.30</lombok.version>")
+                .contains("<artifactId>maven-compiler-plugin</artifactId>");
+        assertThat(processorPaths)
+                .contains("<artifactId>lombok</artifactId>")
+                .contains("<version>${lombok.version}</version>");
+    }
+
+    @Test
+    void jsonLogging_usesLogstashEncoderCompatibleWithSpringBootLogbackLine() {
+        UmabootConfig.LoggingOptions jsonLogging = new UmabootConfig.LoggingOptions("json", false);
+
+        for (String architecture : List.of("mvc", "hexagonal", "ddd")) {
+            for (String buildTool : List.of("maven", "gradle")) {
+                GeneratorContext sb2 = sb2Ctx(architecture, "jpa", false, false,
+                        "none", false, jsonLogging, buildTool);
+                assertLogstashEncoderVersion(generate(sb2), buildTool, "7.3");
+
+                GeneratorContext sb3 = sb3Ctx(architecture, "jpa", false, false,
+                        "none", jsonLogging, buildTool);
+                assertLogstashEncoderVersion(generate(sb3), buildTool, "7.4");
+            }
+        }
+    }
+
+    @Test
     void mvcJpa_sb3_keepsJakartaAndModernSpringdoc() {
         List<GeneratedUnit> units = generateMvcSb3();
 
@@ -279,6 +311,20 @@ class SpringBoot2RenderTest {
     /** Build a SB2-flavored context. */
     private static GeneratorContext sb2Ctx(String architecture, String persistence,
                                            boolean openApiAnnotation, boolean envelope, String securityStyle) {
+        return sb2Ctx(architecture, persistence, openApiAnnotation, envelope, securityStyle, false);
+    }
+
+    private static GeneratorContext sb2Ctx(String architecture, String persistence,
+                                           boolean openApiAnnotation, boolean envelope,
+                                           String securityStyle, boolean useMapStruct) {
+        return sb2Ctx(architecture, persistence, openApiAnnotation, envelope, securityStyle,
+                useMapStruct, UmabootConfig.LoggingOptions.defaults(), "maven");
+    }
+
+    private static GeneratorContext sb2Ctx(String architecture, String persistence,
+                                           boolean openApiAnnotation, boolean envelope,
+                                           String securityStyle, boolean useMapStruct,
+                                           UmabootConfig.LoggingOptions logging, String buildTool) {
         UmabootConfig.SecurityOptions security = "none".equals(securityStyle)
                 ? UmabootConfig.SecurityOptions.defaults()
                 : new UmabootConfig.SecurityOptions(
@@ -290,21 +336,28 @@ class SpringBoot2RenderTest {
         return new GeneratorContext(
                 "com.example.shop", "shop-api", "com.example",
                 "2.7.18", "11", true,
-                architecture, persistence, "xml", false,
+                architecture, persistence, "xml", useMapStruct,
                 openApiAnnotation ? "annotation" : "yaml",
                 "constructor", "jakarta", "class", "separate",
                 envelope ? "envelope" : "problemdetail",
                 UmabootConfig.AuditOptions.defaults(), UmabootConfig.SoftDeleteOptions.defaults(),
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(),
-                UmabootConfig.LoggingOptions.defaults(), UmabootConfig.TestOptions.defaults(),
+                logging, UmabootConfig.TestOptions.defaults(),
                 "offset", security,
                 UmabootConfig.DddOptions.defaults(),
-                false, "postgres", null, null, "", null, "maven");
+                false, "postgres", null, null, "", null, buildTool);
     }
 
     /** SB3-flavored context for parity comparisons. */
     private static GeneratorContext sb3Ctx(String architecture, String persistence,
                                            boolean openApiAnnotation, boolean envelope, String securityStyle) {
+        return sb3Ctx(architecture, persistence, openApiAnnotation, envelope, securityStyle,
+                UmabootConfig.LoggingOptions.defaults(), "maven");
+    }
+
+    private static GeneratorContext sb3Ctx(String architecture, String persistence,
+                                           boolean openApiAnnotation, boolean envelope, String securityStyle,
+                                           UmabootConfig.LoggingOptions logging, String buildTool) {
         UmabootConfig.SecurityOptions security = "none".equals(securityStyle)
                 ? UmabootConfig.SecurityOptions.defaults()
                 : new UmabootConfig.SecurityOptions(
@@ -322,10 +375,10 @@ class SpringBoot2RenderTest {
                 envelope ? "envelope" : "problemdetail",
                 UmabootConfig.AuditOptions.defaults(), UmabootConfig.SoftDeleteOptions.defaults(),
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(),
-                UmabootConfig.LoggingOptions.defaults(), UmabootConfig.TestOptions.defaults(),
+                logging, UmabootConfig.TestOptions.defaults(),
                 "offset", security,
                 UmabootConfig.DddOptions.defaults(),
-                false, "postgres", null, null, "", null, "maven");
+                false, "postgres", null, null, "", null, buildTool);
     }
 
     /** Bare-minimum Generation factory used by cross-validation tests. */
@@ -358,6 +411,42 @@ class SpringBoot2RenderTest {
 
     private static void assertHasFile(List<GeneratedUnit> units, String path) {
         assertThat(units).extracting(GeneratedUnit::relativePath).contains(path);
+    }
+
+    private static List<GeneratedUnit> generate(GeneratorContext ctx) {
+        if ("hexagonal".equals(ctx.architecture())) {
+            return new HexagonalGenerator(new TemplateEngine(null), ctx).generate(schema());
+        }
+        if ("ddd".equals(ctx.architecture())) {
+            return new DddGenerator(new TemplateEngine(null), ctx).generate(schema());
+        }
+        return new MvcGenerator(new TemplateEngine(null), ctx).generate(schema());
+    }
+
+    private static void assertLogstashEncoderVersion(List<GeneratedUnit> units,
+                                                     String buildTool,
+                                                     String expectedVersion) {
+        String buildFile = "gradle".equals(buildTool)
+                ? readUnit(units, "build.gradle.kts")
+                : readUnit(units, "pom.xml");
+        String block = around(buildFile, "logstash-logback-encoder");
+        assertThat(block)
+                .contains("logstash-logback-encoder")
+                .contains(logstashVersionSnippet(buildTool, expectedVersion));
+    }
+
+    private static String logstashVersionSnippet(String buildTool, String version) {
+        return "gradle".equals(buildTool)
+                ? "net.logstash.logback:logstash-logback-encoder:" + version
+                : "<version>" + version + "</version>";
+    }
+
+    private static String around(String content, String needle) {
+        int index = content.indexOf(needle);
+        assertThat(index).as("Expected generated content to contain " + needle).isGreaterThanOrEqualTo(0);
+        int start = Math.max(0, index - 160);
+        int end = Math.min(content.length(), index + needle.length() + 160);
+        return content.substring(start, end);
     }
 
     private static String readUnit(List<GeneratedUnit> units, String path) {

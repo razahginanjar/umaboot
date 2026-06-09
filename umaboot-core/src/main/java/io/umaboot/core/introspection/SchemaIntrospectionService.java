@@ -83,10 +83,34 @@ public final class SchemaIntrospectionService {
                 connection.username(),
                 connection.password())) {
             Introspector introspector = introspectorFor(connection.driver(), conn);
-            SchemaModel schema = introspector.introspect(connection.introspectionTarget());
+            SchemaModel schema = introspector.introspect(target);
             LOG.info("Introspected {} tables from live database", schema.tables().size());
-            return new Result(schema, connection.driver(), connection, null, List.of());
+            List<String> warnings = schema.tables().isEmpty()
+                    ? emptyLiveSchemaWarnings(connection, target)
+                    : List.of();
+            return new Result(schema, connection.driver(), connection, null, warnings);
         }
+    }
+
+    static List<String> emptyLiveSchemaWarnings(UmabootConfig.Connection connection, String target) {
+        if (connection == null) return List.of();
+        String type = connection.type();
+        String effectiveTarget = target == null || target.isBlank()
+                ? connection.introspectionTarget()
+                : target;
+        if ("sqlite".equalsIgnoreCase(type)) {
+            return List.of();
+        }
+        if ("mysql".equalsIgnoreCase(type) || "mariadb".equalsIgnoreCase(type)) {
+            return List.of("No tables found in database '" + effectiveTarget
+                    + "'. For MySQL/MariaDB the Database field is the table-introspection target; verify connection.database and that the configured user can see tables in that database.");
+        }
+        if ("sqlserver".equalsIgnoreCase(type)) {
+            return List.of("No tables found in schema '" + effectiveTarget
+                    + "'. For SQL Server the Schema field is the table-introspection target, usually 'dbo'; verify connection.schema and that the configured user can see tables in that schema.");
+        }
+        return List.of("No tables found in schema '" + effectiveTarget
+                + "'. For PostgreSQL the Database field selects the database in the JDBC URL, but the Schema field selects where tables are read from; verify connection.schema and that the configured user can see tables in that schema.");
     }
 
     public static Introspector introspectorFor(String driver, Connection conn) {

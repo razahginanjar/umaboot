@@ -224,6 +224,7 @@ public record UmabootConfig(Connection connection, Generation generation) {
             String springBootVersion,
             String javaVersion,
             boolean useLombok,
+            String lombokVersion,
             OpenApiOptions openapi,
             InjectionOptions injection,
             ValidationOptions validation,
@@ -262,6 +263,12 @@ public record UmabootConfig(Connection connection, Generation generation) {
                 springBootVersion = ("8".equals(javaVersion) || "11".equals(javaVersion))
                         ? "2.7.18"
                         : "3.3.5";
+            }
+            lombokVersion = normalizeOptional(lombokVersion);
+            if (!useLombok || !requiresExplicitLombokVersion(springBootVersion)) {
+                lombokVersion = null;
+            } else if (lombokVersion == null) {
+                lombokVersion = defaultLombokVersion();
             }
             jpa = jpa == null ? new JpaOptions(false) : jpa;
             mybatis = mybatis == null ? new MyBatisOptions("xml") : mybatis;
@@ -370,6 +377,47 @@ public record UmabootConfig(Connection connection, Generation generation) {
                 CiOptions ci,
                 LoggingOptions logging,
                 TestOptions tests,
+                MigrationOptions migrations,
+                PaginationOptions pagination,
+                SecurityOptions security,
+                String outputDir,
+                JpaOptions jpa,
+                MyBatisOptions mybatis,
+                TableFilterOptions tables,
+                DddOptions ddd,
+                OutputOptions output,
+                ApplicationConfigOptions applicationConfig,
+                String schemaFile,
+                String schemaDialect,
+                String buildTool) {
+            this(architecture, persistence, basePackage, projectName, projectGroup,
+                    springBootVersion, javaVersion, useLombok, null, openapi, injection,
+                    validation, dto, exception, audit, softDelete, docker, ci,
+                    logging, tests, migrations, pagination, security, outputDir, jpa,
+                    mybatis, tables, ddd, output, applicationConfig, schemaFile,
+                    schemaDialect, buildTool);
+        }
+
+        public Generation(
+                String architecture,
+                String persistence,
+                String basePackage,
+                String projectName,
+                String projectGroup,
+                String springBootVersion,
+                String javaVersion,
+                boolean useLombok,
+                OpenApiOptions openapi,
+                InjectionOptions injection,
+                ValidationOptions validation,
+                DtoOptions dto,
+                ExceptionOptions exception,
+                AuditOptions audit,
+                SoftDeleteOptions softDelete,
+                DockerOptions docker,
+                CiOptions ci,
+                LoggingOptions logging,
+                TestOptions tests,
                 PaginationOptions pagination,
                 SecurityOptions security,
                 String outputDir,
@@ -382,7 +430,7 @@ public record UmabootConfig(Connection connection, Generation generation) {
                 String schemaFile,
                 String buildTool) {
             this(architecture, persistence, basePackage, projectName, projectGroup,
-                    springBootVersion, javaVersion, useLombok, openapi, injection,
+                    springBootVersion, javaVersion, useLombok, null, openapi, injection,
                     validation, dto, exception, audit, softDelete, docker, ci,
                     logging, tests, null, pagination, security, outputDir, jpa, mybatis,
                     tables, ddd, output, applicationConfig, schemaFile, null, buildTool);
@@ -396,6 +444,10 @@ public record UmabootConfig(Connection connection, Generation generation) {
         public boolean isSpringBoot2() { return springBootMajor() == 2; }
         public boolean isSpringBoot3() { return springBootMajor() == 3; }
 
+        public boolean requiresLombokVersion() {
+            return useLombok && requiresExplicitLombokVersion(springBootVersion);
+        }
+
         private static int parseSpringBootMajor(String version) {
             if (version == null || version.isEmpty()) return 3;
             int dot = version.indexOf('.');
@@ -407,10 +459,36 @@ public record UmabootConfig(Connection connection, Generation generation) {
             }
         }
 
+        private static int parseSpringBootMinor(String version) {
+            if (version == null || version.isEmpty()) return 0;
+            String[] parts = version.split("[.\\-]");
+            if (parts.length < 2) return 0;
+            try {
+                return Integer.parseInt(parts[1]);
+            } catch (NumberFormatException ex) {
+                return 0;
+            }
+        }
+
+        private static boolean requiresExplicitLombokVersion(String springBootVersion) {
+            int major = parseSpringBootMajor(springBootVersion);
+            int minor = parseSpringBootMinor(springBootVersion);
+            return major < 3 || (major == 3 && minor < 5);
+        }
+
+        private static String defaultLombokVersion() {
+            return "1.18.30";
+        }
+
         private static String normalizeJavaVersion(String version) {
             String trimmed = version == null ? "" : version.trim();
             if ("1.8".equals(trimmed)) return "8";
             return trimmed.isEmpty() ? "17" : trimmed;
+        }
+
+        private static String normalizeOptional(String value) {
+            if (value == null || value.isBlank()) return null;
+            return value.trim();
         }
 
         private static String canonicalSchemaDialect(String schemaDialect) {
@@ -578,28 +656,46 @@ public record UmabootConfig(Connection connection, Generation generation) {
      *   <li>{@code standalone} (default) — emits a complete runnable project including
      *       {@code pom.xml}, {@code Application.java}, {@code application.yml}, and
      *       {@code GlobalExceptionHandler.java}. Suitable for greenfield use.
-     *       Default {@code outputDir} is {@code ./generated}.</li>
+     *       Default {@code outputDir} is {@code ./generated}. {@code existingPolicy}
+     *       controls what happens when the target already looks like a project.</li>
      *   <li>{@code overlay} — emits only per-table source files into an existing Spring Boot
      *       project. Skips {@code pom.xml}, {@code Application.java}, {@code application.yml},
      *       and {@code GlobalExceptionHandler.java} so they don't clobber the user's own.
      *       Default {@code outputDir} is {@code .} (the project root).</li>
      * </ul>
      */
-    public record OutputOptions(String mode) {
+    public record OutputOptions(String mode, String existingPolicy) {
+        public OutputOptions(String mode) {
+            this(mode, "warn");
+        }
+
         public OutputOptions {
             mode = mode == null ? "standalone" : mode.toLowerCase();
             if (!"standalone".equals(mode) && !"overlay".equals(mode)) {
                 throw new IllegalArgumentException(
                         "output.mode must be 'standalone' or 'overlay' (got: " + mode + ")");
             }
+            existingPolicy = existingPolicy == null ? "warn" : existingPolicy.toLowerCase();
+            if (!"warn".equals(existingPolicy)
+                    && !"overwrite".equals(existingPolicy)
+                    && !"clean".equals(existingPolicy)
+                    && !"fail".equals(existingPolicy)) {
+                throw new IllegalArgumentException(
+                        "output.existingPolicy must be 'warn', 'overwrite', 'clean', or 'fail' (got: "
+                                + existingPolicy + ")");
+            }
         }
 
         public static OutputOptions defaults() {
-            return new OutputOptions("standalone");
+            return new OutputOptions("standalone", "warn");
         }
 
         public boolean isStandalone() { return "standalone".equals(mode); }
         public boolean isOverlay() { return "overlay".equals(mode); }
+        public boolean isExistingPolicyWarn() { return "warn".equals(existingPolicy); }
+        public boolean isExistingPolicyOverwrite() { return "overwrite".equals(existingPolicy); }
+        public boolean isExistingPolicyClean() { return "clean".equals(existingPolicy); }
+        public boolean isExistingPolicyFail() { return "fail".equals(existingPolicy); }
     }
 
     /**
@@ -803,12 +899,13 @@ public record UmabootConfig(Connection connection, Generation generation) {
 
     /**
      * Audit-field auto-detection. When {@code enabled: true} (default), the generator
-     * inspects each table for columns matching the configured names — when any are
-     * present, the entity extends a generated {@code Auditable} {@code @MappedSuperclass}
-     * and the application class is annotated {@code @EnableJpaAuditing}.
+     * inspects each table for columns matching the configured names. JPA projects
+     * use a generated {@code Auditable} {@code @MappedSuperclass} with
+     * {@code @EnableJpaAuditing}; MyBatis/jOOQ projects use generated application
+     * service code to fill audit values before persistence.
      *
-     * <p>Detection is case-insensitive. Currently JPA-only; for MyBatis/jOOQ the
-     * columns stay on the entity as regular timestamps with no special handling.</p>
+     * <p>Detection is case-insensitive. Audit columns are read-only API input:
+     * generated request DTOs omit them while response DTOs include them.</p>
      */
     public record AuditOptions(
             boolean enabled,
