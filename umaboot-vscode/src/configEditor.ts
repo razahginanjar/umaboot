@@ -1,12 +1,29 @@
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
+import * as https from 'https';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as yaml from 'js-yaml';
+import { CliResolutionError, ResolvedCliCommand, resolveCliCommand } from './cli';
 import { format, getLanguage, isLanguage, setLanguage, text } from './i18n';
 import { UmabootLogger } from './logging';
 import { isSchemaFileConfig, tableNamesFromSchemaFileConfig } from './sqlTables';
+
+const LOMBOK_MAVEN_CENTRAL_URL = 'https://search.maven.org/solrsearch/select'
+    + '?q=g:org.projectlombok+AND+a:lombok&core=gav&rows=40&sort=timestamp+desc&wt=json';
+
+const LOMBOK_VERSION_FALLBACK = [
+    '1.18.46',
+    '1.18.44',
+    '1.18.42',
+    '1.18.40',
+    '1.18.38',
+    '1.18.36',
+    '1.18.34',
+    '1.18.32',
+    '1.18.30',
+];
 
 /**
  * Manages the "Edit Configuration" webview panel.
@@ -103,6 +120,7 @@ export class UmabootConfigEditor {
         switch (msg.command) {
             case 'ready':
                 this.sendCurrentConfig();
+                this.sendLombokVersions();
                 break;
             case 'setLanguage':
                 this.updateLanguage(msg.language);
@@ -219,6 +237,20 @@ export class UmabootConfigEditor {
         });
     }
 
+    private sendLombokVersions(): void {
+        void fetchLombokVersions()
+            .catch((err) => {
+                this.logger.event('config editor', `Lombok version fetch failed: ${err}`);
+                return LOMBOK_VERSION_FALLBACK;
+            })
+            .then((versions) => {
+                this.panel.webview.postMessage({
+                    command: 'lombokVersionsResult',
+                    versions,
+                });
+            });
+    }
+
     private saveConfig(config: unknown): void {
         if (!config || typeof config !== 'object') return;
         const filePath = this.configFilePath();
@@ -291,7 +323,7 @@ export class UmabootConfigEditor {
         mapResult: (r: { stdout: string; stderr: string; code: number | null }) => Record<string, unknown>,
         extraArgs: string[] = [],
     ): void {
-        const cli = vscode.workspace.getConfiguration('umaboot').get<string>('cliPath') ?? 'umaboot';
+        const cliPath = vscode.workspace.getConfiguration('umaboot').get<string>('cliPath') ?? 'umaboot';
         const tmpFile = path.join(
             this.context.globalStorageUri.fsPath,
             `editor-${Date.now()}.yaml`,
@@ -313,10 +345,22 @@ export class UmabootConfigEditor {
         }
 
         const args = [subcommand, '--config', tmpFile, ...extraArgs];
-        this.logger.command(`config editor ${subcommand}`, cli, args, this.workspaceRoot);
-        const child = cp.spawn(cli, args, {
+        let cli: ResolvedCliCommand;
+        try {
+            cli = resolveCliCommand(cliPath, args, this.workspaceRoot);
+        } catch (err) {
+            try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+            this.panel.webview.postMessage({
+                command: 'connectionResult',
+                ok: false,
+                message: cliResolutionMessage(err),
+            });
+            return;
+        }
+        this.logger.command(`config editor ${subcommand}`, cli.command, cli.args, this.workspaceRoot);
+        const child = cp.spawn(cli.command, cli.args, {
             cwd: this.workspaceRoot,
-            shell: true,
+            shell: cli.shell,
         });
         let stdout = '';
         let stderr = '';
@@ -350,6 +394,75 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function fetchLombokVersions(): Promise<string[]> {
+    return new Promise((resolve, reject) => {
+        const req = https.get(
+            LOMBOK_MAVEN_CENTRAL_URL,
+            {
+                headers: {
+                    Accept: 'application/json',
+                    'User-Agent': 'umaboot-vscode',
+                },
+            },
+            (res) => {
+                if (res.statusCode !== 200) {
+                    res.resume();
+                    reject(new Error(`Maven Central returned HTTP ${res.statusCode}`));
+                    return;
+                }
+                let body = '';
+                res.setEncoding('utf8');
+                res.on('data', (chunk: string) => {
+                    body += chunk;
+                });
+                res.on('end', () => {
+                    try {
+                        const versions = parseLombokVersions(body);
+                        resolve(versions.length > 0 ? versions : LOMBOK_VERSION_FALLBACK);
+                    } catch (err) {
+                        reject(err);
+                    }
+                });
+            },
+        );
+        req.setTimeout(6000, () => {
+            req.destroy(new Error('Maven Central request timed out'));
+        });
+        req.on('error', reject);
+    });
+}
+
+function parseLombokVersions(body: string): string[] {
+    const parsed = JSON.parse(body) as unknown;
+    if (!isRecord(parsed) || !isRecord(parsed.response) || !Array.isArray(parsed.response.docs)) {
+        return [];
+    }
+
+    const seen = new Set<string>();
+    for (const doc of parsed.response.docs) {
+        if (!isRecord(doc) || typeof doc.v !== 'string') continue;
+        if (isSupportedLombokVersion(doc.v)) {
+            seen.add(doc.v);
+        }
+    }
+    return Array.from(seen).sort(compareVersionsDesc);
+}
+
+function isSupportedLombokVersion(version: string): boolean {
+    const match = /^1\.18\.(\d+)$/.exec(version);
+    return Boolean(match && Number.parseInt(match[1], 10) >= 30);
+}
+
+function compareVersionsDesc(left: string, right: string): number {
+    const leftParts = left.split('.').map((part) => Number.parseInt(part, 10) || 0);
+    const rightParts = right.split('.').map((part) => Number.parseInt(part, 10) || 0);
+    for (let i = 0; i < Math.max(leftParts.length, rightParts.length); i += 1) {
+        const diff = (rightParts[i] || 0) - (leftParts[i] || 0);
+        if (diff !== 0) return diff;
+    }
+    return 0;
+}
+
 function stringValue(value: unknown): string {
     return typeof value === 'string' ? value.trim() : '';
 }
@@ -358,4 +471,11 @@ function normalizeSchemaFile(config: Record<string, unknown>, workspaceRoot: str
     const schemaFile = stringValue(config.schemaFile);
     if (!schemaFile || path.isAbsolute(schemaFile)) return;
     config.schemaFile = path.resolve(workspaceRoot, schemaFile);
+}
+
+function cliResolutionMessage(err: unknown): string {
+    if (err instanceof CliResolutionError) {
+        return err.message;
+    }
+    return String(err);
 }

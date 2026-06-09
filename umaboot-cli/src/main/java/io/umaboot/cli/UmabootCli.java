@@ -16,7 +16,7 @@ import picocli.CommandLine.Command;
 @Command(
         name = "umaboot",
         mixinStandardHelpOptions = true,
-        version = "Umaboot 0.1.0",
+        version = BuildInfo.VERSION,
         description = "Generate a Spring Boot CRUD project from a database schema.",
         subcommands = {
                 GenerateCommand.class,

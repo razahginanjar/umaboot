@@ -68,6 +68,7 @@ public final class ListTablesCommand implements Callable<Integer> {
 
         try {
             SchemaIntrospectionService.Result source = new SchemaIntrospectionService().introspect(config);
+            CliWarningPrinter.printSchemaWarnings(source.warnings());
             SchemaModel schema = source.schema();
             if (!raw) {
                 schema = new RelationshipEngine().analyze(schema);

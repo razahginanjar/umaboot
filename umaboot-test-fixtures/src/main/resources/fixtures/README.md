@@ -1,7 +1,8 @@
 # Test fixtures
 
 Per-condition SQL scripts for exercising the Umaboot generator against a live
-PostgreSQL or MySQL instance. Each script isolates **one** schema-side
+PostgreSQL or MySQL instance, plus kitchen-sink sample schemas for MySQL,
+MariaDB, and SQLite script-mode regression coverage. Each numbered script isolates **one** schema-side
 condition that drives a different code path in the introspector / relationship
 engine / generator. Pick the script that matches what you want to verify.
 
@@ -33,13 +34,23 @@ fixtures/
     sample-schema.sql            # original kitchen-sink (used by GenerateIntegrationTest)
     01-basic-crud.sql            …  10-naming-edge-cases.sql
   mysql/
+    sample-schema.sql            # MySQL kitchen-sink script-mode regression schema
     01-basic-crud.sql            …  10-naming-edge-cases.sql
+  mariadb/
+    sample-schema.sql            # MariaDB kitchen-sink script-mode regression schema
+  sqlite/
+    sample-schema.sql            # SQLite kitchen-sink script-mode regression schema
 ```
 
 `postgres/NN-name.sql` and `mysql/NN-name.sql` test the **same** condition with
 the **same** logical schema, dialect-adjusted (`BIGSERIAL` ↔ `BIGINT AUTO_INCREMENT`,
 `JSONB` ↔ `JSON`, `BYTEA` ↔ `BLOB`, etc.). Comparing introspection results across
 the two engines for the same script is a useful regression check.
+
+The `*/sample-schema.sql` files are broader script-mode fixtures. They all use
+the same logical model (`customers`, `addresses`, `products`, `orders`,
+`order_items`, `tags`, `product_tags`) and are dialect-adjusted for parser and
+generation tests across Postgres, MySQL, MariaDB, and SQLite.
 
 ## Applying a script
 

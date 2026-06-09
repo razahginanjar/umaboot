@@ -7,6 +7,7 @@ import { UmabootTreeProvider } from './tree';
 import { UmabootCodeLensProvider } from './codeLens';
 import { UmabootFileDecorationProvider } from './fileDecoration';
 import { UmabootConfigEditor } from './configEditor';
+import { CliResolutionError, ResolvedCliCommand, resolveCliCommand } from './cli';
 import { format, getLanguage, text, UiLanguage } from './i18n';
 import { UmabootLogger } from './logging';
 import { isUmabootConfigPath } from './paths';
@@ -95,18 +96,18 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     // --- CLI shell-out helpers --------------------------------------------
-    const cliInvocation = (): { cli: string; configPath: string } | undefined => {
+    const cliInvocation = (): { cliPath: string; configPath: string } | undefined => {
         if (!workspaceRoot) {
             vscode.window.showErrorMessage(msg('Umaboot: open a folder first.'));
             return undefined;
         }
         const cfg = vscode.workspace.getConfiguration('umaboot');
-        const cli = cfg.get<string>('cliPath') ?? 'umaboot';
+        const cliPath = cfg.get<string>('cliPath') ?? 'umaboot';
         const configFile = cfg.get<string>('configFile') ?? 'umaboot.yaml';
         const configPath = path.isAbsolute(configFile)
             ? configFile
             : path.join(workspaceRoot, configFile);
-        return { cli, configPath };
+        return { cliPath, configPath };
     };
 
     const readConfig = (configPath: string): unknown => {
@@ -131,17 +132,36 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
         }
 
-        const args = [sub, '--config', inv.configPath];
-        logger.showDetail(true);
-        logger.command(`cli ${sub}`, inv.cli, args, workspaceRoot!);
+        let extraArgs: string[] = [];
+        if (sub === 'generate') {
+            const standaloneArgs = await standaloneExistingPolicyArgs(inv.configPath, workspaceRoot!, language());
+            if (standaloneArgs === false) return;
+            extraArgs = standaloneArgs;
+        }
 
-        const child = cp.spawn(inv.cli, args, {
+        const args = [sub, '--config', inv.configPath, ...extraArgs];
+        const cli = resolveCliOrShow(inv.cliPath, args, workspaceRoot!);
+        if (!cli) return;
+        logger.showDetail(true);
+        logger.command(`cli ${sub}`, cli.command, cli.args, workspaceRoot!);
+
+        const child = cp.spawn(cli.command, cli.args, {
             cwd: workspaceRoot!,
-            shell: true,
+            shell: cli.shell,
         });
-        child.stdout.on('data', (d: Buffer) => logger.detailRaw(d.toString()));
-        child.stderr.on('data', (d: Buffer) => logger.detailRaw(d.toString()));
-        child.on('close', (code: number | null) => {
+        let stdout = '';
+        let stderr = '';
+        child.stdout.on('data', (d: Buffer) => {
+            const chunk = d.toString();
+            stdout += chunk;
+            logger.detailRaw(chunk);
+        });
+        child.stderr.on('data', (d: Buffer) => {
+            const chunk = d.toString();
+            stderr += chunk;
+            logger.detailRaw(chunk);
+        });
+        child.on('close', async (code: number | null) => {
             logger.result(`cli ${sub}`, code, '', '', {
                 includeStdout: false,
                 includeStderr: false,
@@ -153,6 +173,22 @@ export function activate(context: vscode.ExtensionContext): void {
                 if (sub === 'generate' || sub === 'apply') treeProvider.refresh();
             } else if (code === 1 && sub === 'diff') {
                 vscode.window.showInformationMessage(msg('Umaboot diff: changes detected'));
+            } else if (code === 1 && sub === 'generate') {
+                if ((stdout + stderr).includes('STANDALONE_OUTPUT_EXISTS')) {
+                    vscode.window.showWarningMessage(
+                        msg('Umaboot standalone: output already looks like an existing project. No files were written.'),
+                    );
+                    return;
+                }
+                treeProvider.refresh();
+                const action = text(language(), 'Preview / Merge');
+                const picked = await vscode.window.showWarningMessage(
+                    msg('Umaboot overlay: modified existing files were not overwritten. Open Preview / Merge?'),
+                    action,
+                );
+                if (picked === action) {
+                    await vscode.commands.executeCommand('umaboot.previewMerge');
+                }
             } else {
                 vscode.window.showErrorMessage(
                     msg('Umaboot {0} failed (exit {1}). See output.', commandLabel(language(), sub), code),
@@ -171,8 +207,16 @@ export function activate(context: vscode.ExtensionContext): void {
         if (!inv) return { stdout: '', stderr: 'no workspace', code: null };
         return await new Promise(resolve => {
             const args = [subcommand, '--config', inv.configPath, ...extraArgs];
-            logger.command(`cli ${subcommand}`, inv.cli, args, workspaceRoot!);
-            const child = cp.spawn(inv.cli, args, { cwd: workspaceRoot!, shell: true });
+            const cli = resolveCliOrMessage(inv.cliPath, args, workspaceRoot!);
+            if (!cli.ok) {
+                resolve({ stdout: '', stderr: cli.message, code: null });
+                return;
+            }
+            logger.command(`cli ${subcommand}`, cli.command.command, cli.command.args, workspaceRoot!);
+            const child = cp.spawn(cli.command.command, cli.command.args, {
+                cwd: workspaceRoot!,
+                shell: cli.command.shell,
+            });
             let stdout = '';
             let stderr = '';
             child.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
@@ -271,9 +315,11 @@ export function activate(context: vscode.ExtensionContext): void {
         }
 
         const generateArgs = ['generate', '--config', inv.configPath, '--output', previewRoot];
+        const cli = resolveCliOrShow(inv.cliPath, generateArgs, workspaceRoot!);
+        if (!cli) return;
         logger.showDetail(true);
-        logger.command('preview merge generate', inv.cli, generateArgs, workspaceRoot!);
-        const generated = await runCliArgs(inv.cli, generateArgs, workspaceRoot!);
+        logger.command('preview merge generate', cli.command, cli.args, workspaceRoot!);
+        const generated = await runResolvedCliArgs(cli, workspaceRoot!);
         logger.result('preview merge generate', generated.code, generated.stdout, generated.stderr);
         if (generated.code !== 0) {
             const reason = (generated.stderr || generated.stdout).trim().split(/\r?\n/)[0] || 'generation failed';
@@ -331,7 +377,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
         const acceptLabel = text(language(), 'Accept Selected');
         const accept = await vscode.window.showWarningMessage(
-            msg('Accept {0} selected generated file(s)? This writes the generated file content to the configured output directory.',
+            msg('Accept {0} selected generated file(s)? This writes generated content to the configured output directory and replaces existing file content.',
                 picks.length),
             { modal: true },
             acceptLabel,
@@ -418,6 +464,7 @@ generation:
 
   output:
     mode: standalone         # standalone | overlay
+    existingPolicy: warn     # warn | overwrite | clean | fail
 `;
         fs.writeFileSync(abs, seed, 'utf8');
         logger.event('config', `created ${abs}`);
@@ -508,15 +555,78 @@ interface PreviewChange {
     status: 'added' | 'modified';
 }
 
-function runCliArgs(cli: string, args: string[], cwd: string): Promise<CliResult> {
+function resolveCliOrShow(
+    cliPath: string,
+    args: string[],
+    workspaceRoot: string,
+): ResolvedCliCommand | undefined {
+    const resolved = resolveCliOrMessage(cliPath, args, workspaceRoot);
+    if (!resolved.ok) {
+        vscode.window.showErrorMessage(`Umaboot CLI: ${resolved.message}`);
+        return undefined;
+    }
+    return resolved.command;
+}
+
+function resolveCliOrMessage(
+    cliPath: string,
+    args: string[],
+    workspaceRoot: string,
+): { ok: true; command: ResolvedCliCommand } | { ok: false; message: string } {
+    try {
+        return { ok: true, command: resolveCliCommand(cliPath, args, workspaceRoot) };
+    } catch (err) {
+        if (err instanceof CliResolutionError) {
+            return { ok: false, message: err.message };
+        }
+        return { ok: false, message: String(err) };
+    }
+}
+
+function runResolvedCliArgs(cli: ResolvedCliCommand, cwd: string): Promise<CliResult> {
     return new Promise(resolve => {
-        const child = cp.spawn(cli, args, { cwd, shell: true });
+        const child = cp.spawn(cli.command, cli.args, { cwd, shell: cli.shell });
         let stdout = '';
         let stderr = '';
         child.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
         child.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
         child.on('close', code => resolve({ stdout, stderr, code }));
     });
+}
+
+async function standaloneExistingPolicyArgs(
+    configPath: string,
+    workspaceRoot: string,
+    language: UiLanguage,
+): Promise<string[] | false> {
+    const raw = fs.existsSync(configPath)
+        ? yaml.load(fs.readFileSync(configPath, 'utf8'))
+        : {};
+    const root = objectValue(raw);
+    const gen = objectValue(root.generation);
+    const output = objectValue(gen.output);
+    const mode = stringValue(output.mode) ?? 'standalone';
+    const policy = stringValue(output.existingPolicy) ?? 'warn';
+    if (mode !== 'standalone' || policy !== 'warn') return [];
+
+    const outputRoot = resolveOutputDir(configPath, workspaceRoot);
+    const markers = standaloneProjectMarkers(outputRoot);
+    const hasUmabootMarker = fs.existsSync(path.join(outputRoot, '.umaboot-standalone'));
+    const protectedRoot = markers.includes('.git') || markers.includes('umaboot.yaml');
+    if (markers.length === 0 || (hasUmabootMarker && !protectedRoot)) return [];
+
+    const overwrite = text(language, 'Overwrite');
+    const clean = text(language, 'Clean Output');
+    const picked = await vscode.window.showWarningMessage(
+        format(language, 'Umaboot standalone: output already looks like an existing project ({0}).',
+            markers.join(', ')),
+        { modal: true },
+        overwrite,
+        clean,
+    );
+    if (picked === overwrite) return ['--existing-policy', 'overwrite'];
+    if (picked === clean) return ['--existing-policy', 'clean'];
+    return false;
 }
 
 function resolveOutputDir(configPath: string, workspaceRoot: string): string {
@@ -531,6 +641,24 @@ function resolveOutputDir(configPath: string, workspaceRoot: string): string {
     if (path.isAbsolute(configured)) return path.normalize(configured);
     const base = path.dirname(configPath) || workspaceRoot;
     return path.normalize(path.resolve(base, configured));
+}
+
+function standaloneProjectMarkers(outputRoot: string): string[] {
+    const candidates = [
+        '.git',
+        'umaboot.yaml',
+        'pom.xml',
+        'build.gradle',
+        'build.gradle.kts',
+        'settings.gradle',
+        'settings.gradle.kts',
+        'Dockerfile',
+        'docker-compose.yml',
+        path.join('src', 'main'),
+    ];
+    return candidates
+        .filter(candidate => fs.existsSync(path.join(outputRoot, candidate)))
+        .map(candidate => candidate.split(path.sep).join('/'));
 }
 
 function collectPreviewChanges(previewRoot: string, outputRoot: string): PreviewChange[] {

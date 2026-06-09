@@ -53,6 +53,7 @@ public final class DescribeSchemaCommand implements Callable<Integer> {
 
         try {
             SchemaIntrospectionService.Result source = new SchemaIntrospectionService().introspect(config);
+            CliWarningPrinter.printSchemaWarnings(source.warnings());
             SchemaModel schema = new RelationshipEngine().analyze(source.schema());
             Map<String, Object> payload = describe(config, source, schema);
             new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(System.out, payload);

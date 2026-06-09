@@ -63,6 +63,15 @@ npx @vscode/vsce package # produces umaboot-0.5.0.vsix
 3. Open a project with a `umaboot.yaml` (or click the Activity Bar entry → "Edit configuration with form" to seed and edit one).
 4. Use the form panel to set everything up, hit Save, then run Generate from the dashboard, the command palette, or the YAML's CodeLens.
 
+In overlay mode, Generate writes new files but does not overwrite modified
+existing files. When conflicts are detected, VS Code shows a warning and offers
+to open Preview / Merge.
+
+In standalone mode, Generate warns when the output directory already looks like
+a different project. You can overwrite generated file paths, clean the output
+directory first, or cancel. The persistent setting is
+`generation.output.existingPolicy`.
+
 ## Settings
 
 | Key | Default | Purpose |

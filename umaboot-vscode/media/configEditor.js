@@ -35,6 +35,17 @@
 
     let schemaMetadata = null;
     let activeTableName = '';
+    const LOMBOK_VERSION_FALLBACK = [
+        '1.18.46',
+        '1.18.44',
+        '1.18.42',
+        '1.18.40',
+        '1.18.38',
+        '1.18.36',
+        '1.18.34',
+        '1.18.32',
+        '1.18.30',
+    ];
 
     const HELP = {
         connectionSource: ['Source', 'Chooses whether Umaboot builds a JDBC URL from host fields, uses a raw JDBC URL, or parses a SQL schema file.', 'script'],
@@ -58,6 +69,7 @@
         javaVersion: ['Java version', 'Java language version for generated source compatibility and build configuration.', '17'],
         springBootVersion: ['Spring Boot version', 'Spring Boot version used in generated Maven or Gradle files.', '3.3.5'],
         useLombok: ['Use Lombok', 'Adds Lombok and uses Lombok annotations where supported.', 'enabled'],
+        lombokVersion: ['Lombok version', 'Explicit Lombok dependency version used when older Spring Boot lines need annotation processor coordinates.', '1.18.30'],
         injectionStyle: ['Injection', 'Controls how dependencies are injected in generated Spring components.', 'constructor'],
         validationStyle: ['Validation', 'Controls generated request validation style.', 'jakarta'],
         dtoStyle: ['DTO style', 'Controls whether DTOs are classes or records when supported by Java/Spring.', 'class'],
@@ -79,6 +91,7 @@
         jwtExpirationMinutes: ['JWT expiration', 'Token lifetime in minutes.', '60'],
         securityUsers: ['Users', 'One user per line using username:password:ROLE1,ROLE2.', 'admin:admin:ADMIN,USER'],
         outputMode: ['Output mode', 'Controls whether generation creates a standalone project or overlays files.', 'standalone'],
+        outputExistingPolicy: ['Existing output', 'Standalone behavior when the output directory already looks like a project.', 'warn'],
         useProjectDirectory: ['Use project directory', 'Writes generated files next to umaboot.yaml by setting outputDir to dot.', 'enabled'],
         outputDir: ['Directory', 'Output directory when project-directory output is disabled.', 'generated/inventory-service'],
         classNameStripPrefix: ['Class-name strip prefix', 'Removes a common table prefix before generating Java class names.', 'tbl_users becomes User'],
@@ -118,6 +131,7 @@
             'Java version': 'Versi Java',
             'Spring Boot version': 'Versi Spring Boot',
             'Use Lombok': 'Gunakan Lombok',
+            'Lombok version': 'Versi Lombok',
             'Code style': 'Gaya kode',
             'Injection': 'Injeksi',
             'Validation': 'Validasi',
@@ -144,6 +158,7 @@
             'Users': 'Pengguna',
             'Output': 'Output',
             'Mode': 'Mode',
+            'Existing output': 'Output existing',
             'Use project directory': 'Gunakan direktori proyek',
             'Directory': 'Direktori',
             'Tables': 'Tabel',
@@ -205,6 +220,7 @@
             'Java version': 'Java バージョン',
             'Spring Boot version': 'Spring Boot バージョン',
             'Use Lombok': 'Lombok を使用',
+            'Lombok version': 'Lombok バージョン',
             'Code style': 'コードスタイル',
             'Injection': 'インジェクション',
             'Validation': 'バリデーション',
@@ -385,6 +401,13 @@
         gen.springBootVersion = $('springBootVersion').value.trim() || defaultSpringBootFor($('javaVersion').value);
         gen.javaVersion = $('javaVersion').value;
         gen.useLombok = $('useLombok').checked;
+        if (gen.useLombok && isSpringBootBelow35(gen.springBootVersion)) {
+            const selectedLombok = $('lombokVersion').value || defaultLombokVersion();
+            if (selectedLombok) gen.lombokVersion = selectedLombok;
+            else delete gen.lombokVersion;
+        } else {
+            delete gen.lombokVersion;
+        }
 
         ensureObject(gen, 'openapi').style = $('openapiStyle').value;
         ensureObject(gen, 'injection').style = $('injectionStyle').value;
@@ -408,7 +431,10 @@
         ensureObject(gen, 'applicationConfig').format = $('applicationConfigFormat').value;
 
         gen.security = readSecurity(gen.security || {});
-        gen.output = Object.assign({}, gen.output || {}, { mode: $('outputMode').value });
+        gen.output = Object.assign({}, gen.output || {}, {
+            mode: $('outputMode').value,
+            existingPolicy: $('outputExistingPolicy').value
+        });
         if ($('useProjectDirectory').checked) {
             gen.outputDir = '.';
         } else {
@@ -487,6 +513,7 @@
         $('javaVersion').value = String(gen.javaVersion || '17');
         $('springBootVersion').value = gen.springBootVersion || '';
         $('useLombok').checked = gen.useLombok !== false;
+        setSelectValue($('lombokVersion'), gen.lombokVersion || '');
 
         $('openapiStyle').value = (gen.openapi && gen.openapi.style) || 'yaml';
         $('injectionStyle').value = (gen.injection && gen.injection.style) || 'constructor';
@@ -512,6 +539,7 @@
         $('jwtExpirationMinutes').value = String(jwt.expirationMinutes || 60);
 
         $('outputMode').value = (gen.output && gen.output.mode) || 'standalone';
+        $('outputExistingPolicy').value = (gen.output && gen.output.existingPolicy) || 'warn';
         $('useProjectDirectory').checked = gen.outputDir === '.';
         $('outputDir').value = gen.outputDir === '.' ? '' : (gen.outputDir || '');
 
@@ -833,12 +861,68 @@
         return java === '8' || java === '11' ? '2.7.18' : '3.3.5';
     }
 
+    function setLombokVersions(versions) {
+        const select = $('lombokVersion');
+        const preserve = select.value;
+        const values = Array.isArray(versions) && versions.length > 0
+            ? versions
+            : LOMBOK_VERSION_FALLBACK;
+        select.innerHTML = '';
+        for (const version of values) {
+            addSelectOption(select, String(version), String(version));
+        }
+        if (preserve) {
+            setSelectValue(select, preserve);
+        } else if (select.options.length > 0) {
+            select.selectedIndex = 0;
+        }
+    }
+
+    function addSelectOption(select, value, label) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        select.appendChild(option);
+    }
+
+    function setSelectValue(select, value) {
+        const normalized = String(value || '');
+        if (normalized && !Array.from(select.options).some((option) => option.value === normalized)) {
+            addSelectOption(select, normalized, normalized);
+        }
+        select.value = normalized;
+    }
+
+    function defaultLombokVersion() {
+        const select = $('lombokVersion');
+        return select.value || (select.options[0] && select.options[0].value) || '1.18.30';
+    }
+
+    function shouldShowLombokVersion() {
+        return $('useLombok').checked && isSpringBootBelow35($('springBootVersion').value.trim());
+    }
+
+    function isSpringBootBelow35(version) {
+        const major = springBootPart(version, 0, 3);
+        const minor = springBootPart(version, 1, 0);
+        return major < 3 || (major === 3 && minor < 5);
+    }
+
+    function springBootPart(version, index, fallback) {
+        if (!version) return fallback;
+        const parts = String(version).trim().split(/[.-]/);
+        if (parts.length <= index) return fallback;
+        const parsed = Number.parseInt(parts[index], 10);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
     function applyConditionalSections() {
         const source = $('connectionSource').value;
         toggle(sourceHost, source === 'host');
         toggle(sourceUrl, source === 'url');
         toggle(sourceScript, source === 'script');
         toggle(liveConnectionFields, source !== 'script');
+        toggle($('lombokVersionRow'), shouldShowLombokVersion());
         $('btn-test-connection').disabled = source === 'script';
 
         const securityStyle = $('securityStyle').value;
@@ -883,6 +967,10 @@
         if (!useLombok && $('injectionStyle').value === 'lombok') {
             $('injectionStyle').value = 'constructor';
         }
+        if (shouldShowLombokVersion() && !$('lombokVersion').value) {
+            $('lombokVersion').value = defaultLombokVersion();
+        }
+        toggle($('lombokVersionRow'), shouldShowLombokVersion());
 
         const scriptMode = $('connectionSource').value === 'script';
         setOption($('persistence'), 'jooq', !scriptMode);
@@ -1126,7 +1214,7 @@
                     } else if (msg.scriptMode) {
                         showMessage('No tables parsed from schema file. See Umaboot output for parser warnings.', false);
                     } else {
-                        showMessage('No non-junction tables found.', true);
+                        showMessage('No non-junction tables found.', false);
                     }
                 }
                 break;
@@ -1147,11 +1235,17 @@
                     markDirty();
                 }
                 break;
+            case 'lombokVersionsResult':
+                setLombokVersions(msg.versions);
+                applyConditionalSections();
+                applyCrossFieldRules();
+                break;
             default:
                 break;
         }
     });
 
+    setLombokVersions(LOMBOK_VERSION_FALLBACK);
     applyI18n();
     installHelpButtons();
     applyI18n();

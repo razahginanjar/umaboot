@@ -178,6 +178,12 @@
         <label class="checkbox" data-help-for="useLombok">
             <input id="useLombok" type="checkbox"> Use Lombok
         </label>
+        <div id="lombokVersionRow" class="grid hidden">
+            <div>
+                <label for="lombokVersion">Lombok version</label>
+                <select id="lombokVersion"></select>
+            </div>
+        </div>
     </section>
 
     <section class="block">
@@ -332,6 +338,17 @@
                     <option value="overlay">overlay</option>
                 </select>
             </div>
+            <div>
+                <label for="outputExistingPolicy">Existing output</label>
+                <select id="outputExistingPolicy">
+                    <option value="warn">warn</option>
+                    <option value="overwrite">overwrite</option>
+                    <option value="clean">clean</option>
+                    <option value="fail">fail</option>
+                </select>
+            </div>
+        </div>
+        <div class="row">
             <label class="checkbox" data-help-for="useProjectDirectory">
                 <input id="useProjectDirectory" type="checkbox"> Use project directory
             </label>
