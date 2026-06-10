@@ -57,7 +57,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: umaboot-cli-fat-jar
-          path: umaboot-cli/target/umaboot.jar
+          path: umaboot-cli/target/umaboot-cli-*-SNAPSHOT.jar
 
   build-intellij:
     runs-on: ubuntu-latest
