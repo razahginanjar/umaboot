@@ -46,6 +46,11 @@
                 icon="io.umaboot.intellij.UmabootIcons.ACTION">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
+        <action id="Umaboot.ResetPreviewMerge"
+                class="io.umaboot.intellij.ResetPreviewMergeAction"
+                icon="io.umaboot.intellij.UmabootIcons.ACTION">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
         <action id="Umaboot.ShowSummaryLog"
                 class="io.umaboot.intellij.ShowSummaryLogAction"
                 icon="io.umaboot.intellij.UmabootIcons.ACTION">

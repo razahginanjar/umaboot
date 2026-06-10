@@ -13,6 +13,12 @@ import { UmabootLogger } from './logging';
 import { isUmabootConfigPath } from './paths';
 import { isSchemaFileConfig, tableNamesFromSchemaFileConfig } from './sqlTables';
 
+interface PreviewMergeSession {
+    token: number;
+    previewRoot: string;
+    selectedPaths: string[];
+}
+
 /**
  * Umaboot VS Code extension entry point.
  *
@@ -25,6 +31,8 @@ import { isSchemaFileConfig, tableNamesFromSchemaFileConfig } from './sqlTables'
  */
 export function activate(context: vscode.ExtensionContext): void {
     const logger = new UmabootLogger();
+    let previewMergeSession: PreviewMergeSession | undefined;
+    let previewMergeSessionToken = 0;
 
     const folder = vscode.workspace.workspaceFolders?.[0];
     const workspaceRoot = folder?.uri.fsPath;
@@ -34,6 +42,13 @@ export function activate(context: vscode.ExtensionContext): void {
     const language = (): UiLanguage => getLanguage(context);
     const msg = (key: string, ...args: Array<string | number | null | undefined>): string =>
         format(language(), key, ...args);
+    const deletePreviewRoot = (dir: string): void => {
+        try {
+            fs.rmSync(dir, { recursive: true, force: true });
+        } catch (err) {
+            logger.error('preview merge', `failed to remove preview directory ${dir}: ${err}`);
+        }
+    };
 
     // --- Tree view ---------------------------------------------------------
     const treeProvider = new UmabootTreeProvider(workspaceRoot, configRelPath, language);
@@ -183,7 +198,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 treeProvider.refresh();
                 const action = text(language(), 'Preview / Merge');
                 const picked = await vscode.window.showWarningMessage(
-                    msg('Umaboot overlay: modified existing files were not overwritten. Open Preview / Merge?'),
+                    msg('Umaboot overlay: generated changes need Preview / Merge. Open now?'),
                     action,
                 );
                 if (picked === action) {
@@ -303,6 +318,11 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
         }
 
+        if (previewMergeSession) {
+            deletePreviewRoot(previewMergeSession.previewRoot);
+            previewMergeSession = undefined;
+        }
+
         const previewRoot = path.join(context.globalStorageUri.fsPath, 'previews', String(Date.now()));
         const emptyRoot = path.join(previewRoot, '__empty__');
         try {
@@ -314,19 +334,6 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
         }
 
-        const generateArgs = ['generate', '--config', inv.configPath, '--output', previewRoot];
-        const cli = resolveCliOrShow(inv.cliPath, generateArgs, workspaceRoot!);
-        if (!cli) return;
-        logger.showDetail(true);
-        logger.command('preview merge generate', cli.command, cli.args, workspaceRoot!);
-        const generated = await runResolvedCliArgs(cli, workspaceRoot!);
-        logger.result('preview merge generate', generated.code, generated.stdout, generated.stderr);
-        if (generated.code !== 0) {
-            const reason = (generated.stderr || generated.stdout).trim().split(/\r?\n/)[0] || 'generation failed';
-            vscode.window.showErrorMessage(msg('Umaboot preview failed: {0}', reason));
-            return;
-        }
-
         let outputRoot: string;
         try {
             outputRoot = resolveOutputDir(inv.configPath, workspaceRoot!);
@@ -334,6 +341,29 @@ export function activate(context: vscode.ExtensionContext): void {
             vscode.window.showErrorMessage(
                 msg('Umaboot preview: failed to resolve outputDir: {0}', String(err)),
             );
+            deletePreviewRoot(previewRoot);
+            return;
+        }
+
+        const generateArgs = [
+            'generate',
+            '--config', inv.configPath,
+            '--output', previewRoot,
+            '--overlay-target', outputRoot,
+        ];
+        const cli = resolveCliOrShow(inv.cliPath, generateArgs, workspaceRoot!);
+        if (!cli) {
+            deletePreviewRoot(previewRoot);
+            return;
+        }
+        logger.showDetail(true);
+        logger.command('preview merge generate', cli.command, cli.args, workspaceRoot!);
+        const generated = await runResolvedCliArgs(cli, workspaceRoot!);
+        logger.result('preview merge generate', generated.code, generated.stdout, generated.stderr);
+        if (generated.code !== 0) {
+            const reason = (generated.stderr || generated.stdout).trim().split(/\r?\n/)[0] || 'generation failed';
+            vscode.window.showErrorMessage(msg('Umaboot preview failed: {0}', reason));
+            deletePreviewRoot(previewRoot);
             return;
         }
 
@@ -341,6 +371,7 @@ export function activate(context: vscode.ExtensionContext): void {
         logger.event('preview merge', `found ${changes.length} changed files`);
         if (changes.length === 0) {
             vscode.window.showInformationMessage(msg('Umaboot preview: no generated file changes found.'));
+            deletePreviewRoot(previewRoot);
             return;
         }
 
@@ -357,7 +388,18 @@ export function activate(context: vscode.ExtensionContext): void {
                 canPickMany: true,
             },
         );
-        if (!picks || picks.length === 0) return;
+        if (!picks || picks.length === 0) {
+            deletePreviewRoot(previewRoot);
+            return;
+        }
+
+        const session: PreviewMergeSession = {
+            token: ++previewMergeSessionToken,
+            previewRoot,
+            selectedPaths: picks.map(pick => pick.change.relativePath),
+        };
+        previewMergeSession = session;
+        logger.event('preview merge', `started session ${session.token} with ${session.selectedPaths.length} file(s)`);
 
         for (const pick of picks) {
             const change = pick.change;
@@ -384,14 +426,45 @@ export function activate(context: vscode.ExtensionContext): void {
         );
         if (accept !== acceptLabel) return;
 
+        if (previewMergeSession?.token !== session.token) {
+            vscode.window.showWarningMessage(
+                msg('Umaboot preview: Preview / Merge choices were reset; no files were written.'),
+            );
+            return;
+        }
+
         for (const pick of picks) {
             fs.mkdirSync(path.dirname(pick.change.targetPath), { recursive: true });
             fs.copyFileSync(pick.change.generatedPath, pick.change.targetPath);
             logger.detail(`[preview merge] accepted ${pick.change.relativePath}`);
         }
+        previewMergeSession = undefined;
         treeProvider.refresh();
         logger.event('preview merge', `accepted ${picks.length} files`);
         vscode.window.showInformationMessage(msg('Umaboot preview: accepted {0} file(s).', picks.length));
+    };
+
+    const resetPreviewMerge = async (): Promise<void> => {
+        const session = previewMergeSession;
+        if (!session) {
+            vscode.window.showInformationMessage(
+                msg('Umaboot preview: no active Preview / Merge choices to reset.'),
+            );
+            return;
+        }
+
+        const resetLabel = text(language(), 'Reset');
+        const choice = await vscode.window.showWarningMessage(
+            msg('Reset active Preview / Merge choices? This does not touch files already written.'),
+            { modal: true },
+            resetLabel,
+        );
+        if (choice !== resetLabel) return;
+
+        previewMergeSession = undefined;
+        deletePreviewRoot(session.previewRoot);
+        logger.event('preview merge', `reset session ${session.token} with ${session.selectedPaths.length} file(s)`);
+        vscode.window.showInformationMessage(msg('Umaboot preview: Preview / Merge choices reset.'));
     };
 
     // --- Helper commands ---------------------------------------------------
@@ -477,6 +550,7 @@ generation:
         vscode.commands.registerCommand('umaboot.generate', run('generate')),
         vscode.commands.registerCommand('umaboot.diff', run('diff')),
         vscode.commands.registerCommand('umaboot.previewMerge', previewMerge),
+        vscode.commands.registerCommand('umaboot.resetPreviewMerge', resetPreviewMerge),
         vscode.commands.registerCommand('umaboot.apply', run('apply')),
         vscode.commands.registerCommand('umaboot.testConnection', testConnection),
         vscode.commands.registerCommand('umaboot.refreshTables', refreshTables),

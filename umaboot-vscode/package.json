@@ -59,6 +59,11 @@
         "icon": "$(diff)"
       },
       {
+        "command": "umaboot.resetPreviewMerge",
+        "title": "Umaboot: Reset Preview / Merge",
+        "icon": "$(discard)"
+      },
+      {
         "command": "umaboot.apply",
         "title": "Umaboot: Apply Generated Files",
         "icon": "$(check)"
@@ -156,6 +161,11 @@
         {
           "command": "umaboot.previewMerge",
           "when": "view == umaboot.dashboard && viewItem == umaboot.action.previewMerge",
+          "group": "inline"
+        },
+        {
+          "command": "umaboot.resetPreviewMerge",
+          "when": "view == umaboot.dashboard && viewItem == umaboot.action.resetPreviewMerge",
           "group": "inline"
         },
         {

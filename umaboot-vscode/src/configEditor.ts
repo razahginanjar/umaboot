@@ -122,6 +122,9 @@ export class UmabootConfigEditor {
                 this.sendCurrentConfig();
                 this.sendLombokVersions();
                 break;
+            case 'syncFromYaml':
+                this.sendCurrentConfig({ synced: true, preserveOnError: true });
+                break;
             case 'setLanguage':
                 this.updateLanguage(msg.language);
                 break;
@@ -212,7 +215,7 @@ export class UmabootConfigEditor {
         return abs;
     }
 
-    private sendCurrentConfig(): void {
+    private sendCurrentConfig(options: { synced?: boolean; preserveOnError?: boolean } = {}): void {
         const filePath = this.configFilePath();
         let cfg: Record<string, unknown> = {};
         try {
@@ -221,6 +224,20 @@ export class UmabootConfigEditor {
                 cfg = (yaml.load(raw) as Record<string, unknown>) ?? {};
             }
         } catch (err) {
+            this.logger.error('config editor', `parse error: ${err}`);
+            if (options.preserveOnError) {
+                const message = format(
+                    getLanguage(this.context),
+                    'Umaboot: failed to parse {0}; current form was not changed.',
+                    path.basename(filePath),
+                );
+                vscode.window.showWarningMessage(message);
+                this.panel.webview.postMessage({
+                    command: 'syncFailed',
+                    message,
+                });
+                return;
+            }
             vscode.window.showWarningMessage(
                 format(
                     getLanguage(this.context),
@@ -228,12 +245,12 @@ export class UmabootConfigEditor {
                     path.basename(filePath),
                 ),
             );
-            this.logger.error('config editor', `parse error: ${err}`);
         }
         this.panel.webview.postMessage({
             command: 'load',
             config: cfg,
             language: getLanguage(this.context),
+            synced: options.synced === true,
         });
     }
 

@@ -27,6 +27,7 @@ import javax.swing.BorderFactory;
 import javax.swing.AbstractButton;
 import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.JComboBox;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -69,6 +70,7 @@ public final class UmabootSettingsPanel {
     private static final String I18N_HELP_KEY = "umaboot.i18n.helpKey";
     private static final String I18N_HTML_ITALIC = "umaboot.i18n.htmlItalic";
     private static final Dimension HELP_BUTTON_SIZE = new Dimension(22, 22);
+    private static final int FIELD_WIDTH = 280;
     private static final int COMPACT_TEXT_FIELD_COLUMNS = UiText.MAX_DISPLAY_CHARS;
 
     private final Project project;
@@ -173,6 +175,10 @@ public final class UmabootSettingsPanel {
     private UmabootConfig loaded;
     private boolean dirty = false;
     private final List<java.util.function.Consumer<UiText.Language>> languageListeners = new ArrayList<>();
+    private JBLabel mybatisStyleLabel;
+    private JButton mybatisStyleHelpButton;
+    private JBLabel useMapStructLabel;
+    private JButton useMapStructHelpButton;
     private JBLabel lombokVersionLabel;
     private JButton lombokVersionHelpButton;
 
@@ -259,7 +265,7 @@ public final class UmabootSettingsPanel {
 
         JBPanel<JBPanel<?>> scriptCard = new JBPanel<>(new GridBagLayout());
         JBPanel<JBPanel<?>> filePicker = new JBPanel<>(new BorderLayout(6, 0));
-        configureCompactTextField(schemaFileField);
+        configureBaseTextField(schemaFileField);
         filePicker.add(schemaFileField, BorderLayout.CENTER);
         filePicker.add(schemaFileBrowseButton, BorderLayout.EAST);
         addRow(scriptCard, 0, "Schema file:", filePicker);
@@ -320,14 +326,8 @@ public final class UmabootSettingsPanel {
         // Class-name strip prefix row — applies the prefix-strip rule to every
         // generated entity / DTO / repository class name, BEFORE singularize +
         // PascalCase. Tables that don't start with the prefix are left alone.
-        JBPanel<JBPanel<?>> stripRow = new JBPanel<>(new BorderLayout());
-        JBLabel stripLabel = localizedLabel("Strip prefix from class names:");
-        // Padding on the label, NOT the text field — JBTextField's native border
-        // gives it the visible "boxed" outline; setBorder on the field replaces it.
-        stripLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 8));
-        stripRow.add(stripLabel, BorderLayout.WEST);
-        stripRow.add(classNameStripPrefixField, BorderLayout.CENTER);
-        stripRow.add(helpButton("Strip prefix from class names:"), BorderLayout.EAST);
+        JBPanel<JBPanel<?>> stripRow = new JBPanel<>(new GridBagLayout());
+        addRow(stripRow, 0, "Strip prefix from class names:", classNameStripPrefixField);
 
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 0; c.gridy = 0; c.gridwidth = 3;
@@ -347,8 +347,12 @@ public final class UmabootSettingsPanel {
         addRow(g, r++, "Architecture:", architectureCombo);
         addRow(g, r++, "Persistence:", persistenceCombo);
         addRow(g, r++, "Build tool:", buildToolCombo);
-        addRow(g, r++, "MyBatis style:", mybatisStyleCombo);
-        addRow(g, r++, "", useMapStructCheckbox);
+        mybatisStyleLabel = localizedLabel("MyBatis style:");
+        mybatisStyleHelpButton = helpButton("MyBatis style:");
+        addRowComponents(g, r++, mybatisStyleLabel, mybatisStyleCombo, mybatisStyleHelpButton);
+        useMapStructLabel = localizedLabel("");
+        useMapStructHelpButton = helpButton("Use MapStruct (JPA only)");
+        addRowComponents(g, r++, useMapStructLabel, useMapStructCheckbox, useMapStructHelpButton);
         addRow(g, r++, "Base package:", basePackageField);
         addRow(g, r++, "Project name:", projectNameField);
         addRow(g, r++, "Project group:", projectGroupField);
@@ -396,29 +400,68 @@ public final class UmabootSettingsPanel {
     }
 
     private void addRowComponents(JBPanel<JBPanel<?>> p, int row, JComponent label, JComponent field, JComponent help) {
+        boolean checkboxRow = isBlankLabel(label) && field instanceof AbstractButton;
         GridBagConstraints lc = new GridBagConstraints();
         lc.gridx = 0; lc.gridy = row; lc.fill = GridBagConstraints.HORIZONTAL;
         lc.insets = new Insets(2, 4, 2, 8);
-        p.add(label, lc);
+        p.add(checkboxRow ? label : labelWithHelp(label, help), lc);
 
         GridBagConstraints fc = new GridBagConstraints();
         fc.gridx = 1; fc.gridy = row; fc.weightx = 1.0;
         fc.fill = GridBagConstraints.HORIZONTAL;
         fc.insets = new Insets(2, 0, 2, 4);
-        p.add(field, fc);
-
-        GridBagConstraints hc = new GridBagConstraints();
-        hc.gridx = 2; hc.gridy = row;
-        hc.fill = GridBagConstraints.NONE;
-        hc.insets = new Insets(2, 0, 2, 4);
-        p.add(help, hc);
+        applyBaseFieldWidth(field);
+        p.add(checkboxRow ? fieldWithHelp(field, help) : field, fc);
     }
 
-    private static void configureCompactTextField(JBTextField field) {
+    private JComponent labelWithHelp(JComponent label, JComponent help) {
+        JBPanel<JBPanel<?>> panel = new JBPanel<>(new BorderLayout(4, 0));
+        panel.add(label, BorderLayout.CENTER);
+        panel.add(help, BorderLayout.EAST);
+        return panel;
+    }
+
+    private JComponent fieldWithHelp(JComponent field, JComponent help) {
+        JBPanel<JBPanel<?>> panel = new JBPanel<>(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 0));
+        panel.add(field);
+        panel.add(help);
+        return panel;
+    }
+
+    private static boolean isBlankLabel(JComponent label) {
+        if (label instanceof JBLabel jbLabel) {
+            String text = jbLabel.getText();
+            return text == null || text.isBlank();
+        }
+        return false;
+    }
+
+    private static void applyBaseFieldWidth(JComponent field) {
+        if (field instanceof AbstractButton) return;
+        if (field instanceof JBTextField textField) {
+            configureBaseTextField(textField);
+            return;
+        }
+        if (field instanceof JBPasswordField) {
+            Dimension preferred = field.getPreferredSize();
+            setBaseWidth(field, preferred.height);
+            return;
+        }
+        if (field instanceof JComboBox<?>) {
+            Dimension preferred = field.getPreferredSize();
+            setBaseWidth(field, preferred.height);
+        }
+    }
+
+    private static void configureBaseTextField(JBTextField field) {
         field.setColumns(COMPACT_TEXT_FIELD_COLUMNS);
         Dimension preferred = field.getPreferredSize();
-        field.setPreferredSize(new Dimension(preferred.width, preferred.height));
-        field.setMinimumSize(new Dimension(0, preferred.height));
+        setBaseWidth(field, preferred.height);
+    }
+
+    private static void setBaseWidth(JComponent component, int height) {
+        component.setPreferredSize(new Dimension(FIELD_WIDTH, height));
+        component.setMinimumSize(new Dimension(0, height));
     }
 
     private String text(String key) {
@@ -594,7 +637,10 @@ public final class UmabootSettingsPanel {
         // Mark dirty on any change
         java.awt.event.ActionListener mark = e -> dirty = true;
         architectureCombo.addActionListener(mark);
-        persistenceCombo.addActionListener(mark);
+        persistenceCombo.addActionListener(e -> {
+            updatePersistenceOptionVisibility();
+            dirty = true;
+        });
         buildToolCombo.addActionListener(mark);
         mybatisStyleCombo.addActionListener(mark);
         outputModeCombo.addActionListener(mark);
@@ -1129,20 +1175,28 @@ public final class UmabootSettingsPanel {
 
     public void load() {
         Path file = configFile();
-        if (Files.exists(file)) {
-            try {
-                loaded = UmabootYamlIO.load(file);
-            } catch (Exception ex) {
-                // Bad YAML shouldn't prevent the panel from opening — load defaults
-                // and surface the error in the connection-status label so the user
-                // can see what's wrong without staring at an empty form.
-                loaded = blankConfig();
-                setLocalizedText(connectionStatusLabel, "Failed to read %s: %s", file.getFileName(), ex.getMessage());
-                connectionStatusLabel.setForeground(Color.RED);
-            }
-        } else {
+        try {
+            loadFromYaml(file);
+        } catch (Exception ex) {
+            // Bad YAML shouldn't prevent the panel from opening — load defaults
+            // and surface the error in the connection-status label so the user
+            // can see what's wrong without staring at an empty form.
             loaded = blankConfig();
+            lastIntrospectedSchema = null;
+            applyToFields(loaded);
+            setLocalizedText(connectionStatusLabel, "Failed to read %s: %s", file.getFileName(), ex.getMessage());
+            connectionStatusLabel.setForeground(Color.RED);
+            dirty = false;
         }
+    }
+
+    public void syncFromYaml() {
+        loadFromYaml(configFile());
+    }
+
+    public void revert() {
+        if (loaded == null) loaded = blankConfig();
+        lastIntrospectedSchema = null;
         applyToFields(loaded);
         dirty = false;
     }
@@ -1156,6 +1210,14 @@ public final class UmabootSettingsPanel {
 
     public boolean isModified() {
         return dirty;
+    }
+
+    private void loadFromYaml(Path file) {
+        UmabootConfig next = Files.exists(file) ? UmabootYamlIO.load(file) : blankConfig();
+        loaded = next;
+        lastIntrospectedSchema = null;
+        applyToFields(loaded);
+        dirty = false;
     }
 
     private void applyToFields(UmabootConfig c) {
@@ -1200,6 +1262,7 @@ public final class UmabootSettingsPanel {
         buildToolCombo.setSelectedItem(c.generation().buildTool());
         mybatisStyleCombo.setSelectedItem(c.generation().mybatis().style());
         useMapStructCheckbox.setSelected(c.generation().jpa().useMapStruct());
+        updatePersistenceOptionVisibility();
         basePackageField.setText(c.generation().basePackage());
         projectNameField.setText(c.generation().projectName());
         projectGroupField.setText(c.generation().projectGroup());
@@ -1276,7 +1339,9 @@ public final class UmabootSettingsPanel {
         String effectiveSchemaDialect = scriptMode
                 ? Optional.ofNullable((String) databaseTypeCombo.getSelectedItem()).orElse("postgresql")
                 : null;
-        var jpa = new UmabootConfig.JpaOptions(useMapStructCheckbox.isSelected());
+        String persistence = Optional.ofNullable((String) persistenceCombo.getSelectedItem()).orElse("jpa");
+        var jpa = new UmabootConfig.JpaOptions(
+                "jpa".equalsIgnoreCase(persistence) && useMapStructCheckbox.isSelected());
         var mybatis = new UmabootConfig.MyBatisOptions(
                 Optional.ofNullable((String) mybatisStyleCombo.getSelectedItem()).orElse("xml"));
         var tables = new UmabootConfig.TableFilterOptions(
@@ -1364,7 +1429,7 @@ public final class UmabootSettingsPanel {
 
         var generation = new UmabootConfig.Generation(
                 Optional.ofNullable((String) architectureCombo.getSelectedItem()).orElse("mvc"),
-                Optional.ofNullable((String) persistenceCombo.getSelectedItem()).orElse("jpa"),
+                persistence,
                 basePackageField.getText().trim(),
                 projectNameField.getText().trim(),
                 projectGroupField.getText().trim(),
@@ -1622,6 +1687,34 @@ public final class UmabootSettingsPanel {
         if (visible && comboText(lombokVersionCombo).isEmpty() && lombokVersionCombo.getItemCount() > 0) {
             lombokVersionCombo.setSelectedIndex(0);
         }
+        root.revalidate();
+        root.repaint();
+    }
+
+    private void updatePersistenceOptionVisibility() {
+        String persistence = Optional.ofNullable((String) persistenceCombo.getSelectedItem()).orElse("jpa");
+        boolean jpa = "jpa".equalsIgnoreCase(persistence);
+        boolean mybatis = "mybatis".equalsIgnoreCase(persistence);
+
+        if (!jpa) {
+            useMapStructCheckbox.setSelected(false);
+        }
+        if (useMapStructLabel != null) {
+            useMapStructLabel.setVisible(jpa);
+        }
+        useMapStructCheckbox.setVisible(jpa);
+        if (useMapStructHelpButton != null) {
+            useMapStructHelpButton.setVisible(jpa);
+        }
+
+        if (mybatisStyleLabel != null) {
+            mybatisStyleLabel.setVisible(mybatis);
+        }
+        mybatisStyleCombo.setVisible(mybatis);
+        if (mybatisStyleHelpButton != null) {
+            mybatisStyleHelpButton.setVisible(mybatis);
+        }
+
         root.revalidate();
         root.repaint();
     }

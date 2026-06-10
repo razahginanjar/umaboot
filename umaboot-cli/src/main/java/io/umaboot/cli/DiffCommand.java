@@ -5,6 +5,8 @@ import io.umaboot.core.config.OutputDirResolver;
 import io.umaboot.core.config.UmabootConfig;
 import io.umaboot.core.config.UmabootConfigLoader;
 import io.umaboot.core.diff.DiffEngine;
+import io.umaboot.core.overlay.OverlayPlan;
+import io.umaboot.core.overlay.OverlayPlanner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine.Command;
@@ -52,7 +54,12 @@ public final class DiffCommand implements Callable<Integer> {
             Path output = outputOverride != null
                     ? outputOverride.toAbsolutePath().normalize()
                     : OutputDirResolver.resolve(config, configFile);
-            DiffEngine.DiffResult diff = new DiffEngine().diff(r.units(), output);
+            OverlayPlan overlayPlan = r.ctx().overlay()
+                    ? new OverlayPlanner().plan(r.units(), output, r.ctx())
+                    : null;
+            DiffEngine.DiffResult diff = overlayPlan == null
+                    ? new DiffEngine().diff(r.units(), output)
+                    : overlayPlan.diff();
 
             System.out.println("Diff against " + output.toAbsolutePath() + ":");
             System.out.println("  added:     " + diff.added().size());
@@ -61,6 +68,26 @@ public final class DiffCommand implements Callable<Integer> {
 
             for (String f : diff.added()) System.out.println("  + " + f);
             for (String f : diff.modified()) System.out.println("  ~ " + f);
+
+            if (overlayPlan != null && !overlayPlan.dependencies().available()) {
+                System.out.println();
+                System.out.println("Overlay dependency check:");
+                System.out.println("  - " + overlayPlan.dependencies().unavailableReason());
+            } else if (overlayPlan != null && overlayPlan.dependencies().hasMissingDependencies()) {
+                System.out.println();
+                System.out.println("Overlay dependency check:");
+                for (String message : overlayPlan.dependencies().messages()) {
+                    System.out.println("  - " + message);
+                }
+            }
+
+            if (overlayPlan != null && !overlayPlan.applicationConfig().messages().isEmpty()) {
+                System.out.println();
+                System.out.println("Overlay application config check:");
+                for (String message : overlayPlan.applicationConfig().messages()) {
+                    System.out.println("  - " + message);
+                }
+            }
 
             if (unified) {
                 for (String f : diff.modified()) {

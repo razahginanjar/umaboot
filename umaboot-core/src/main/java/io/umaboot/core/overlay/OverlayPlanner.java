@@ -1,5 +1,6 @@
 package io.umaboot.core.overlay;
 
+import io.umaboot.core.config.ApplicationConfigMerger;
 import io.umaboot.core.diff.DiffEngine;
 import io.umaboot.core.generator.GeneratedUnit;
 import io.umaboot.core.generator.GeneratorContext;
@@ -21,12 +22,20 @@ public final class OverlayPlanner {
         Objects.requireNonNull(outputRoot, "outputRoot");
         Objects.requireNonNull(ctx, "ctx");
 
-        DiffEngine.DiffResult diff = new DiffEngine().diff(generated, outputRoot);
+        BuildFileDependencyPlanner.Plan dependencies =
+                new BuildFileDependencyPlanner().plan(outputRoot, ctx);
+        ApplicationConfigMerger.Plan applicationConfig =
+                ApplicationConfigMerger.plan(outputRoot, ctx);
+        List<GeneratedUnit> previewUnits = new ArrayList<>(generated);
+        previewUnits.addAll(dependencies.patchUnits());
+        previewUnits.addAll(applicationConfig.patchUnits());
+
+        DiffEngine.DiffResult diff = new DiffEngine().diff(previewUnits, outputRoot);
         Set<String> added = new LinkedHashSet<>(diff.added());
         List<GeneratedUnit> newUnits = generated.stream()
                 .filter(unit -> added.contains(unit.relativePath()))
                 .toList();
-        return new OverlayPlan(diff, newUnits, requirements(ctx));
+        return new OverlayPlan(diff, newUnits, previewUnits, requirements(ctx), dependencies, applicationConfig);
     }
 
     private static List<String> requirements(GeneratorContext ctx) {
@@ -35,51 +44,23 @@ public final class OverlayPlanner {
 
         requirements.add("Ensure " + buildFile + " targets Spring Boot "
                 + ctx.springBootVersion() + " and Java " + ctx.javaVersion() + ".");
-        requirements.add("Add the " + ctx.dbDriver() + " JDBC driver dependency.");
 
-        if (ctx.isJpa()) {
-            requirements.add("Add spring-boot-starter-data-jpa.");
-        } else if (ctx.isMyBatis()) {
-            requirements.add("Add mybatis-spring-boot-starter.");
-            if ("xml".equalsIgnoreCase(ctx.mybatisStyle())) {
-                requirements.add("Add mybatis.mapper-locations for generated XML mappers.");
-            }
-            requirements.add("Enable MyBatis underscore-to-camel-case mapping if the project does not already do it.");
+        if (ctx.isMyBatis()) {
+            requirements.add("Review generated MyBatis application config additions in Preview / Merge.");
         } else if (ctx.isJooq()) {
             requirements.add("Add spring-boot-starter-jooq and jOOQ code generation/build setup if the project does not already provide it.");
         }
 
-        if (!ctx.isValidationNone()) {
-            requirements.add("Add spring-boot-starter-validation.");
-        }
-        if (ctx.useLombok()) {
-            String version = ctx.lombokVersion() == null ? "" : " version " + ctx.lombokVersion();
-            requirements.add("Add Lombok" + version + " as a dependency and annotation processor.");
-        }
-        if (ctx.useMapStruct()) {
-            String suffix = ctx.useLombok() ? " plus lombok-mapstruct-binding." : ".";
-            requirements.add("Add MapStruct dependency and mapstruct-processor annotation processor" + suffix);
-        }
-        if (ctx.isMigrationFlyway()) {
-            String module = ctx.flywayDatabaseModule();
-            requirements.add("Add Flyway dependencies"
-                    + (module == null || module.isBlank() ? "." : " including " + module + "."));
-        }
         if (ctx.logging().isJson()) {
-            requirements.add("Add logstash-logback-encoder and merge logback-spring.xml settings.");
+            requirements.add("Merge generated logback-spring.xml settings if the project already has custom logging.");
         } else if (ctx.logging().correlationId()) {
             requirements.add("Ensure logging configuration keeps MDC correlationId if custom logback config exists.");
         }
-        if (ctx.isOpenApiAnnotation()) {
-            requirements.add("Add springdoc-openapi dependency for annotation-based OpenAPI.");
-        } else if (ctx.isOpenApiYaml()) {
+        if (ctx.isOpenApiYaml()) {
             requirements.add("Expose or serve src/main/resources/openapi.yaml if the project does not already do it.");
         }
-        if (ctx.tests().enabled()) {
-            requirements.add("Add JUnit 5, Spring Boot test, and Testcontainers test dependencies.");
-        }
         if (ctx.isSecurityEnabled()) {
-            requirements.add("Merge generated Spring Security dependencies and configuration.");
+            requirements.add("Merge generated Spring Security configuration.");
         }
 
         return List.copyOf(requirements);

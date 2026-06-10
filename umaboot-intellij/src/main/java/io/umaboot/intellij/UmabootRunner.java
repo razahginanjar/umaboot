@@ -3,7 +3,6 @@ package io.umaboot.intellij;
 import io.umaboot.core.GenerationPipeline;
 import io.umaboot.core.architecture.ArchitectureRenderer;
 import io.umaboot.core.architecture.ArchitectureRenderers;
-import io.umaboot.core.config.ApplicationConfigMerger;
 import io.umaboot.core.config.UmabootConfig;
 import io.umaboot.core.config.UmabootConfigLoader;
 import io.umaboot.core.generator.GeneratedUnit;
@@ -19,6 +18,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +30,7 @@ final class UmabootRunner {
     record Result(int fileCount, Path outputDir, String architecture, String persistence,
                   String mode, boolean autoOverlay, List<String> warnings,
                   int overlayModifiedCount, int overlayUnchangedCount,
+                  boolean overlayPreviewRequired, int overlayPreviewMergeCount,
                   List<String> overlayModifiedFiles, List<String> overlayRequirements) {}
 
     record Plan(List<GeneratedUnit> units, Path outputDir, String architecture, String persistence,
@@ -50,7 +51,13 @@ final class UmabootRunner {
             if (overlayPlan.hasNewFiles()) {
                 renderer.render(overlayPlan.newUnits(), plan.outputDir());
             }
-            ApplicationConfigMerger.merge(plan.outputDir(), plan.ctx());
+            List<String> requirements = new ArrayList<>(overlayPlan.requirements());
+            requirements.addAll(overlayPlan.dependencies().messages());
+            if (overlayPlan.dependencies().hasPatch()) {
+                requirements.add("Build-file dependency patch available in Preview / Merge: "
+                        + overlayPlan.dependencies().relativePath());
+            }
+            requirements.addAll(overlayPlan.applicationConfig().messages());
 
             return new Result(
                     overlayPlan.newCount(),
@@ -62,8 +69,10 @@ final class UmabootRunner {
                     plan.warnings(),
                     overlayPlan.modifiedCount(),
                     overlayPlan.unchangedCount(),
+                    overlayPlan.needsPreviewMerge(),
+                    overlayPlan.previewMergeCount(),
                     overlayPlan.diff().modified(),
-                    overlayPlan.requirements());
+                    requirements);
         }
 
         String existingPolicy = existingPolicyOverride == null
@@ -90,6 +99,8 @@ final class UmabootRunner {
                 plan.autoOverlay(),
                 plan.warnings(),
                 0,
+                0,
+                false,
                 0,
                 List.of(),
                 List.of());

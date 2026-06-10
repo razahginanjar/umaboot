@@ -178,7 +178,12 @@
             'Loaded table metadata.': 'Metadata tabel dimuat.',
             'No tables available.': 'Tidak ada tabel.',
             'Failed to load table metadata.': 'Gagal memuat metadata tabel.',
+            'Sync from YAML': 'Sinkron dari YAML',
+            'Discard unsaved form changes and reload from YAML?': 'Buang perubahan form yang belum disimpan dan muat ulang dari YAML?',
+            'Synced from YAML.': 'Tersinkron dari YAML.',
+            'Failed to sync from YAML.': 'Gagal sinkron dari YAML.',
             'Revert': 'Kembalikan',
+            'Discard unsaved form changes?': 'Buang perubahan form yang belum disimpan?',
             'Save': 'Simpan',
             'Modified': 'Diubah',
             'Saved.': 'Tersimpan.',
@@ -266,7 +271,12 @@
             'Loaded table metadata.': 'テーブルメタデータを読み込みました。',
             'No tables available.': 'テーブルがありません。',
             'Failed to load table metadata.': 'テーブルメタデータの読み込みに失敗しました。',
+            'Sync from YAML': 'YAMLから同期',
+            'Discard unsaved form changes and reload from YAML?': '未保存のフォーム変更を破棄してYAMLから再読み込みしますか?',
+            'Synced from YAML.': 'YAMLから同期しました。',
+            'Failed to sync from YAML.': 'YAMLからの同期に失敗しました。',
             'Revert': '元に戻す',
+            'Discard unsaved form changes?': '未保存のフォーム変更を破棄しますか?',
             'Save': '保存',
             'Modified': '変更済み',
             'Saved.': '保存しました。',
@@ -393,7 +403,8 @@
         }
 
         gen.architecture = $('architecture').value;
-        gen.persistence = $('persistence').value;
+        const persistence = $('persistence').value;
+        gen.persistence = persistence;
         gen.buildTool = $('buildTool').value;
         gen.basePackage = $('basePackage').value.trim();
         gen.projectName = $('projectName').value.trim();
@@ -426,7 +437,7 @@
         ensureObject(gen, 'tests').enabled = $('testsEnabled').checked;
         ensureObject(gen, 'migrations').style = $('migrationsStyle').value;
         ensureObject(gen, 'pagination').style = $('paginationStyle').value;
-        ensureObject(gen, 'jpa').useMapStruct = $('useMapStruct').checked;
+        ensureObject(gen, 'jpa').useMapStruct = persistence === 'jpa' && $('useMapStruct').checked;
         ensureObject(gen, 'mybatis').style = $('mybatisStyle').value;
         ensureObject(gen, 'applicationConfig').format = $('applicationConfigFormat').value;
 
@@ -669,6 +680,17 @@
         tableEditor.classList.remove('hidden');
         renderTableList();
         renderActiveTableDetail();
+    }
+
+    function clearSchemaMetadata() {
+        schemaMetadata = null;
+        activeTableName = '';
+        tableEditor.classList.add('hidden');
+        tableEditorList.textContent = '';
+        tableEditorTitle.textContent = '';
+        tableEditorDefault.textContent = '';
+        tableOverrideClassName.value = '';
+        columnEditor.textContent = '';
     }
 
     function normalizeSchemaMetadata(metadata) {
@@ -977,6 +999,12 @@
         if (scriptMode && $('persistence').value === 'jooq') {
             $('persistence').value = 'jpa';
         }
+
+        const jpaPersistence = $('persistence').value === 'jpa';
+        toggle($('useMapStructRow'), jpaPersistence);
+        if (!jpaPersistence) {
+            $('useMapStruct').checked = false;
+        }
     }
 
     function setOption(selectEl, value, enabled) {
@@ -996,6 +1024,10 @@
     function clearDirty() {
         status.classList.remove('dirty');
         status.textContent = '';
+    }
+
+    function isDirty() {
+        return status.classList.contains('dirty');
     }
 
     function showMessage(text, ok) {
@@ -1108,7 +1140,18 @@
     });
 
     $('btn-revert').addEventListener('click', () => {
+        if (isDirty() && !window.confirm(t('Discard unsaved form changes?'))) {
+            return;
+        }
         if (lastLoaded) writeForm(lastLoaded);
+    });
+
+    $('btn-sync-yaml').addEventListener('click', () => {
+        if (isDirty() && !window.confirm(t('Discard unsaved form changes and reload from YAML?'))) {
+            return;
+        }
+        showMessage('', undefined);
+        vscode.postMessage({ command: 'syncFromYaml' });
     });
 
     $('btn-test-connection').addEventListener('click', () => {
@@ -1185,9 +1228,14 @@
         switch (msg.command) {
             case 'load':
                 setUiLanguage(msg.language);
+                clearSchemaMetadata();
                 lastLoaded = cloneConfig(msg.config || {});
                 writeForm(lastLoaded);
                 applyI18n();
+                if (msg.synced) {
+                    showMessage('Synced from YAML.', true);
+                    setTimeout(() => showMessage('', undefined), 2000);
+                }
                 break;
             case 'saved':
                 clearDirty();
@@ -1217,6 +1265,9 @@
                         showMessage('No non-junction tables found.', false);
                     }
                 }
+                break;
+            case 'syncFailed':
+                showMessage(msg.message || 'Failed to sync from YAML.', false);
                 break;
             case 'schemaMetadataResult':
                 if (msg.ok && msg.metadata) {

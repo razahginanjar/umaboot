@@ -4,30 +4,32 @@ import com.intellij.icons.AllIcons;
 import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.actionSystem.ActionManager;
+import com.intellij.openapi.actionSystem.ActionToolbar;
+import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.DataContext;
+import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.actionSystem.Presentation;
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext;
-import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowFactory;
 import com.intellij.ui.components.JBPanel;
 import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentFactory;
-import io.umaboot.intellij.settings.UmabootSettingsConfigurable;
 import io.umaboot.intellij.settings.UmabootSettingsPanel;
 import io.umaboot.intellij.settings.UiText;
 
 import javax.swing.BorderFactory;
-import javax.swing.JButton;
+import javax.swing.Icon;
+import javax.swing.JComponent;
 import java.awt.BorderLayout;
-import java.awt.FlowLayout;
 
 /**
  * Right-gutter tool window. Hosts the same {@link UmabootSettingsPanel} that
  * lives under Settings → Tools → Umaboot, with explicit
- * <em>Apply</em>, <em>Generate</em>, and <em>Open Settings</em> buttons so
+ * <em>Apply</em>, <em>Generate</em>, and <em>Preview / Merge</em> actions so
  * users discover and use the form without having to know about the Settings
  * dialog.
  */
@@ -40,8 +42,9 @@ public final class UmabootToolWindowFactory implements ToolWindowFactory {
         UmabootSettingsPanel panel = new UmabootSettingsPanel(project);
 
         JBPanel<JBPanel<?>> root = new JBPanel<>(new BorderLayout());
+        root.add(buildHeaderBar(project, panel), BorderLayout.NORTH);
         root.add(panel.getRoot(), BorderLayout.CENTER);
-        root.add(buildButtonBar(project, panel), BorderLayout.SOUTH);
+        root.add(buildWorkflowBar(project, panel), BorderLayout.SOUTH);
 
         Content content = ContentFactory.getInstance().createContent(
                 root,
@@ -50,66 +53,126 @@ public final class UmabootToolWindowFactory implements ToolWindowFactory {
         toolWindow.getContentManager().addContent(content);
     }
 
-    private JBPanel<JBPanel<?>> buildButtonBar(Project project, UmabootSettingsPanel panel) {
-        final UiText.Language[] language = {UiText.load(project)};
-        JBPanel<JBPanel<?>> bar = new JBPanel<>(new FlowLayout(FlowLayout.LEFT, 6, 6));
-        bar.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new java.awt.Color(0xC0C0C0)));
+    private JBPanel<JBPanel<?>> buildHeaderBar(Project project, UmabootSettingsPanel panel) {
+        JBPanel<JBPanel<?>> bar = new JBPanel<>(new BorderLayout());
+        bar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, new java.awt.Color(0xC0C0C0)),
+                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
 
-        JButton apply = new JButton(UiText.text(language[0], "Apply"), AllIcons.Actions.MenuSaveall);
-        apply.setToolTipText(UiText.text(language[0], "Write the form values back to umaboot.yaml"));
-        apply.addActionListener(e -> {
+        DefaultActionGroup actions = new DefaultActionGroup();
+        actions.add(toolbarAction(project, "Revert", "Restore the form to the last loaded YAML state",
+                AllIcons.Actions.Rollback, () -> revertForm(project, panel, UiText.load(project))));
+        actions.add(toolbarAction(project, "Sync", "Reload the form from umaboot.yaml without saving",
+                AllIcons.Actions.Refresh, () -> syncFromYaml(project, panel, UiText.load(project))));
+        actions.add(logsActionGroup(project));
+
+        ActionToolbar toolbar = ActionManager.getInstance()
+                .createActionToolbar("Umaboot.ToolWindow.Header", actions, true);
+        toolbar.setTargetComponent(bar);
+        panel.addLanguageChangeListener(selected -> toolbar.updateActionsImmediately());
+        bar.add(toolbar.getComponent(), BorderLayout.CENTER);
+        return bar;
+    }
+
+    private JBPanel<JBPanel<?>> buildWorkflowBar(Project project, UmabootSettingsPanel panel) {
+        JBPanel<JBPanel<?>> bar = new JBPanel<>(new BorderLayout());
+        bar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, new java.awt.Color(0xC0C0C0)),
+                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+
+        DefaultActionGroup actions = new DefaultActionGroup();
+        actions.add(toolbarAction(project, "Apply", "Write the form values back to umaboot.yaml",
+                AllIcons.Actions.MenuSaveall, () -> {
             try {
                 panel.save();
-                notifyUser(project, UiText.text(language[0], "Saved umaboot.yaml"), NotificationType.INFORMATION);
+                notifyUser(project, UiText.text(UiText.load(project), "Saved umaboot.yaml"), NotificationType.INFORMATION);
             } catch (Exception ex) {
-                notifyUser(project, UiText.text(language[0], "Failed to save: ") + ex.getMessage(), NotificationType.ERROR);
+                notifyUser(project, UiText.text(UiText.load(project), "Failed to save: ") + ex.getMessage(), NotificationType.ERROR);
             }
-        });
+        }));
+        actions.add(toolbarAction(project, "Generate", "Run Umaboot against the current configuration",
+                UmabootIcons.ACTION, () -> runGenerateAction(project)));
+        actions.add(toolbarAction(project, "Preview / Merge", "Preview generated changes before writing files",
+                AllIcons.Actions.Diff, () -> runPreviewMergeAction(project)));
 
-        JButton generate = new JButton(UiText.text(language[0], "Generate"), UmabootIcons.ACTION);
-        generate.setToolTipText(UiText.text(language[0], "Run Umaboot against the current configuration"));
-        generate.addActionListener(e -> runGenerateAction(project));
-
-        JButton previewMerge = new JButton(UiText.text(language[0], "Preview / Merge"), AllIcons.Actions.Diff);
-        previewMerge.setToolTipText(UiText.text(language[0], "Preview generated changes before writing files"));
-        previewMerge.addActionListener(e -> runPreviewMergeAction(project));
-
-        JButton summaryLog = new JButton(UiText.text(language[0], "Summary Log"), AllIcons.General.Information);
-        summaryLog.setToolTipText(UiText.text(language[0], "Show concise Umaboot process log"));
-        summaryLog.addActionListener(e -> UmabootLog.get(project).showSummary());
-
-        JButton detailLog = new JButton(UiText.text(language[0], "Detail Log"), AllIcons.General.Information);
-        detailLog.setToolTipText(UiText.text(language[0], "Show detailed Umaboot process log"));
-        detailLog.addActionListener(e -> UmabootLog.get(project).showDetail());
-
-        JButton openSettings = new JButton(UiText.text(language[0], "Open in Settings"), AllIcons.General.Settings);
-        openSettings.setToolTipText(UiText.text(language[0], "Open this panel inside the IDE Settings dialog"));
-        openSettings.addActionListener(e ->
-                ShowSettingsUtil.getInstance().showSettingsDialog(project, UmabootSettingsConfigurable.class));
-
-        panel.addLanguageChangeListener(selected -> {
-            language[0] = selected;
-            apply.setText(UiText.text(selected, "Apply"));
-            apply.setToolTipText(UiText.text(selected, "Write the form values back to umaboot.yaml"));
-            generate.setText(UiText.text(selected, "Generate"));
-            generate.setToolTipText(UiText.text(selected, "Run Umaboot against the current configuration"));
-            previewMerge.setText(UiText.text(selected, "Preview / Merge"));
-            previewMerge.setToolTipText(UiText.text(selected, "Preview generated changes before writing files"));
-            summaryLog.setText(UiText.text(selected, "Summary Log"));
-            summaryLog.setToolTipText(UiText.text(selected, "Show concise Umaboot process log"));
-            detailLog.setText(UiText.text(selected, "Detail Log"));
-            detailLog.setToolTipText(UiText.text(selected, "Show detailed Umaboot process log"));
-            openSettings.setText(UiText.text(selected, "Open in Settings"));
-            openSettings.setToolTipText(UiText.text(selected, "Open this panel inside the IDE Settings dialog"));
-        });
-
-        bar.add(apply);
-        bar.add(generate);
-        bar.add(previewMerge);
-        bar.add(summaryLog);
-        bar.add(detailLog);
-        bar.add(openSettings);
+        ActionToolbar toolbar = ActionManager.getInstance()
+                .createActionToolbar("Umaboot.ToolWindow.Workflow", actions, true);
+        toolbar.setTargetComponent(bar);
+        panel.addLanguageChangeListener(selected -> toolbar.updateActionsImmediately());
+        bar.add(toolbar.getComponent(), BorderLayout.CENTER);
         return bar;
+    }
+
+    private static AnAction toolbarAction(Project project, String textKey, String descriptionKey,
+                                          Icon icon, Runnable handler) {
+        return new AnAction(UiText.text(UiText.load(project), textKey),
+                UiText.text(UiText.load(project), descriptionKey),
+                icon) {
+            @Override
+            public void update(AnActionEvent e) {
+                UiText.Language language = UiText.load(project);
+                e.getPresentation().setText(UiText.text(language, textKey));
+                e.getPresentation().setDescription(UiText.text(language, descriptionKey));
+                e.getPresentation().setIcon(icon);
+            }
+
+            @Override
+            public void actionPerformed(AnActionEvent e) {
+                handler.run();
+            }
+        };
+    }
+
+    private static DefaultActionGroup logsActionGroup(Project project) {
+        DefaultActionGroup group = new DefaultActionGroup(UiText.text(UiText.load(project), "Logs"), true) {
+            @Override
+            public void update(AnActionEvent e) {
+                UiText.Language language = UiText.load(project);
+                e.getPresentation().setText(UiText.text(language, "Logs"));
+                e.getPresentation().setDescription(UiText.text(language, "Open Umaboot logs"));
+                e.getPresentation().setIcon(AllIcons.General.Information);
+            }
+        };
+        group.getTemplatePresentation().setIcon(AllIcons.General.Information);
+        group.add(toolbarAction(project, "Summary Log", "Show concise Umaboot process log",
+                AllIcons.General.Information, () -> UmabootLog.get(project).showSummary()));
+        group.add(toolbarAction(project, "Detail Log", "Show detailed Umaboot process log",
+                AllIcons.General.Information, () -> UmabootLog.get(project).showDetail()));
+        return group;
+    }
+
+    private static void revertForm(Project project, UmabootSettingsPanel panel, UiText.Language language) {
+        if (!panel.isModified()) {
+            notifyUser(project, UiText.text(language, "No form changes to revert"), NotificationType.INFORMATION);
+            return;
+        }
+        int choice = Messages.showYesNoDialog(
+                project,
+                UiText.text(language, "Discard unsaved form changes?"),
+                UiText.text(language, "Revert"),
+                Messages.getWarningIcon());
+        if (choice != Messages.YES) return;
+        panel.revert();
+        notifyUser(project, UiText.text(language, "Reverted form changes"), NotificationType.INFORMATION);
+    }
+
+    private static void syncFromYaml(Project project, UmabootSettingsPanel panel, UiText.Language language) {
+        if (panel.isModified()) {
+            int choice = Messages.showYesNoDialog(
+                    project,
+                    UiText.text(language, "Discard unsaved form changes and reload from YAML?"),
+                    UiText.text(language, "Sync from YAML"),
+                    Messages.getWarningIcon());
+            if (choice != Messages.YES) return;
+        }
+        try {
+            panel.syncFromYaml();
+            notifyUser(project, UiText.text(language, "Synced from YAML"), NotificationType.INFORMATION);
+        } catch (Exception ex) {
+            notifyUser(project,
+                    UiText.text(language, "Failed to sync from YAML: ") + ex.getMessage(),
+                    NotificationType.ERROR);
+        }
     }
 
     private static void runGenerateAction(Project project) {

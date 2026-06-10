@@ -163,6 +163,8 @@ export class UmabootTreeProvider implements vscode.TreeDataProvider<UmabootNode>
             this.leaf('Diff', 'umaboot diff', 'umaboot.action.diff', 'umaboot.diff', [], 'diff'),
             this.leaf('Preview / Merge', 'review generated files', 'umaboot.action.previewMerge',
                 'umaboot.previewMerge', [], 'diff'),
+            this.leaf('Reset Preview / Merge', 'clear active preview choices', 'umaboot.action.resetPreviewMerge',
+                'umaboot.resetPreviewMerge', [], 'discard'),
             this.leaf('Apply Generated Files', 'umaboot apply', 'umaboot.action.apply', 'umaboot.apply', [], 'check'),
         ];
     }

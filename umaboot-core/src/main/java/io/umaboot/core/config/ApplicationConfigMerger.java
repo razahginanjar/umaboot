@@ -9,10 +9,13 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import io.umaboot.core.generator.GeneratedUnit;
 
 /**
  * Appends Umaboot-required configuration to an existing project's
@@ -102,6 +105,67 @@ public final class ApplicationConfigMerger {
     }
 
     /**
+     * Build a preview/merge patch for required overlay configuration instead
+     * of writing it directly.
+     */
+    public static Plan plan(Path outputRoot, GeneratorContext ctx) {
+        Objects.requireNonNull(outputRoot, "outputRoot");
+        Objects.requireNonNull(ctx, "ctx");
+
+        Map<String, String> additions = computeAdditions(ctx);
+        if (additions.isEmpty()) {
+            return Plan.none();
+        }
+
+        Path resources = outputRoot.resolve("src").resolve("main").resolve("resources");
+        Path target = null;
+        String targetName = null;
+        for (String name : CANDIDATES) {
+            Path candidate = resources.resolve(name);
+            if (Files.exists(candidate)) {
+                target = candidate;
+                targetName = name;
+                break;
+            }
+        }
+        if (target == null) {
+            target = resources.resolve("application.yml");
+            targetName = "application.yml";
+        }
+
+        String relativePath = outputRoot.toAbsolutePath().normalize()
+                .relativize(target.toAbsolutePath().normalize())
+                .toString()
+                .replace(java.io.File.separatorChar, '/');
+        boolean properties = targetName.endsWith(".properties");
+        String marker = properties ? MARKER_BEGIN_PROPS : MARKER_BEGIN_YAML;
+        String snippet = properties ? renderProperties(additions) : renderYaml(additions);
+        List<String> messages = new ArrayList<>();
+
+        try {
+            String patched;
+            if (!Files.exists(target)) {
+                patched = snippet;
+                messages.add("Application config patch available in Preview / Merge: "
+                        + relativePath + " (new file)");
+            } else {
+                String existing = Files.readString(target, StandardCharsets.UTF_8);
+                if (existing.contains(marker)) {
+                    return new Plan(target, relativePath, true, false,
+                            List.of(), List.of("Application config already contains Umaboot additions: " + relativePath));
+                }
+                String separator = existing.endsWith("\n") ? "" : "\n";
+                patched = existing + separator + "\n" + snippet;
+                messages.add("Application config patch available in Preview / Merge: " + relativePath);
+            }
+            return new Plan(target, relativePath, true, true,
+                    List.of(new GeneratedUnit(relativePath, patched)), messages);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to plan application config patch for " + target, e);
+        }
+    }
+
+    /**
      * Decide which key/value entries the generated code needs at runtime.
      * Returns a flat dotted-key map (e.g. {@code mybatis.mapper-locations}).
      */
@@ -165,5 +229,18 @@ public final class ApplicationConfigMerger {
         }
         out.append(MARKER_END_PROPS).append('\n');
         return out.toString();
+    }
+
+    public record Plan(Path target, String relativePath, boolean required, boolean hasPatch,
+                       List<GeneratedUnit> patchUnits, List<String> messages) {
+
+        public Plan {
+            patchUnits = patchUnits == null ? List.of() : List.copyOf(patchUnits);
+            messages = messages == null ? List.of() : List.copyOf(messages);
+        }
+
+        static Plan none() {
+            return new Plan(null, "", false, false, List.of(), List.of());
+        }
     }
 }

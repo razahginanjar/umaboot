@@ -130,14 +130,14 @@ public final class GenerateAction extends AnAction {
                         if (vf != null) vf.refresh(true, true);
                     });
 
-                    NotificationType generationType = result.overlayModifiedCount() > 0
+                    NotificationType generationType = result.overlayPreviewRequired()
                             ? NotificationType.WARNING
                             : NotificationType.INFORMATION;
-                    String generationMessage = result.overlayModifiedCount() > 0
+                    String generationMessage = result.overlayPreviewRequired()
                             ? UiText.format(language,
-                                    "Umaboot: overlay wrote %d new files; %d modified files need Preview / Merge. See detail log.",
+                                    "Umaboot: overlay wrote %d new files; %d changes need Preview / Merge. See detail log.",
                                     result.fileCount(),
-                                    result.overlayModifiedCount())
+                                    result.overlayPreviewMergeCount())
                             : UiText.format(language, "Umaboot: generated %d files in %s [%s/%s, %s%s]",
                                     result.fileCount(),
                                     result.outputDir(),

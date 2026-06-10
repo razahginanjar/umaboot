@@ -31,6 +31,35 @@ class ApplicationConfigMergerTest {
     }
 
     @Test
+    void planMybatisXmlProducesYamlPatchWithoutWriting(@TempDir Path tmp) throws Exception {
+        Path yml = tmp.resolve("src/main/resources/application.yml");
+        Files.createDirectories(yml.getParent());
+        Files.writeString(yml, "spring:\n  application:\n    name: my-app\n");
+
+        ApplicationConfigMerger.Plan plan = ApplicationConfigMerger.plan(tmp, ctx("mybatis", "xml"));
+
+        assertThat(plan.required()).isTrue();
+        assertThat(plan.hasPatch()).isTrue();
+        assertThat(plan.relativePath()).isEqualTo("src/main/resources/application.yml");
+        assertThat(plan.patchUnits()).hasSize(1);
+        assertThat(plan.patchUnits().get(0).content())
+                .contains("mapper-locations: classpath:mapper/*.xml")
+                .contains("map-underscore-to-camel-case: true");
+        assertThat(Files.readString(yml)).isEqualTo("spring:\n  application:\n    name: my-app\n");
+    }
+
+    @Test
+    void planCreatesApplicationYamlPatchWhenNoConfigExists(@TempDir Path tmp) {
+        ApplicationConfigMerger.Plan plan = ApplicationConfigMerger.plan(tmp, ctx("mybatis", "annotation"));
+
+        assertThat(plan.required()).isTrue();
+        assertThat(plan.hasPatch()).isTrue();
+        assertThat(plan.relativePath()).isEqualTo("src/main/resources/application.yml");
+        assertThat(plan.patchUnits().get(0).content())
+                .contains("map-underscore-to-camel-case: true");
+    }
+
+    @Test
     void mybatisAnnotation_addsCamelCaseOnlyToYaml(@TempDir Path tmp) throws Exception {
         Path yml = tmp.resolve("src/main/resources/application.yml");
         Files.createDirectories(yml.getParent());

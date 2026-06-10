@@ -3,7 +3,6 @@ package io.umaboot.cli;
 import io.umaboot.core.GenerationPipeline;
 import io.umaboot.core.architecture.ArchitectureRenderer;
 import io.umaboot.core.architecture.ArchitectureRenderers;
-import io.umaboot.core.config.ApplicationConfigMerger;
 import io.umaboot.core.config.OutputDirResolver;
 import io.umaboot.core.config.UmabootConfig;
 import io.umaboot.core.config.UmabootConfigLoader;
@@ -34,6 +33,10 @@ public final class GenerateCommand implements Callable<Integer> {
             description = "Override output directory from config")
     Path outputOverride;
 
+    @Option(names = {"--overlay-target"},
+            description = "Actual overlay project root to compare while --output points to a preview directory")
+    Path overlayTargetOverride;
+
     @Option(names = {"--templates"},
             description = "Optional directory of FreeMarker template overrides")
     Path templatesDir;
@@ -55,16 +58,18 @@ public final class GenerateCommand implements Callable<Integer> {
                     ? outputOverride.toAbsolutePath().normalize()
                     : OutputDirResolver.resolve(config, configFile);
             if (r.ctx().overlay()) {
-                OverlayPlan plan = new OverlayPlanner().plan(r.units(), output, r.ctx());
-                if (plan.hasNewFiles()) {
+                Path overlayTarget = overlayTargetOverride != null
+                        ? overlayTargetOverride.toAbsolutePath().normalize()
+                        : output;
+                OverlayPlan plan = new OverlayPlanner().plan(r.units(), overlayTarget, r.ctx());
+                boolean previewRender = overlayTargetOverride != null;
+                if (previewRender) {
+                    renderer.render(plan.previewUnits(), output);
+                } else if (plan.hasNewFiles()) {
                     renderer.render(plan.newUnits(), output);
                 }
-                Path mergedFile = ApplicationConfigMerger.merge(output, r.ctx());
-                if (mergedFile != null) {
-                    LOG.info("Merged Umaboot additions into {}", mergedFile);
-                }
-                printOverlayPlan(output, plan, mergedFile);
-                return plan.hasModifiedFiles() ? 1 : 0;
+                printOverlayPlan(overlayTarget, plan);
+                return previewRender ? 0 : (plan.needsPreviewMerge() ? 1 : 0);
             }
 
             String existingPolicy = existingPolicyOverride != null
@@ -109,16 +114,13 @@ public final class GenerateCommand implements Callable<Integer> {
                 + "or --existing-policy clean to delete the output contents before generation.");
     }
 
-    private static void printOverlayPlan(Path output, OverlayPlan plan, Path mergedFile) {
+    private static void printOverlayPlan(Path output, OverlayPlan plan) {
         System.out.println("Overlay plan against " + output.toAbsolutePath() + ":");
-        System.out.println("  new:       " + plan.newCount());
+        System.out.println("  new:       " + plan.newCount() + " (written by generate)");
+        System.out.println("  merge:     " + plan.previewMergeCount() + " pending Preview / Merge change(s)");
         System.out.println("  modified:  " + plan.modifiedCount()
                 + (plan.hasModifiedFiles() ? " (not overwritten)" : ""));
         System.out.println("  unchanged: " + plan.unchangedCount());
-        if (mergedFile != null) {
-            System.out.println("  config:    merged Umaboot additions into "
-                    + output.toAbsolutePath().relativize(mergedFile.toAbsolutePath().normalize()));
-        }
 
         for (String f : plan.diff().added()) System.out.println("  + " + f);
         for (String f : plan.diff().modified()) System.out.println("  ~ " + f);
@@ -131,9 +133,34 @@ public final class GenerateCommand implements Callable<Integer> {
             }
         }
 
-        if (plan.hasModifiedFiles()) {
+        if (!plan.dependencies().available()) {
             System.out.println();
-            System.out.println("Overlay skipped modified existing files. Use Preview / Merge or 'umaboot diff --unified' before accepting them.");
+            System.out.println("Overlay dependency check:");
+            System.out.println("  - " + plan.dependencies().unavailableReason());
+        } else if (plan.dependencies().hasMissingDependencies()) {
+            System.out.println();
+            System.out.println("Overlay dependency check:");
+            for (String message : plan.dependencies().messages()) {
+                System.out.println("  - " + message);
+            }
+            if (plan.dependencies().hasPatch()) {
+                System.out.println("  build-file patch: " + plan.dependencies().relativePath()
+                        + " (available in Preview / Merge)");
+            }
+        }
+
+        if (!plan.applicationConfig().messages().isEmpty()) {
+            System.out.println();
+            System.out.println("Overlay application config check:");
+            for (String message : plan.applicationConfig().messages()) {
+                System.out.println("  - " + message);
+            }
+        }
+
+        if (plan.needsPreviewMerge()) {
+            System.out.println();
+            System.out.println("Overlay did not write modified existing files or preview-only config/build patches.");
+            System.out.println("Use Preview / Merge or 'umaboot diff --unified' before accepting them.");
         }
     }
 }

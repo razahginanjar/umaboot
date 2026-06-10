@@ -21,6 +21,8 @@ import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.umaboot.core.generator.GeneratedUnit;
+import io.umaboot.core.overlay.OverlayPlan;
+import io.umaboot.core.overlay.OverlayPlanner;
 import io.umaboot.intellij.settings.UiText;
 
 import java.io.IOException;
@@ -114,8 +116,11 @@ public final class PreviewMergeAction extends AnAction {
         int unchanged = 0;
         int added = 0;
         int modified = 0;
+        List<GeneratedUnit> units = plan.ctx().overlay()
+                ? overlayPreviewUnits(plan)
+                : plan.units();
 
-        for (GeneratedUnit unit : plan.units()) {
+        for (GeneratedUnit unit : units) {
             Path target = targetPath(plan.outputDir(), unit);
             String generated = unit.content();
             if (!Files.exists(target)) {
@@ -133,6 +138,11 @@ public final class PreviewMergeAction extends AnAction {
             }
         }
         return new Preview(changes, added, modified, unchanged);
+    }
+
+    private static List<GeneratedUnit> overlayPreviewUnits(UmabootRunner.Plan plan) {
+        OverlayPlan overlayPlan = new OverlayPlanner().plan(plan.units(), plan.outputDir(), plan.ctx());
+        return overlayPlan.previewUnits();
     }
 
     private static Path targetPath(Path outputDir, GeneratedUnit unit) {
@@ -168,13 +178,15 @@ public final class PreviewMergeAction extends AnAction {
                 UiText.format(language, "Opening %d merge windows.", preview.changes().size()),
                 NotificationType.INFORMATION);
 
+        int token = PreviewMergeState.get(project).start(preview.changes().size());
+        log.event("preview merge", "started session " + token);
         for (Change change : preview.changes()) {
-            openMerge(project, language, plan, change, log);
+            openMerge(project, language, plan, change, log, token);
         }
     }
 
     private static void openMerge(Project project, UiText.Language language,
-                                  UmabootRunner.Plan plan, Change change, UmabootLog log) {
+                                  UmabootRunner.Plan plan, Change change, UmabootLog log, int token) {
         log.detail("preview merge", "opening merge: " + change.relativePath());
         Document output = EditorFactory.getInstance().createDocument(change.current());
         List<String> contents = List.of(change.current(), change.current(), change.generated());
@@ -199,9 +211,22 @@ public final class PreviewMergeAction extends AnAction {
                     result -> {
                         if (result == MergeResult.CANCEL) {
                             log.detail("preview merge", "merge cancelled: " + change.relativePath());
+                            PreviewMergeState.get(project).complete(token);
                             return;
                         }
-                        writeAcceptedFile(project, language, plan.outputDir(), change, output.getText(), log);
+                        if (!PreviewMergeState.get(project).isActive(token)) {
+                            log.detail("preview merge", "merge ignored after reset: " + change.relativePath());
+                            notifyUser(project,
+                                    UiText.format(language, "Preview / Merge choices were reset; skipped %s.",
+                                            change.relativePath()),
+                                    NotificationType.WARNING);
+                            return;
+                        }
+                        try {
+                            writeAcceptedFile(project, language, plan.outputDir(), change, output.getText(), log);
+                        } finally {
+                            PreviewMergeState.get(project).complete(token);
+                        }
                     });
             DiffManager.getInstance().showMerge(project, request);
         } catch (InvalidDiffRequestException ex) {
