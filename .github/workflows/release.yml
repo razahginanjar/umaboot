@@ -113,7 +113,7 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           files: |
-            artifacts/umaboot-cli-fat-jar/umaboot.jar
+            artifacts/umaboot-cli-fat-jar/umaboot-cli-*-SNAPSHOT.jar
             artifacts/umaboot-intellij-plugin/*.zip
             artifacts/umaboot-vscode-extension/*.vsix
           generate_release_notes: true
