@@ -146,35 +146,21 @@
         </dependency>
 </#if>
         <dependency>
-<#if dbIsMariadb>
-            <groupId>org.mariadb.jdbc</groupId>
-            <artifactId>mariadb-java-client</artifactId>
-<#elseif dbIsMysql>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-<#elseif dbIsSqlserver>
-            <groupId>com.microsoft.sqlserver</groupId>
-            <artifactId>mssql-jdbc</artifactId>
-<#elseif dbIsSqlite>
-            <groupId>org.xerial</groupId>
-            <artifactId>sqlite-jdbc</artifactId>
-<#else>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-</#if>
+            <groupId>${jdbcDriverDependencyGroupId}</groupId>
+            <artifactId>${jdbcDriverDependencyArtifactId}</artifactId>
             <scope>runtime</scope>
         </dependency>
 <#if dbIsSqlite && isJpa>
         <!--
-          SQLite has no Hibernate dialect in core. The community-maintained
-          SQLiteDialect lives in `org.hibernate.orm:hibernate-community-dialects`
-          (managed by spring-boot-starter-parent for SB3, by spring-boot-dependencies
-          for SB2). Wire it in via `spring.jpa.properties.hibernate.dialect:
-          org.hibernate.community.dialect.SQLiteDialect` in application.yml.
+          SQLite has no Hibernate dialect in core. Umaboot adds a compatible
+          community dialect dependency for the selected Spring Boot line.
         -->
         <dependency>
-            <groupId>org.hibernate.orm</groupId>
-            <artifactId>hibernate-community-dialects</artifactId>
+            <groupId>${sqliteDialectDependencyGroupId}</groupId>
+            <artifactId>${sqliteDialectDependencyArtifactId}</artifactId>
+<#if sqliteDialectDependencyVersion?? && sqliteDialectDependencyVersion?has_content>
+            <version>${sqliteDialectDependencyVersion}</version>
+</#if>
         </dependency>
 </#if>
 <#if useLombok>

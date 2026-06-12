@@ -52,7 +52,7 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.datasource.driver-class-name", () -> "org.sqlite.JDBC");
         registerSchemaMode(registry);
         registry.add("spring.jpa.properties.hibernate.dialect",
-                () -> "org.hibernate.community.dialect.SQLiteDialect");
+                () -> "${sqliteHibernateDialectClass}");
     }
 <#elseif dbIsMariadb>
     @Container

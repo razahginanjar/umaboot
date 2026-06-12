@@ -76,6 +76,63 @@ class BuildFileDependencyPlannerTest {
     }
 
     @Test
+    void mavenPlanForSpringBoot273MysqlUsesLegacyConnectorCoordinate(@TempDir Path output) throws Exception {
+        Files.writeString(output.resolve("pom.xml"), """
+                <project>
+                    <modelVersion>4.0.0</modelVersion>
+                    <dependencies>
+                    </dependencies>
+                </project>
+                """);
+
+        BuildFileDependencyPlanner.Plan plan = new BuildFileDependencyPlanner()
+                .plan(output, context("maven", "none", false, false,
+                        "2.7.3", "1.8", "mysql", "jpa"));
+
+        assertThat(plan.missingFindings())
+                .anySatisfy(finding -> {
+                    assertThat(finding.dependency().groupId()).isEqualTo("mysql");
+                    assertThat(finding.dependency().artifactId()).isEqualTo("mysql-connector-java");
+                });
+        assertThat(plan.patchUnits()).hasSize(1);
+        assertThat(plan.patchUnits().get(0).content())
+                .contains("<groupId>mysql</groupId>")
+                .contains("<artifactId>mysql-connector-java</artifactId>")
+                .doesNotContain("<groupId>com.mysql</groupId>")
+                .doesNotContain("<artifactId>mysql-connector-j</artifactId>");
+    }
+
+    @Test
+    void mavenPlanForSpringBoot2SqliteJpaUsesVersionedHibernate5Dialect(@TempDir Path output) throws Exception {
+        Files.writeString(output.resolve("pom.xml"), """
+                <project>
+                    <modelVersion>4.0.0</modelVersion>
+                    <dependencies>
+                    </dependencies>
+                </project>
+                """);
+
+        BuildFileDependencyPlanner.Plan plan = new BuildFileDependencyPlanner()
+                .plan(output, context("maven", "none", false, false,
+                        "2.7.18", "1.8", "sqlite", "jpa"));
+
+        assertThat(plan.missingFindings())
+                .anySatisfy(finding -> {
+                    assertThat(finding.dependency().groupId()).isEqualTo("com.github.gwenn");
+                    assertThat(finding.dependency().artifactId()).isEqualTo("sqlite-dialect");
+                    assertThat(finding.dependency().version()).isEqualTo("0.1.4");
+                });
+        assertThat(plan.patchUnits()).hasSize(1);
+        assertThat(plan.patchUnits().get(0).content())
+                .contains("<groupId>org.xerial</groupId>")
+                .contains("<artifactId>sqlite-jdbc</artifactId>")
+                .contains("<groupId>com.github.gwenn</groupId>")
+                .contains("<artifactId>sqlite-dialect</artifactId>")
+                .contains("<version>0.1.4</version>")
+                .doesNotContain("<artifactId>hibernate-community-dialects</artifactId>");
+    }
+
+    @Test
     void overlayPlannerIncludesBuildFilePatchInPreviewButDoesNotWriteItAsNewFile(@TempDir Path output) throws Exception {
         Files.writeString(output.resolve("pom.xml"), """
                 <project>
@@ -104,16 +161,25 @@ class BuildFileDependencyPlannerTest {
 
     private static GeneratorContext context(String buildTool, String openApiStyle,
                                             boolean useLombok, boolean useMapStruct) {
+        return context(buildTool, openApiStyle, useLombok, useMapStruct,
+                "3.3.5", "17", "postgresql", "jpa");
+    }
+
+    private static GeneratorContext context(String buildTool, String openApiStyle,
+                                            boolean useLombok, boolean useMapStruct,
+                                            String springBootVersion, String javaVersion,
+                                            String dbDriver, String persistence) {
+        String exceptionStyle = springBootVersion.startsWith("2.") ? "envelope" : "problemdetail";
         return new GeneratorContext(
                 "com.example.app",
                 "app",
                 "com.example",
-                "3.3.5",
-                "17",
+                springBootVersion,
+                javaVersion,
                 useLombok,
                 null,
                 "mvc",
-                "jpa",
+                persistence,
                 "xml",
                 useMapStruct,
                 openApiStyle,
@@ -121,7 +187,7 @@ class BuildFileDependencyPlannerTest {
                 "jakarta",
                 "class",
                 "separate",
-                "problemdetail",
+                exceptionStyle,
                 UmabootConfig.AuditOptions.defaults(),
                 UmabootConfig.SoftDeleteOptions.defaults(),
                 UmabootConfig.DockerOptions.defaults(),
@@ -133,7 +199,7 @@ class BuildFileDependencyPlannerTest {
                 UmabootConfig.SecurityOptions.defaults(),
                 UmabootConfig.DddOptions.defaults(),
                 true,
-                "postgresql",
+                dbDriver,
                 null,
                 null,
                 UmabootConfig.ApplicationConfigOptions.defaults(),

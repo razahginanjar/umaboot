@@ -325,6 +325,7 @@ public record GeneratorContext(
 
     public boolean renderFlywayDatabaseModule() {
         if (flywayDatabaseModule().isEmpty()) return false;
+        if (isDbPostgres() && isSpringBoot3() && springBootMinor() < 3) return false;
         if (springBootMajor() >= 3) return true;
         return isDbMysqlFamily() || isDbSqlserver();
     }
@@ -428,6 +429,50 @@ public record GeneratorContext(
         return "org.postgresql.Driver";
     }
 
+    public String jdbcDriverDependencyGroupId() {
+        if (isDbMariadb()) return "org.mariadb.jdbc";
+        if (isDbMysql()) return usesLegacyMysqlConnectorCoordinate() ? "mysql" : "com.mysql";
+        if (isDbSqlserver()) return "com.microsoft.sqlserver";
+        if (isDbSqlite()) return "org.xerial";
+        return "org.postgresql";
+    }
+
+    public String jdbcDriverDependencyArtifactId() {
+        if (isDbMariadb()) return "mariadb-java-client";
+        if (isDbMysql()) return usesLegacyMysqlConnectorCoordinate() ? "mysql-connector-java" : "mysql-connector-j";
+        if (isDbSqlserver()) return "mssql-jdbc";
+        if (isDbSqlite()) return "sqlite-jdbc";
+        return "postgresql";
+    }
+
+    public String jdbcDriverDependencyCoordinate() {
+        return jdbcDriverDependencyGroupId() + ":" + jdbcDriverDependencyArtifactId();
+    }
+
+    public String sqliteDialectDependencyGroupId() {
+        return isSpringBoot2() ? "com.github.gwenn" : "org.hibernate.orm";
+    }
+
+    public String sqliteDialectDependencyArtifactId() {
+        return isSpringBoot2() ? "sqlite-dialect" : "hibernate-community-dialects";
+    }
+
+    public String sqliteDialectDependencyVersion() {
+        return isSpringBoot2() ? "0.1.4" : null;
+    }
+
+    public String sqliteDialectDependencyCoordinate() {
+        String coordinate = sqliteDialectDependencyGroupId() + ":" + sqliteDialectDependencyArtifactId();
+        String version = sqliteDialectDependencyVersion();
+        return version == null || version.isBlank() ? coordinate : coordinate + ":" + version;
+    }
+
+    public String sqliteHibernateDialectClass() {
+        return isSpringBoot2()
+                ? "org.sqlite.hibernate.dialect.SQLiteDialect"
+                : "org.hibernate.community.dialect.SQLiteDialect";
+    }
+
     public boolean isApplicationConfigYaml() {
         return applicationConfig != null && applicationConfig.isYaml();
     }
@@ -483,6 +528,10 @@ public record GeneratorContext(
         try { return Integer.parseInt(parts[1]); } catch (NumberFormatException ex) { return 3; }
     }
 
+    public int springBootPatch() {
+        return parseSpringBootPatch(springBootVersion);
+    }
+
     public boolean isSecurityNone() { return security != null && security.isNone(); }
     public boolean isSecurityBasic() { return security != null && security.isBasic(); }
     public boolean isSecurityJwt() { return security != null && security.isJwt(); }
@@ -519,6 +568,17 @@ public record GeneratorContext(
         String[] parts = springBootVersion.split("[.\\-]");
         if (parts.length < 2) return 0;
         try { return Integer.parseInt(parts[1]); } catch (NumberFormatException ex) { return 0; }
+    }
+
+    private static int parseSpringBootPatch(String springBootVersion) {
+        if (springBootVersion == null || springBootVersion.isEmpty()) return 0;
+        String[] parts = springBootVersion.split("[.\\-]");
+        if (parts.length < 3) return 0;
+        try { return Integer.parseInt(parts[2]); } catch (NumberFormatException ex) { return 0; }
+    }
+
+    private boolean usesLegacyMysqlConnectorCoordinate() {
+        return isSpringBoot2() && (springBootMinor() < 7 || (springBootMinor() == 7 && springBootPatch() < 5));
     }
 
     private static String defaultLombokVersion() {

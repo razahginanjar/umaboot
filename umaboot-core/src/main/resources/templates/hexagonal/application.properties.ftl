@@ -9,7 +9,7 @@ spring.jpa.hibernate.ddl-auto=validate
 spring.jpa.properties.hibernate.default_schema=${schemaName}
 </#if>
 <#if dbIsSqlite>
-spring.jpa.properties.hibernate.dialect=org.hibernate.community.dialect.SQLiteDialect
+spring.jpa.properties.hibernate.dialect=${sqliteHibernateDialectClass}
 </#if>
 spring.jpa.properties.hibernate.format_sql=true
 spring.jpa.open-in-view=false

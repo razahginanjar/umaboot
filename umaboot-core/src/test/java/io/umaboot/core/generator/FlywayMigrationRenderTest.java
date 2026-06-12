@@ -90,6 +90,20 @@ class FlywayMigrationRenderTest {
     }
 
     @Test
+    void springBoot32PostgresMaven_usesFlywayCoreOnly() {
+        List<GeneratedUnit> units = new MvcGenerator(new TemplateEngine(null),
+                ctx("maven", "postgresql", null, "3.2.6", "17"))
+                .generate(liveSchema());
+
+        String pom = readUnit(units, "pom.xml");
+        assertThat(pom)
+                .contains("<artifactId>flyway-core</artifactId>")
+                .doesNotContain("<artifactId>flyway-database-postgresql</artifactId>")
+                .doesNotContain("<artifactId>flyway-mysql</artifactId>")
+                .doesNotContain("<artifactId>flyway-sqlserver</artifactId>");
+    }
+
+    @Test
     void springBoot2Maven_rendersOnlyDatabaseModulesCompatibleWithFlyway8() {
         assertSpringBoot2MavenFlywayModule("mysql", "flyway-mysql");
         assertSpringBoot2MavenFlywayModule("mariadb", "flyway-mysql");

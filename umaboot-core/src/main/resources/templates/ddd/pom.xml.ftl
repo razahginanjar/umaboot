@@ -146,28 +146,17 @@
         </dependency>
 </#if>
         <dependency>
-<#if dbIsMariadb>
-            <groupId>org.mariadb.jdbc</groupId>
-            <artifactId>mariadb-java-client</artifactId>
-<#elseif dbIsMysql>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-<#elseif dbIsSqlserver>
-            <groupId>com.microsoft.sqlserver</groupId>
-            <artifactId>mssql-jdbc</artifactId>
-<#elseif dbIsSqlite>
-            <groupId>org.xerial</groupId>
-            <artifactId>sqlite-jdbc</artifactId>
-<#else>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-</#if>
+            <groupId>${jdbcDriverDependencyGroupId}</groupId>
+            <artifactId>${jdbcDriverDependencyArtifactId}</artifactId>
             <scope>runtime</scope>
         </dependency>
 <#if dbIsSqlite && isJpa>
         <dependency>
-            <groupId>org.hibernate.orm</groupId>
-            <artifactId>hibernate-community-dialects</artifactId>
+            <groupId>${sqliteDialectDependencyGroupId}</groupId>
+            <artifactId>${sqliteDialectDependencyArtifactId}</artifactId>
+<#if sqliteDialectDependencyVersion?? && sqliteDialectDependencyVersion?has_content>
+            <version>${sqliteDialectDependencyVersion}</version>
+</#if>
         </dependency>
 </#if>
 <#if useLombok>

@@ -316,6 +316,14 @@ public final class HexagonalGenerator implements ArchitectureGenerator {
         m.put("jdbcUsername", ctx.jdbcUsername());
         m.put("jdbcPassword", ctx.jdbcPassword());
         m.put("jdbcDriverClass", ctx.jdbcDriverClass());
+        m.put("jdbcDriverDependencyGroupId", ctx.jdbcDriverDependencyGroupId());
+        m.put("jdbcDriverDependencyArtifactId", ctx.jdbcDriverDependencyArtifactId());
+        m.put("jdbcDriverDependencyCoordinate", ctx.jdbcDriverDependencyCoordinate());
+        m.put("sqliteDialectDependencyGroupId", ctx.sqliteDialectDependencyGroupId());
+        m.put("sqliteDialectDependencyArtifactId", ctx.sqliteDialectDependencyArtifactId());
+        m.put("sqliteDialectDependencyVersion", ctx.sqliteDialectDependencyVersion());
+        m.put("sqliteDialectDependencyCoordinate", ctx.sqliteDialectDependencyCoordinate());
+        m.put("sqliteHibernateDialectClass", ctx.sqliteHibernateDialectClass());
         m.put("eeNamespace", ctx.eeNamespace());
         m.put("springBoot2", ctx.isSpringBoot2());
         m.put("springBoot3", ctx.isSpringBoot3());

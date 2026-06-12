@@ -72,19 +72,9 @@ dependencies {
 <#if isJooq>
     implementation("org.springframework.boot:spring-boot-starter-jooq")
 </#if>
-<#if dbIsMariadb>
-    runtimeOnly("org.mariadb.jdbc:mariadb-java-client")
-<#elseif dbIsMysql>
-    runtimeOnly("com.mysql:mysql-connector-j")
-<#elseif dbIsSqlserver>
-    runtimeOnly("com.microsoft.sqlserver:mssql-jdbc")
-<#elseif dbIsSqlite>
-    runtimeOnly("org.xerial:sqlite-jdbc")
-<#else>
-    runtimeOnly("org.postgresql:postgresql")
-</#if>
+    runtimeOnly("${jdbcDriverDependencyCoordinate}")
 <#if dbIsSqlite && isJpa>
-    implementation("org.hibernate.orm:hibernate-community-dialects")
+    implementation("${sqliteDialectDependencyCoordinate}")
 </#if>
 <#if useLombok>
     compileOnly("org.projectlombok:lombok<#if lombokVersion?? && lombokVersion?has_content>:${lombokVersion}</#if>")

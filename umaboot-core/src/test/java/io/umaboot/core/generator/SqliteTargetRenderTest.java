@@ -52,12 +52,36 @@ class SqliteTargetRenderTest {
     }
 
     @Test
+    void sqlite_springBoot2JpaUsesHibernate5DialectDependencyAndClass() {
+        List<GeneratedUnit> units = generate("sqlite", "jpa", false, true, "2.7.18", "1.8");
+
+        String pom = readUnit(units, "pom.xml");
+        assertThat(pom)
+                .contains("<artifactId>sqlite-jdbc</artifactId>")
+                .contains("<groupId>com.github.gwenn</groupId>")
+                .contains("<artifactId>sqlite-dialect</artifactId>")
+                .contains("<version>0.1.4</version>")
+                .doesNotContain("<artifactId>hibernate-community-dialects</artifactId>");
+
+        String yml = readUnit(units, "src/main/resources/application.yml");
+        assertThat(yml)
+                .contains("dialect: org.sqlite.hibernate.dialect.SQLiteDialect")
+                .doesNotContain("org.hibernate.community.dialect.SQLiteDialect");
+
+        String it = readUnit(units, "src/test/java/com/example/app/AbstractIntegrationTest.java");
+        assertThat(it)
+                .contains("org.sqlite.hibernate.dialect.SQLiteDialect")
+                .doesNotContain("org.hibernate.community.dialect.SQLiteDialect");
+    }
+
+    @Test
     void sqlite_pomSkipsCommunityDialectsForMyBatis() {
         // hibernate-community-dialects is JPA-only; MyBatis users don't need it.
         String pom = readUnit(generate("sqlite", "mybatis", false, false), "pom.xml");
 
         assertThat(pom).contains("<artifactId>sqlite-jdbc</artifactId>");
         assertThat(pom).doesNotContain("hibernate-community-dialects");
+        assertThat(pom).doesNotContain("sqlite-dialect");
     }
 
     @Test
@@ -203,17 +227,30 @@ class SqliteTargetRenderTest {
 
     private static List<GeneratedUnit> generate(String dbDriver, String persistence,
                                                  boolean docker, boolean tests) {
-        GeneratorContext ctx = ctx(dbDriver, persistence, docker, tests);
+        return generate(dbDriver, persistence, docker, tests, "3.3.5", "17");
+    }
+
+    private static List<GeneratedUnit> generate(String dbDriver, String persistence,
+                                                 boolean docker, boolean tests,
+                                                 String springBootVersion, String javaVersion) {
+        GeneratorContext ctx = ctx(dbDriver, persistence, docker, tests, springBootVersion, javaVersion);
         return new MvcGenerator(new TemplateEngine(null), ctx).generate(schema());
     }
 
     private static GeneratorContext ctx(String dbDriver, String persistence,
                                          boolean docker, boolean tests) {
+        return ctx(dbDriver, persistence, docker, tests, "3.3.5", "17");
+    }
+
+    private static GeneratorContext ctx(String dbDriver, String persistence,
+                                         boolean docker, boolean tests,
+                                         String springBootVersion, String javaVersion) {
+        String exceptionStyle = springBootVersion.startsWith("2.") ? "envelope" : "problemdetail";
         return new GeneratorContext(
                 "com.example.app", "app", "com.example",
-                "3.3.5", "17", true,
+                springBootVersion, javaVersion, true,
                 "mvc", persistence, "xml", false, "none", "constructor",
-                "jakarta", "class", "separate", "problemdetail",
+                "jakarta", "class", "separate", exceptionStyle,
                 UmabootConfig.AuditOptions.defaults(),
                 UmabootConfig.SoftDeleteOptions.defaults(),
                 docker ? new UmabootConfig.DockerOptions(true, "eclipse-temurin:17-jre-alpine", 8080)

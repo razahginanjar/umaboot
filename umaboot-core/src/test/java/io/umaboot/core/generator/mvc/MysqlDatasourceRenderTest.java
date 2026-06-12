@@ -53,6 +53,43 @@ class MysqlDatasourceRenderTest {
     }
 
     @Test
+    void springBoot273MysqlConnection_usesLegacyBootManagedMysqlCoordinate() {
+        UmabootConfig.Connection mysqlConn = new UmabootConfig.Connection(
+                "host", "mysql",
+                "db.example.com:3306", "useSSL=false",
+                null,
+                "orders", "",
+                "appuser", "s3cret", null);
+
+        List<GeneratedUnit> units = generateWithConnection(mysqlConn, "jpa", "2.7.3", "1.8");
+
+        String pom = readUnit(units, "pom.xml");
+        assertThat(pom)
+                .contains("<groupId>mysql</groupId>")
+                .contains("<artifactId>mysql-connector-java</artifactId>")
+                .doesNotContain("<groupId>com.mysql</groupId>")
+                .doesNotContain("<artifactId>mysql-connector-j</artifactId>");
+    }
+
+    @Test
+    void springBoot275MysqlConnection_usesRenamedMysqlCoordinate() {
+        UmabootConfig.Connection mysqlConn = new UmabootConfig.Connection(
+                "host", "mysql",
+                "db.example.com:3306", "useSSL=false",
+                null,
+                "orders", "",
+                "appuser", "s3cret", null);
+
+        List<GeneratedUnit> units = generateWithConnection(mysqlConn, "jpa", "2.7.5", "1.8");
+
+        String pom = readUnit(units, "pom.xml");
+        assertThat(pom)
+                .contains("<groupId>com.mysql</groupId>")
+                .contains("<artifactId>mysql-connector-j</artifactId>")
+                .doesNotContain("<artifactId>mysql-connector-java</artifactId>");
+    }
+
+    @Test
     void postgresConnection_keepsPostgresDriverAndDep_inMvcJpa() {
         UmabootConfig.Connection pgConn = new UmabootConfig.Connection(
                 "host", "postgresql",
@@ -102,12 +139,18 @@ class MysqlDatasourceRenderTest {
     }
 
     private static List<GeneratedUnit> generateWithConnection(UmabootConfig.Connection conn, String persistence) {
+        return generateWithConnection(conn, persistence, "3.3.5", "17");
+    }
+
+    private static List<GeneratedUnit> generateWithConnection(UmabootConfig.Connection conn, String persistence,
+                                                              String springBootVersion, String javaVersion) {
         SchemaModel schema = singleTableSchema(conn.schema().isEmpty() ? "public" : conn.schema());
+        String exceptionStyle = springBootVersion.startsWith("2.") ? "envelope" : "problemdetail";
         GeneratorContext ctx = new GeneratorContext(
                 "com.example.shop", "shop-api", "com.example",
-                "3.3.5", "17", true,
+                springBootVersion, javaVersion, true,
                 "mvc", persistence, "xml", false, "none", "constructor",
-                "jakarta", "class", "separate", "problemdetail",
+                "jakarta", "class", "separate", exceptionStyle,
                 UmabootConfig.AuditOptions.defaults(), UmabootConfig.SoftDeleteOptions.defaults(),
                 UmabootConfig.DockerOptions.defaults(), UmabootConfig.CiOptions.defaults(), UmabootConfig.LoggingOptions.defaults(),
                 UmabootConfig.TestOptions.defaults(), "offset", UmabootConfig.SecurityOptions.defaults(),

@@ -161,7 +161,8 @@ public final class BuildFileDependencyPlanner {
         add(required, driver.groupId(), driver.artifactId(), null, Role.RUNTIME,
                 "Generated application needs the selected database JDBC driver.");
         if (ctx.isDbSqlite() && ctx.isJpa()) {
-            add(required, "org.hibernate.orm", "hibernate-community-dialects", null,
+            add(required, ctx.sqliteDialectDependencyGroupId(), ctx.sqliteDialectDependencyArtifactId(),
+                    ctx.sqliteDialectDependencyVersion(),
                     Role.COMPILE, "SQLite JPA needs the community Hibernate dialects module.");
         }
 
@@ -215,19 +216,7 @@ public final class BuildFileDependencyPlanner {
     }
 
     private static DriverDependency driverDependency(GeneratorContext ctx) {
-        if (ctx.isDbMariadb()) {
-            return new DriverDependency("org.mariadb.jdbc", "mariadb-java-client");
-        }
-        if (ctx.isDbMysql()) {
-            return new DriverDependency("com.mysql", "mysql-connector-j");
-        }
-        if (ctx.isDbSqlserver()) {
-            return new DriverDependency("com.microsoft.sqlserver", "mssql-jdbc");
-        }
-        if (ctx.isDbSqlite()) {
-            return new DriverDependency("org.xerial", "sqlite-jdbc");
-        }
-        return new DriverDependency("org.postgresql", "postgresql");
+        return new DriverDependency(ctx.jdbcDriverDependencyGroupId(), ctx.jdbcDriverDependencyArtifactId());
     }
 
     private static String testcontainersModule(GeneratorContext ctx) {

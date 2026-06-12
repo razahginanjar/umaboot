@@ -16,10 +16,9 @@ spring:
         default_schema: ${schemaName}
 </#if>
 <#if dbIsSqlite>
-        # SQLite has no built-in Hibernate dialect; the community-maintained
-        # SQLiteDialect ships in hibernate-community-dialects (added to the pom
-        # automatically when dbIsSqlite + isJpa).
-        dialect: org.hibernate.community.dialect.SQLiteDialect
+        # SQLite has no built-in Hibernate dialect; Umaboot adds a compatible
+        # community dialect dependency for the selected Spring Boot line.
+        dialect: ${sqliteHibernateDialectClass}
 </#if>
         format_sql: true
     open-in-view: false

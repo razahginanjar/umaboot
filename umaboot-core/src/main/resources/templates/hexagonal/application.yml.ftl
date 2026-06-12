@@ -16,7 +16,7 @@ spring:
         default_schema: ${schemaName}
 </#if>
 <#if dbIsSqlite>
-        dialect: org.hibernate.community.dialect.SQLiteDialect
+        dialect: ${sqliteHibernateDialectClass}
 </#if>
         format_sql: true
     open-in-view: false
