@@ -1005,6 +1005,7 @@
         if (!jpaPersistence) {
             $('useMapStruct').checked = false;
         }
+        toggle($('mybatisStyleRow'), $('persistence').value === 'mybatis');
     }
 
     function setOption(selectEl, value, enabled) {
