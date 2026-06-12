@@ -2,7 +2,7 @@
   "name": "umaboot",
   "displayName": "Umaboot",
   "description": "Generate Spring Boot CRUD projects from a database schema.",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "publisher": "umaboot",
   "engines": {
     "vscode": "^1.92.0"

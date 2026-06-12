@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.umaboot"
-version = "0.7.1-SNAPSHOT"
+version = "0.7.2-SNAPSHOT"
 
 java {
     toolchain {
@@ -29,7 +29,7 @@ dependencies {
     // Real wiring: depend on the published core JAR.
     // Run `mvn install -pl umaboot-core -am` in the parent project first to
     // populate ~/.m2/repository.
-    implementation("io.umaboot:umaboot-core:0.1.0-SNAPSHOT") {
+    implementation("io.umaboot:umaboot-core:0.1.1-SNAPSHOT") {
         // The IntelliJ Platform supplies its own SLF4J — exclude ours.
         exclude(group = "org.slf4j")
         exclude(group = "ch.qos.logback")

@@ -60,7 +60,7 @@
 
 
         <!--  internal version      -->
-        <umaboot.core.version>0.1.0-SNAPSHOT</umaboot.core.version>
+        <umaboot.core.version>0.1.1-SNAPSHOT</umaboot.core.version>
         <umaboot.test.fixtures.version>0.1.0-SNAPSHOT</umaboot.test.fixtures.version>
     </properties>
 
